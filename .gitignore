@@ -219,3 +219,11 @@ __marimo__/
 
 # macOS
 .DS_Store
+
+# Node / React / Vite
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm
+.eslintcache
