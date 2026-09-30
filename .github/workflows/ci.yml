@@ -6,9 +6,40 @@ on:
       - main
 
 jobs:
+  detect-projects:
+    name: Detect Projects
+    runs-on: ubuntu-latest
+
+    outputs:
+      frontend: ${{ steps.detect.outputs.frontend }}
+      backend: ${{ steps.detect.outputs.backend }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect project setup
+        id: detect
+        shell: bash
+        run: |
+          if [ -f "frontend/package.json" ]; then
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "frontend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ -f "server/manage.py" ] && [ -f "server/requirements.txt" ]; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+
   frontend:
-    # React Checks
     name: Frontend CI
+    needs: detect-projects
+    if: needs.detect-projects.outputs.frontend == 'true'
+
     runs-on: ubuntu-latest
 
     defaults:
@@ -16,13 +47,13 @@ jobs:
         working-directory: frontend
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -33,19 +64,22 @@ jobs:
         run: npm run lint
 
       - name: Run tests
-        run: npm test --run
+        run: npm test -- --run --passWithNoTests
 
       - name: Build
         run: npm run build
 
+
   backend:
-    # Django Checks
     name: Backend CI
+    needs: detect-projects
+    if: needs.detect-projects.outputs.backend == 'true'
+
     runs-on: ubuntu-latest
 
     defaults:
       run:
-        working-directory: backend
+        working-directory: server
 
     steps:
       - name: Checkout repository
@@ -54,19 +88,30 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v10.2.0
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: server/requirements.txt
 
       - name: Install dependencies
-        run: uv sync --locked
+        run: python -m pip install -r requirements.txt
 
-      - name: Django checks
+      - name: Run Ruff
+        run: python -m ruff check .
+
+      - name: Run Django checks
         run: python manage.py check
 
       - name: Check migrations
-        run: uv run python manage.py makemigrations --check --dry-run
+        run: python manage.py makemigrations --check --dry-run
 
       - name: Run tests
-        run: python manage.py test
+        run: |
+          python -m pytest
+          status=$?
+
+          if [ "$status" -eq 5 ]; then
+            echo "No backend tests have been created yet."
+            exit 0
+          fi
+
+          exit "$status"
