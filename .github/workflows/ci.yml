@@ -35,7 +35,6 @@ jobs:
             echo "backend=false" >> "$GITHUB_OUTPUT"
           fi
 
-
   frontend:
     name: Frontend CI
     needs: detect-projects
@@ -69,7 +68,6 @@ jobs:
       - name: Build
         run: npm run build
 
-
   backend:
     name: Backend CI
     needs: detect-projects
@@ -79,6 +77,30 @@ jobs:
     defaults:
       run:
         working-directory: server/equipmanager
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: equipmanager_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DJANGO_SECRET_KEY: ci-secret-key
+      DJANGO_DEBUG: "False"
+      DB_NAME: equipmanager_test
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: localhost
+      DB_PORT: 5432
 
     steps:
       - name: Checkout repository
@@ -102,6 +124,9 @@ jobs:
 
       - name: Check migrations
         run: python manage.py makemigrations --check --dry-run
+
+      - name: Apply migrations
+        run: python manage.py migrate
 
       - name: Run tests
         shell: bash
