@@ -1,2 +1,7 @@
-# ECE-equip-manager
-a software tool to track equipment it lends from the Shop. Currently Shop technicians manually edit a set of Excel files to do this, and they would like a software tool to make the record keeping and lookup functionality more efficient for them.
+# ECE Equipment Management System
+
+The ECE Equipment Management System helps the ECE Shop manage equipment lending and related workflows.
+
+The canonical project README, including complete local setup, running, testing, and troubleshooting instructions, is in [docs/README.md](docs/README.md).
+
+See [docs/Architecture.md](docs/Architecture.md) for the system architecture and development conventions.

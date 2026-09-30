@@ -149,6 +149,8 @@ activemq-data/
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 env/
@@ -216,3 +218,14 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# macOS
+.DS_Store
+
+# Node / React / Vite
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm
+.eslintcache
