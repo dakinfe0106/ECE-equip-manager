@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  detect-projects:
+    name: Detect Projects
+    runs-on: ubuntu-latest
+
+    outputs:
+      frontend: ${{ steps.detect.outputs.frontend }}
+      backend: ${{ steps.detect.outputs.backend }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect project setup
+        id: detect
+        shell: bash
+        run: |
+          if [ -f "frontend/package.json" ] && [ -f "frontend/package-lock.json" ]; then
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "frontend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [ -f "server/equipmanager/manage.py" ] && \
+             [ -f "server/equipmanager/requirements.txt" ]; then
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  frontend:
+    name: Frontend CI
+    needs: detect-projects
+    if: needs.detect-projects.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test -- --run --passWithNoTests
+
+      - name: Build
+        run: npm run build
+
+  backend:
+    name: Backend CI
+    needs: detect-projects
+    if: needs.detect-projects.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: server/equipmanager
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: equipmanager_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DJANGO_SECRET_KEY: ci-secret-key
+      DJANGO_DEBUG: "False"
+      DB_NAME: equipmanager_test
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: localhost
+      DB_PORT: 5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: server/equipmanager/requirements.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Run Ruff
+        run: python -m ruff check .
+
+      - name: Run Django checks
+        run: python manage.py check
+
+      - name: Check migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Apply migrations
+        run: python manage.py migrate
+
+      - name: Run tests
+        shell: bash
+        run: |
+          status=0
+          python -m pytest || status=$?
+
+          if [ "$status" -eq 5 ]; then
+            echo "No backend tests have been created yet."
+            exit 0
+          fi
+
+          exit "$status"
