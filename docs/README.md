@@ -15,9 +15,11 @@ ECE-equip-manager/
 │       ├── .env.example
 │       ├── requirements.txt
 │       ├── manage.py
-│       └── equipmanager/
+│       ├── core/              # API app: models, serializers, views, urls, migrations
+│       └── equipmanager/      # Project config
 │           ├── settings.py
-│           └── urls.py
+│           ├── urls.py        # Root URLs; mounts core/urls.py under /api/
+│           └── views.py       # Health check
 ├── docs/
 │   └── Architecture.md
 ├── .gitignore
@@ -125,6 +127,8 @@ DB_USER=postgres
 DB_PASSWORD=
 DB_HOST=localhost
 DB_PORT=5432
+
+CORS_ALLOWED_ORIGINS=http://localhost:5173
 ```
 
 `.env` is ignored by Git.
@@ -321,7 +325,7 @@ The intended frontend stack includes:
 
 Vitest is configured as the frontend test runner. Tailwind CSS and React Router are intended parts of the frontend stack but are not currently declared in `frontend/package.json`.
 
-The browser frontend calls Django from a different origin. Django's CORS configuration allows `http://localhost:5173` for `/api/` URLs only. Add the deployed frontend origin explicitly before using a different host; do not enable all origins.
+The browser frontend calls Django from a different origin. Django only accepts `/api/` requests from origins listed in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env` (comma-separated, default `http://localhost:5173`). If the frontend runs on a different port or host, add that origin explicitly; do not enable all origins.
 
 ---
 
@@ -359,6 +363,27 @@ python manage.py runserver
 cd frontend
 npm run dev
 ```
+
+Open `http://localhost:5173` and click **Test Backend Connection**. It should show `{"status":"ok"}`.
+
+---
+
+# API
+
+The React frontend calls the Django API at:
+
+```text
+http://localhost:8000/api/
+```
+
+All endpoints live under `/api/` and end with a trailing slash.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/health/` | Checks that the API is reachable: `{"status": "ok"}` |
+| GET, POST | `/api/wel/` | Demo endpoint from the Django + React tutorial (`name`, `detail`) |
+
+New endpoints go in `server/equipmanager/core/urls.py`. `equipmanager/urls.py` mounts them under `/api/`.
 
 ---
 
@@ -459,6 +484,15 @@ git merge origin/main
 
 Resolve conflicts carefully and rerun relevant linting and tests.
 
+After pulling or merging `main`, from `server/equipmanager` with the virtual environment active:
+
+```bash
+python -m pip install -r requirements.txt   # pick up new packages
+python manage.py migrate                    # apply new migrations
+```
+
+Also compare `.env.example` with your `.env` and copy over any new settings.
+
 ---
 
 # Troubleshooting
@@ -490,6 +524,14 @@ Check the server with `pg_isready -h localhost`. On Windows, open Services and s
 **`ModuleNotFoundError: No module named 'django'`**
 
 Activate the backend virtual environment and install its dependencies as described in Backend Setup.
+
+**Frontend shows `blocked by CORS policy` in the browser console**
+
+The frontend's origin is not in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env`. Add it (for example `http://localhost:5173`) and restart `runserver`.
+
+**`relation "..." does not exist`**
+
+The database is missing tables. Run `python manage.py migrate`.
 
 Push:
 
