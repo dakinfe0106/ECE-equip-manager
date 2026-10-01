@@ -19,8 +19,13 @@ from django.urls import include, path
 
 from .views import health_check
 
+# Each business app owns its routes in its own urls.py; add endpoints there,
+# not here (see docs/Architecture.md, section 7).
 urlpatterns = [
     path('api/health/', health_check, name='health-check'),
     path('admin/', admin.site.urls),
-    path('api/', include('core.urls')),
+    path('api/', include('inventory.urls')),
+    path('api/', include('lending.urls')),
+    path('api/', include('maintenance.urls')),
+    path('api/', include('users.urls')),
 ]
