@@ -1,7 +1,7 @@
 """Turning messy cell values into clean Python values."""
 
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from . import spec
 
@@ -83,7 +83,7 @@ def parse_date(value, day_first: bool | None = None) -> date | None:
 
     for fmt in _UNAMBIGUOUS_FORMATS:
         try:
-            return datetime.strptime(text, fmt).date()
+            return datetime.strptime(text, fmt).replace(tzinfo=timezone.utc).date()
         except ValueError:
             pass
 

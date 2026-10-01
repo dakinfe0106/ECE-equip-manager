@@ -2,12 +2,19 @@
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timezone
 
 from . import spec
 from .issues import Issue
 from .naming import canonical_spellings, similar_pairs, types_by_category
-from .normalize import DateParseError, clean_text, map_header, name_key, parse_date, parse_status
+from .normalize import (
+    DateParseError,
+    clean_text,
+    map_header,
+    name_key,
+    parse_date,
+    parse_status,
+)
 from .reader import FileRejected, read_upload
 
 
@@ -113,7 +120,7 @@ def import_assets(
     if result.errors:
         return result
 
-    today = today or date.today()
+    today = today or datetime.now(timezone.utc).astimezone().date()
     taken_ids = {clean_text(i).casefold() for i in existing_asset_identifiers}
     borrowers = None
     if known_borrower_unb_ids is not None:

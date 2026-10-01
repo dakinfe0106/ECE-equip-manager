@@ -1,9 +1,14 @@
+from datetime import date, datetime, timezone
 from datetime import date, datetime
 
 import pytest
 
 from inventory_io.normalize import (
-    DateParseError, clean_text, map_header, parse_date, parse_status,
+    DateParseError,
+    clean_text,
+    map_header,
+    parse_date,
+    parse_status,
 )
 
 
@@ -37,7 +42,7 @@ def test_parse_status(raw, status):
 @pytest.mark.parametrize("raw, expected", [
     (None, None),
     ("", None),
-    (datetime(2024, 3, 4, 10, 30), date(2024, 3, 4)),
+    (datetime(2024, 3, 4, 10, 30, tzinfo=timezone.utc), date(2024, 3, 4)),
     (date(2024, 3, 4), date(2024, 3, 4)),
     ("2024-03-04", date(2024, 3, 4)),
     ("2024-03-04 00:00:00", date(2024, 3, 4)),

@@ -3,7 +3,12 @@ from datetime import date
 
 from openpyxl import load_workbook
 
-from inventory_io import export_assets_csv, export_assets_xlsx, export_table_xlsx, import_assets
+from inventory_io import (
+    export_assets_csv,
+    export_assets_xlsx,
+    export_table_xlsx,
+    import_assets,
+)
 from inventory_io.tests.helpers import asset, csv_bytes
 
 TODAY = date(2026, 10, 1)
