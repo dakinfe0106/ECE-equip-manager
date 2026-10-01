@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import './App.css'
+import AddEquipmentForm from './AddEquipmentForm'
 
 function App() {
   const [message, setMessage] = useState('')
@@ -24,6 +25,8 @@ function App() {
       </button>
 
       <p>Response: {message}</p>
+      <h2>Add Equipment</h2>
+      <AddEquipmentForm />
     </div>
   )
 }
