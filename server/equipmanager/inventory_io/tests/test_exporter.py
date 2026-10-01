@@ -50,7 +50,7 @@ def test_xlsx_never_writes_formulas():
 
 def test_csv_escapes_formula_like_text():
     row = {
-        "asset_id": "0001", "name": "=cmd|' /C calc'!A0", "category": "Kits",
+        "asset_identifier": "0001", "name": "=cmd|' /C calc'!A0", "category": "Kits",
         "type": "Basic Kit", "acquisition_date": date(2022, 9, 1), "status": "Available",
     }
     text = export_assets_csv([row])
@@ -60,5 +60,5 @@ def test_csv_escapes_formula_like_text():
 
 
 def test_export_accepts_plain_dicts():
-    text = export_assets_csv([{"asset_id": "0009", "name": "Kit"}])
+    text = export_assets_csv([{"asset_identifier": "0009", "name": "Kit"}])
     assert text.splitlines()[1].startswith("0009,Kit,")

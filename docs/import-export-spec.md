@@ -34,17 +34,22 @@ Export gives them spreadsheets they can keep using for work the EMS does not cov
 
 ## 4. Columns
 
-| Field | Export header | Required | Accepted values |
-|---|---|---|---|
-| asset_id | Asset ID | yes | Text, unique in the file (case-insensitive) |
-| name | Name | yes | Text |
-| category | Category | yes | Text; merged with existing names (see 6) |
-| type | Type | yes | Text; merged with existing names (see 6) |
-| acquisition_date | Acquisition Date | yes | Date, not in the future |
-| status | Status | yes | Available, On_Loan, Under_Maintenance, Retired |
-| borrower_id | Borrower ID | if On_Loan | Text |
-| checkout_date | Checkout Date | if On_Loan | Date, not before acquisition, not in the future |
-| expected_return_date | Expected Return Date | if On_Loan | Date, not before checkout |
+| Field | Export header | Saved to | Required | Accepted values |
+|---|---|---|---|---|
+| asset_identifier | Asset ID | Asset.asset_identifier | yes | Text, unique in the file and not already in the system |
+| name | Name | Asset.name | yes | Text |
+| category | Category | Category.name | yes | Text; merged with existing names (see 6) |
+| type | Type | EquipmentType.name | yes | Text; merged with existing types in the same category (see 6) |
+| acquisition_date | Acquisition Date | Asset.acquisition_date | yes | Date, not in the future |
+| status | Status | Asset.status | yes | Available, On_Loan, Under_Maintenance, Retired |
+| borrower_unb_id | Borrower UNB ID | Loan.borrower_id (looked up by Borrower.unb_id) | if On_Loan | Must be on the borrower list |
+| checkout_date | Checkout Date | Loan.checkout_date | if On_Loan | Date, not before acquisition, not in the future |
+| expected_return_date | Expected Return Date | Loan.expected_return_date | if On_Loan | Date, not before checkout |
+
+Each On_Loan row creates one open Loan (actual_return_date and
+return_condition empty). Borrowers must be imported before inventory.
+**OPEN**: should importing an Under_Maintenance asset also create a
+MaintenanceRecord, and with which technician?
 
 Alternative header wordings ("Asset #", "Equipment Type", "Due Date"...) are
 accepted; the list is in `HEADER_ALIASES`. **OPEN**: replace the guessed
@@ -53,8 +58,8 @@ aliases with the headers from the real spreadsheet.
 Status spellings such as "on loan", "ON-LOAN" and "maintenance" are accepted.
 **OPEN**: what words do technicians actually type?
 
-Not imported yet: certification requirements, lending history, maintenance
-records. **OPEN**: are these in the spreadsheet in any form?
+Not imported yet: certification requirements (TypeCertification),
+lending history, maintenance records. **OPEN**: are these in the spreadsheet in any form?
 
 ## 5. Dates
 
@@ -71,6 +76,12 @@ ambiguous unless one part is over 12 or the importer is told the order.
 - Missing required columns or an unreadable file stop the import.
 - Category/type names differing only by case or spacing are merged; the
   existing database spelling wins, otherwise the most common spelling in the file.
+  Types are compared only within their category, since each EquipmentType
+  belongs to one Category. The same type name in two categories is warned about.
+- Matching uses only rows where is_deleted is false. **OPEN**: if an import
+  names a soft-deleted category or type, restore it or create a new one?
+- Re-importing an Asset ID already in the system is an error (import adds
+  assets; it does not update them). **OPEN**: do technicians need bulk update?
 - Names similar enough to be a typo (similarity >= 0.8) produce a warning; a
   technician decides whether to merge.
 - Overdue loans are valid data, not errors.

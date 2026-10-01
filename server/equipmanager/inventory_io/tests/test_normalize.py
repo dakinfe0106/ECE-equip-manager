@@ -8,11 +8,12 @@ from inventory_io.normalize import (
 
 
 @pytest.mark.parametrize("header, field", [
-    ("Asset ID", "asset_id"),
-    ("  asset_id ", "asset_id"),
-    ("Asset #", "asset_id"),
+    ("Asset ID", "asset_identifier"),
+    ("  asset_identifier ", "asset_identifier"),
+    ("Asset #", "asset_identifier"),
     ("EQUIPMENT TYPE", "type"),
-    ("Student/Employee Id", "borrower_id"),
+    ("Student/Employee Id", "borrower_unb_id"),
+    ("UNB ID", "borrower_unb_id"),
     ("Due-Date", "expected_return_date"),
     ("Colour", None),
 ])

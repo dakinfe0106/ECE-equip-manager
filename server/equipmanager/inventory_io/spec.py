@@ -7,34 +7,38 @@ Shop spreadsheet and with the technicians; see docs/import-export-spec.md.
 """
 
 # Canonical field name -> header written on export.
+# Field names follow the data model: Asset.asset_identifier is the Shop's own
+# ID (Asset.asset_id is the database key and never appears in a spreadsheet),
+# and a borrower is identified by Borrower.unb_id.
 EXPORT_HEADERS = {
-    "asset_id": "Asset ID",
+    "asset_identifier": "Asset ID",
     "name": "Name",
     "category": "Category",
     "type": "Type",
     "acquisition_date": "Acquisition Date",
     "status": "Status",
-    "borrower_id": "Borrower ID",
+    "borrower_unb_id": "Borrower UNB ID",
     "checkout_date": "Checkout Date",
     "expected_return_date": "Expected Return Date",
 }
 
 FIELDS = tuple(EXPORT_HEADERS)
 
-REQUIRED_FIELDS = ("asset_id", "name", "category", "type", "acquisition_date", "status")
-LOAN_FIELDS = ("borrower_id", "checkout_date", "expected_return_date")
+REQUIRED_FIELDS = ("asset_identifier", "name", "category", "type", "acquisition_date", "status")
+LOAN_FIELDS = ("borrower_unb_id", "checkout_date", "expected_return_date")
 DATE_FIELDS = ("acquisition_date", "checkout_date", "expected_return_date")
 
 # Normalized header text -> canonical field. Headers are normalized by
 # lowercasing and collapsing spaces, underscores, hyphens and "#".
 # ASSUMPTION: aliases are guesses until we see the real spreadsheet.
 HEADER_ALIASES = {
-    "asset id": "asset_id",
-    "asset": "asset_id",
-    "asset no": "asset_id",
-    "asset number": "asset_id",
-    "id": "asset_id",
-    "unique identifier": "asset_id",
+    "asset id": "asset_identifier",
+    "asset": "asset_identifier",
+    "asset no": "asset_identifier",
+    "asset number": "asset_identifier",
+    "id": "asset_identifier",
+    "unique identifier": "asset_identifier",
+    "asset identifier": "asset_identifier",
     "name": "name",
     "asset name": "name",
     "description": "name",
@@ -48,10 +52,12 @@ HEADER_ALIASES = {
     "date acquired": "acquisition_date",
     "status": "status",
     "current status": "status",
-    "borrower id": "borrower_id",
-    "borrower": "borrower_id",
-    "student id": "borrower_id",
-    "student/employee id": "borrower_id",
+    "borrower id": "borrower_unb_id",
+    "borrower": "borrower_unb_id",
+    "student id": "borrower_unb_id",
+    "student/employee id": "borrower_unb_id",
+    "borrower unb id": "borrower_unb_id",
+    "unb id": "borrower_unb_id",
     "checkout date": "checkout_date",
     "checked out": "checkout_date",
     "date out": "checkout_date",
@@ -68,6 +74,7 @@ RETIRED = "Retired"
 STATUSES = (AVAILABLE, ON_LOAN, UNDER_MAINTENANCE, RETIRED)
 
 # Normalized status text -> canonical status.
+# These are the values stored in Asset.status.
 STATUS_ALIASES = {
     "available": AVAILABLE,
     "in": AVAILABLE,

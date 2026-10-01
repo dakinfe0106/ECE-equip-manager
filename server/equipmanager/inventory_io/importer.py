@@ -1,12 +1,13 @@
 """Validating raw spreadsheet rows against the EMS rules."""
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
 
 from . import spec
 from .issues import Issue
-from .naming import canonical_spellings, similar_pairs
-from .normalize import DateParseError, clean_text, map_header, parse_date, parse_status
+from .naming import canonical_spellings, similar_pairs, types_by_category
+from .normalize import DateParseError, clean_text, map_header, name_key, parse_date, parse_status
 from .reader import FileRejected, read_upload
 
 
@@ -15,18 +16,38 @@ class AssetRow:
     """One asset that passed validation, ready to be saved."""
 
     row: int
-    asset_id: str
+    asset_identifier: str
     name: str
     category: str
     type: str
     acquisition_date: date
     status: str
-    borrower_id: str | None = None
+    borrower_unb_id: str | None = None
     checkout_date: date | None = None
     expected_return_date: date | None = None
 
     def as_dict(self) -> dict:
         return {name: getattr(self, name) for name in spec.FIELDS}
+
+    def asset_fields(self) -> dict:
+        """Values for the Asset table (category/type are resolved to type_id when saving)."""
+        return {
+            "asset_identifier": self.asset_identifier,
+            "name": self.name,
+            "acquisition_date": self.acquisition_date,
+            "status": self.status,
+        }
+
+    def loan_fields(self) -> dict | None:
+        """Values for an open Loan (borrower resolved via Borrower.unb_id), or None."""
+        if self.status != spec.ON_LOAN:
+            return None
+        return {
+            "borrower_unb_id": self.borrower_unb_id,
+            "checkout_date": self.checkout_date,
+            "expected_return_date": self.expected_return_date,
+            "actual_return_date": None,
+        }
 
 
 @dataclass
@@ -36,6 +57,9 @@ class ImportResult:
     rows: list = field(default_factory=list)
     issues: list = field(default_factory=list)
     rows_read: int = 0
+    # Category and EquipmentType rows this import would create.
+    new_categories: list = field(default_factory=list)
+    new_types: list = field(default_factory=list)  # (category name, type name)
 
     @property
     def errors(self) -> list:
@@ -57,6 +81,8 @@ def import_assets(
     *,
     existing_categories=(),
     existing_types=(),
+    existing_asset_identifiers=(),
+    known_borrower_unb_ids=None,
     day_first: bool | None = None,
     sheet_name: str | None = None,
     today: date | None = None,
@@ -64,8 +90,16 @@ def import_assets(
     """Read and validate an inventory file without touching the database.
 
     ``file`` is bytes or a file-like object (e.g. Django's UploadedFile).
-    Pass the category/type names already in the database so near-duplicates
-    of them are caught.
+    Context from the database (all optional; pass only rows where
+    is_deleted is False):
+
+    - ``existing_categories``: Category names.
+    - ``existing_types``: (category name, type name) pairs for EquipmentType.
+    - ``existing_asset_identifiers``: Asset.asset_identifier values; a row
+      reusing one is an error.
+    - ``known_borrower_unb_ids``: Borrower.unb_id values. When given, an
+      On_Loan row whose borrower is not on the list is an error, because the
+      Loan needs a Borrower to point at. When None, borrowers are not checked.
     """
     data = file if isinstance(file, (bytes, bytearray)) else file.read()
     result = ImportResult()
@@ -80,6 +114,10 @@ def import_assets(
         return result
 
     today = today or date.today()
+    taken_ids = {clean_text(i).casefold() for i in existing_asset_identifiers}
+    borrowers = None
+    if known_borrower_unb_ids is not None:
+        borrowers = {clean_text(b).casefold() for b in known_borrower_unb_ids}
     seen_ids = {}
     for number, values in sheet.rows:
         result.rows_read += 1
@@ -87,18 +125,32 @@ def import_assets(
         asset = _validate_row(number, cells, result, day_first, today)
         if asset is None:
             continue
-        id_key = asset.asset_id.casefold()
+        id_key = asset.asset_identifier.casefold()
         if id_key in seen_ids:
             result.issues.append(Issue(
-                f"Asset ID '{asset.asset_id}' already appears on row {seen_ids[id_key]}.",
+                f"Asset ID '{asset.asset_identifier}' already appears on row {seen_ids[id_key]}.",
                 number, "Asset ID",
+            ))
+            continue
+        if id_key in taken_ids:
+            # ASSUMPTION: import only adds assets; updating existing ones is a separate story.
+            result.issues.append(Issue(
+                f"Asset ID '{asset.asset_identifier}' is already in the system.", number, "Asset ID",
+            ))
+            continue
+        if borrowers is not None and asset.borrower_unb_id and asset.borrower_unb_id.casefold() not in borrowers:
+            result.issues.append(Issue(
+                f"Borrower '{asset.borrower_unb_id}' is not on the borrower list; add them before importing.",
+                number, "Borrower UNB ID",
             ))
             continue
         seen_ids[id_key] = number
         result.rows.append(asset)
 
-    _unify_names(result, "category", "Category", existing_categories)
-    _unify_names(result, "type", "Type", existing_types)
+    _unify_categories(result, existing_categories)
+    _unify_types(result, existing_types)
+    if result.errors:
+        result.new_categories, result.new_types = [], []
     return result
 
 
@@ -154,7 +206,7 @@ def _validate_row(number, cells, result, day_first, today) -> AssetRow | None:
     if acquired and acquired > today:
         error("Acquisition date is in the future.", "acquisition_date")
 
-    loan = {"borrower_id": text["borrower_id"] or None, **{f: dates[f] for f in ("checkout_date", "expected_return_date")}}
+    loan = {"borrower_unb_id": text["borrower_unb_id"] or None, **{f: dates[f] for f in ("checkout_date", "expected_return_date")}}
     if status == spec.ON_LOAN:
         for fld in spec.LOAN_FIELDS:
             if loan[fld] is None and fld not in _errored_fields(result, number):
@@ -177,7 +229,7 @@ def _validate_row(number, cells, result, day_first, today) -> AssetRow | None:
         return None
     return AssetRow(
         row=number,
-        asset_id=text["asset_id"],
+        asset_identifier=text["asset_identifier"],
         name=text["name"],
         category=text["category"],
         type=text["type"],
@@ -192,18 +244,60 @@ def _errored_fields(result, number) -> set:
     return {names[i.column] for i in result.errors if i.row == number and i.column in names}
 
 
-def _unify_names(result: ImportResult, fld: str, label: str, existing) -> None:
-    names = [getattr(asset, fld) for asset in result.rows]
-    spellings = canonical_spellings(names, existing)
-    for asset in result.rows:
-        chosen = spellings[clean_text(getattr(asset, fld)).casefold()]
-        if getattr(asset, fld) != chosen:
-            result.issues.append(Issue(
-                f"'{getattr(asset, fld)}' will be recorded as '{chosen}'.", asset.row, label, "warning",
-            ))
-            setattr(asset, fld, chosen)
-    in_file = {getattr(asset, fld) for asset in result.rows}
-    for new_name, similar in similar_pairs(in_file, existing):
+def _respell(result, asset, fld, label, chosen):
+    if getattr(asset, fld) != chosen:
         result.issues.append(Issue(
-            f"New {fld} '{new_name}' looks like '{similar}'. Is it a typo?", None, label, "warning",
+            f"'{getattr(asset, fld)}' will be recorded as '{chosen}'.", asset.row, label, "warning",
         ))
+        setattr(asset, fld, chosen)
+
+
+def _flag_typos(result, kind, names, existing, scope=""):
+    for new_name, similar in similar_pairs(names, existing):
+        result.issues.append(Issue(
+            f"New {kind} '{new_name}'{scope} looks like '{similar}'. Is it a typo?", None, kind.title(), "warning",
+        ))
+
+
+def _unify_categories(result: ImportResult, existing) -> None:
+    spellings = canonical_spellings([a.category for a in result.rows], existing)
+    for asset in result.rows:
+        _respell(result, asset, "category", "Category", spellings[name_key(asset.category)])
+    in_file = {a.category for a in result.rows}
+    _flag_typos(result, "category", in_file, existing)
+    existing_keys = {name_key(n) for n in existing}
+    result.new_categories = sorted(n for n in in_file if name_key(n) not in existing_keys)
+
+
+def _unify_types(result: ImportResult, existing_pairs) -> None:
+    """Types are unified within their category (EquipmentType.category_id)."""
+    existing = types_by_category(existing_pairs)
+    by_category = defaultdict(list)
+    for asset in result.rows:
+        by_category[name_key(asset.category)].append(asset)
+
+    new_types = []
+    for category_key, assets in by_category.items():
+        known = existing.get(category_key, [])
+        spellings = canonical_spellings([a.type for a in assets], known)
+        for asset in assets:
+            _respell(result, asset, "type", "Type", spellings[name_key(asset.type)])
+        in_file = {a.type for a in assets}
+        category = assets[0].category
+        _flag_typos(result, "type", in_file, known, f" in {category}")
+        known_keys = {name_key(n) for n in known}
+        new_types += [(category, n) for n in in_file if name_key(n) not in known_keys]
+    result.new_types = sorted(new_types)
+
+    categories_of = defaultdict(set)
+    for category, type_name in [*result.new_types, *existing_pairs]:
+        categories_of[name_key(type_name)].add(category)
+    warned = set()
+    for category, type_name in result.new_types:
+        others = sorted(categories_of[name_key(type_name)] - {category})
+        if others and name_key(type_name) not in warned:
+            warned.add(name_key(type_name))
+            result.issues.append(Issue(
+                f"Type '{type_name}' is in {category} here but also in {', '.join(others)}; "
+                "these would be separate types.", None, "Type", "warning",
+            ))

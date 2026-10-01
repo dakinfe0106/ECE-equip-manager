@@ -78,10 +78,16 @@ def _asset_values(assets):
 
 
 def export_assets_xlsx(assets) -> bytes:
-    """Export AssetRow objects (or dicts with the same keys) to .xlsx bytes."""
+    """Export AssetRow objects, or dicts keyed by spec.FIELDS, to .xlsx bytes.
+
+    From the database each dict is one Asset joined to its EquipmentType and
+    Category names and, if the asset is On_Loan, its open Loan (the one with
+    no actual_return_date) and that Borrower's unb_id. Leave out assets
+    whose is_deleted is True.
+    """
     return export_table_xlsx(list(spec.EXPORT_HEADERS.values()), _asset_values(assets), "Inventory")
 
 
 def export_assets_csv(assets) -> str:
-    """Export AssetRow objects (or dicts with the same keys) to CSV text."""
+    """Export assets to CSV text; see export_assets_xlsx for the row format."""
     return export_table_csv(list(spec.EXPORT_HEADERS.values()), _asset_values(assets))

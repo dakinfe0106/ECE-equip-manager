@@ -9,9 +9,16 @@ survives whatever data model the team settles on.
 Typical use:
 
     from inventory_io import import_assets
-    result = import_assets(uploaded_file, filename="inventory.xlsx")
+    result = import_assets(
+        uploaded_file, filename="inventory.xlsx",
+        existing_categories=[...], existing_types=[(category, type), ...],
+        existing_asset_identifiers=[...], known_borrower_unb_ids=[...],
+    )
     if result.ok:
-        ...  # show preview, then save result.rows in one transaction
+        # Show the preview, then in one transaction create
+        # result.new_categories, result.new_types, an Asset per row
+        # (row.asset_fields()) and a Loan per row.loan_fields() that is not None.
+        ...
 """
 
 from .exporter import export_assets_csv, export_assets_xlsx, export_table_xlsx

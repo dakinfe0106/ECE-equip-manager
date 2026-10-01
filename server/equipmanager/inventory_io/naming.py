@@ -1,4 +1,9 @@
-"""Spotting inconsistent category/type names before they become duplicates."""
+"""Spotting inconsistent category/type names before they become duplicates.
+
+In the data model an EquipmentType belongs to one Category, so type names are
+compared within their category: "Laptop" under "Computer Equipment" and
+"Laptop" under "Test Equipment" would be two different EquipmentType rows.
+"""
 
 from collections import Counter, defaultdict
 from difflib import SequenceMatcher
@@ -48,3 +53,11 @@ def similar_pairs(names, existing=(), threshold=spec.SIMILAR_NAME_THRESHOLD):
                 seen.add(pair)
                 pairs.append((file_keys[key], candidates[other_key]))
     return pairs
+
+
+def types_by_category(pairs):
+    """Group (category, type) pairs into {category key: [type names]}."""
+    grouped = defaultdict(list)
+    for category, type_name in pairs:
+        grouped[name_key(category)].append(type_name)
+    return grouped
