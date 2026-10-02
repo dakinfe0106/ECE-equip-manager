@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import './App.css'
+import EquipmentStatus from './EquipmentStatus'
 
 function App() {
   const [message, setMessage] = useState('')
@@ -15,9 +16,14 @@ function App() {
     }
   }
 
-   return (
+  return (
     <div>
       <h1>Frontend is Running!</h1>
+
+      <EquipmentStatus
+        equipmentName="Dell Optiplex 7090"
+        status="Available"
+      />
 
       <button onClick={fetchHealthCheck}>
         Test Backend Connection

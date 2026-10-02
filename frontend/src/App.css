@@ -182,3 +182,18 @@
     border-right-color: var(--border);
   }
 }
+.equipment-status {
+  margin: 24px auto;
+  padding: 16px 24px;
+  max-width: 400px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+}
+
+.equipment-status h2 {
+  margin-top: 0;
+}
+
+.equipment-status p {
+  margin-bottom: 0;
+}
