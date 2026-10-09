@@ -1,30 +1,29 @@
 import { useState } from 'react'
+import { fetchHealthCheck } from './api'
 import './App.css'
 
 function App() {
   const [message, setMessage] = useState('')
 
-  const fetchHealthCheck = async () => {
+  const checkConnection = async () => {
     try {
-      // Coordinate with your backend lead on the exact URL they are building
-      const response = await fetch('http://localhost:8000/api/health/')
-      const data = await response.json()
+      const data = await fetchHealthCheck()
       setMessage(JSON.stringify(data))
     } catch (error) {
       setMessage('Error connecting to backend: ' + error)
     }
   }
 
-   return (
-    <div>
+  return (
+    <main className="flex flex-col items-center gap-4 p-6">
       <h1>Frontend is Running!</h1>
 
-      <button onClick={fetchHealthCheck}>
+      <button className="cursor-pointer rounded border px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-2" onClick={checkConnection}>
         Test Backend Connection
       </button>
 
-      <p>Response: {message}</p>
-    </div>
+      <p role="status">Response: {message}</p>
+    </main>
   )
 }
 
