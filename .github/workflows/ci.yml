@@ -6,39 +6,8 @@ on:
       - main
 
 jobs:
-  detect-projects:
-    name: Detect Projects
-    runs-on: ubuntu-latest
-
-    outputs:
-      frontend: ${{ steps.detect.outputs.frontend }}
-      backend: ${{ steps.detect.outputs.backend }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Detect project setup
-        id: detect
-        shell: bash
-        run: |
-          if [ -f "frontend/package.json" ] && [ -f "frontend/package-lock.json" ]; then
-            echo "frontend=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "frontend=false" >> "$GITHUB_OUTPUT"
-          fi
-
-          if [ -f "server/equipmanager/manage.py" ] && \
-             [ -f "server/equipmanager/requirements.txt" ]; then
-            echo "backend=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "backend=false" >> "$GITHUB_OUTPUT"
-          fi
-
   frontend:
     name: Frontend CI
-    needs: detect-projects
-    if: needs.detect-projects.outputs.frontend == 'true'
     runs-on: ubuntu-latest
 
     defaults:
@@ -63,15 +32,13 @@ jobs:
         run: npm run lint
 
       - name: Run tests
-        run: npm test -- --run --passWithNoTests
+        run: npm test -- --run
 
       - name: Build
         run: npm run build
 
   backend:
     name: Backend CI
-    needs: detect-projects
-    if: needs.detect-projects.outputs.backend == 'true'
     runs-on: ubuntu-latest
 
     defaults:
@@ -129,14 +96,4 @@ jobs:
         run: python manage.py migrate
 
       - name: Run tests
-        shell: bash
-        run: |
-          status=0
-          python -m pytest || status=$?
-
-          if [ "$status" -eq 5 ]; then
-            echo "No backend tests have been created yet."
-            exit 0
-          fi
-
-          exit "$status"
+        run: python -m pytest
