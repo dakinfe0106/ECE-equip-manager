@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from django.db import models
 
 
@@ -24,13 +26,13 @@ class EquipmentType(models.Model):
     deleted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        constraints = [
+        constraints: ClassVar = [
             models.UniqueConstraint(
                 fields=["category", "name"],
                 name="unique_equipment_type_per_category",
             )
         ]
-        ordering = ["name"]
+        ordering: ClassVar = ["name"]
 
     def __str__(self):
         return self.name

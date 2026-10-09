@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from rest_framework import serializers
 
 from .models import Category, EquipmentType
@@ -6,7 +8,7 @@ from .models import Category, EquipmentType
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ["id", "name"]
+        fields: ClassVar = ["id", "name"]
 
 
 class EquipmentTypeSerializer(serializers.ModelSerializer):
@@ -14,4 +16,4 @@ class EquipmentTypeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EquipmentType
-        fields = ["id", "name", "description", "category"]
+        fields: ClassVar = ["id", "name", "description", "category"]
