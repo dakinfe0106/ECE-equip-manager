@@ -95,6 +95,9 @@ Create local `.env` files from `frontend/.env.example` and `server/equipmanager/
 
 ## Database changes and dependencies
 
+- Before changing Django models, migrations, database queries, API endpoints that access the database, or database-related business logic, read [docs/database.md](docs/database.md). Treat it as the guide to the application's entities, relationships, constraints, and business rules.
+- Keep database changes consistent with the documented schema. Do not add or alter fields, tables, relationships, constraints, or business rules in ways that conflict with the document without explicit developer approval. If requirements are unclear or the implementation and document disagree, surface the discrepancy for review rather than silently choosing an interpretation.
+- For every approved schema or database-rule change, update `docs/database.md` in the same change as the Django models, migrations, and relevant tests. Review the documentation and migration together so they describe the same intended behavior; Django models and committed migrations remain authoritative for what is actually implemented.
 - Generate and commit Django migrations with model changes. Review generated operations and consider existing records when adding required fields or constraints.
 - Apply migrations only to an appropriate local database during development. Never reset a database or delete data merely to bypass a migration failure.
 - Treat migrations merged into `main` as shared history. Do not rewrite or delete them casually; resolve conflicts deliberately.
