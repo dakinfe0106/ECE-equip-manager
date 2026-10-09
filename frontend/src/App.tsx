@@ -1,30 +1,13 @@
-import { useState } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import './App.css'
+import EquipmentTypes from './pages/EquipmentTypes'
 
 function App() {
-  const [message, setMessage] = useState('')
-
-  const fetchHealthCheck = async () => {
-    try {
-      // Coordinate with your backend lead on the exact URL they are building
-      const response = await fetch('http://localhost:8000/api/health/')
-      const data = await response.json()
-      setMessage(JSON.stringify(data))
-    } catch (error) {
-      setMessage('Error connecting to backend: ' + error)
-    }
-  }
-
-   return (
-    <div>
-      <h1>Frontend is Running!</h1>
-
-      <button onClick={fetchHealthCheck}>
-        Test Backend Connection
-      </button>
-
-      <p>Response: {message}</p>
-    </div>
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/equipment-types" replace />} />
+      <Route path="/equipment-types" element={<EquipmentTypes />} />
+    </Routes>
   )
 }
 
