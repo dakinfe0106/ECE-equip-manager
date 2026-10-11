@@ -108,7 +108,7 @@ Asset ID search trims surrounding whitespace and matches identifiers by case-ins
 | ---------------- | ----------- | -------- | ----------------------------------------------- |
 | maintenance_id   | int         | No       | PK                                              |
 | asset_id         | int         | No       | FK → Asset.asset_id (`PROTECT`)                 |
-| technician_id    | int         | No       | FK → SystemUser.user_id (`PROTECT`)             |
+| technician_id    | int         | No       | FK → `settings.AUTH_USER_MODEL` (`PROTECT`)     |
 | maintenance_type | varchar(30) | No       | Choices below                                   |
 | priority         | varchar(10) | No       | Choices below                                   |
 | start_date       | date        | No       | Required                                        |
@@ -119,17 +119,25 @@ Asset ID search trims surrounding whitespace and matches identifiers by case-ins
 
 **Constraint:** One active maintenance record per asset; partial unique constraint on `asset_id` where `end_date IS NULL`.
 
-### SystemUser
+### SystemUser (logical entity implemented by `users.User`)
 
-| Column     | Type         | Nullable | Constraints/default                      |
-| ---------- | ------------ | -------- | ---------------------------------------- |
-| user_id    | int          | No       | PK                                       |
-| name       | varchar(255) | No       | Required                                 |
-| unb_id     | varchar(100) | No       | Unique within SystemUser                 |
-| role       | varchar(20)  | No       | `TECHNICIAN`, `FACULTY`, `ADMINISTRATOR` |
-| is_deleted | boolean      | No       | Default `False`                          |
+| Logical attribute | Django implementation     | Constraints/default                                  |
+| ----------------- | ------------------------- | ---------------------------------------------------- |
+| user_id           | `users.User.id`           | Primary key                                          |
+| name              | `first_name`, `last_name` | Required user identity                               |
+| unb_id            | `users.User.unb_id`       | Required and unique                                  |
+| role              | `users.User.role`         | Required; `TECHNICIAN`, `FACULTY`, `ADMINISTRATOR`   |
+| is_deleted        | `users.User.is_deleted`   | Boolean, default `False`; planned addition          |
 
-`Borrower.unb_id` and `SystemUser.unb_id` are **independently** unique; the same person may appear in both tables. User authentication and permission enforcement should use Django's authentication/authorization facilities; these role labels alone do not grant access.
+`SystemUser` is the logical entity defined in the original ERD and will be implemented through the existing custom Django authentication model, `users.User`, which inherits from `AbstractUser`.
+
+The EMS-specific fields `unb_id`, `role`, and `is_deleted` are planned additions. Both `unb_id` and `role` must be required (non-nullable), consistent with the original ERD. `unb_id` must also be unique, and `is_deleted` must default to `False`.
+
+The logical `name` attribute will be represented using Django's inherited `first_name` and `last_name` fields.
+
+`MaintenanceRecord.technician` must reference `settings.AUTH_USER_MODEL`. Django handles authentication, while EMS-specific role-based authorization must be enforced separately.
+
+`Borrower.unb_id` and `users.User.unb_id` are **independently** unique; the same person may appear in both.
 
 ## 3. Relationships
 
@@ -138,7 +146,7 @@ Asset ID search trims surrounding whitespace and matches identifiers by case-ins
 - EquipmentType **many ↔ many** Certification through TypeCertification.
 - Borrower **many ↔ many** Certification through BorrowerCertification.
 - Asset **1 → many** Loan; Borrower **1 → many** Loan.
-- Asset **1 → many** MaintenanceRecord; SystemUser **1 → many** MaintenanceRecord (as technician).
+- Asset **1 → many** MaintenanceRecord; logical SystemUser (`users.User`) **1 → many** MaintenanceRecord (as technician).
 
 ## 4. Operating rules
 
