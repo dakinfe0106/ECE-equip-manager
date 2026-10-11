@@ -3,6 +3,7 @@ import AssetPagination from '../features/assets/components/AssetPagination'
 import AssetSearchToolbar from '../features/assets/components/AssetSearchToolbar'
 import AssetTable from '../features/assets/components/AssetTable'
 import AddAssetAction from '../features/assets/components/AddAssetAction'
+import AssetDetails from '../features/assets/components/AssetDetails'
 import useAssets from '../features/assets/hooks/useAssets'
 
 export default function AssetsPage() {
@@ -19,6 +20,7 @@ export default function AssetsPage() {
     pageSize,
     totalCount,
   } = useAssets()
+  const selectedAsset = assets.find((asset) => asset.asset_id === selectedAssetId)
 
   const loadPage = (page: number, search = appliedSearch) => {
     setSelectedAssetId(null)
@@ -84,6 +86,14 @@ export default function AssetsPage() {
           totalCount={totalCount}
         />
       </section>
+
+      {selectedAsset && (
+        <AssetDetails
+          key={selectedAsset.asset_id}
+          asset={selectedAsset}
+          onClose={() => setSelectedAssetId(null)}
+        />
+      )}
     </section>
   )
 }
