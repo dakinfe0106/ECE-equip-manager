@@ -35,6 +35,14 @@ export default function useAssets() {
     }
   }, [])
 
+  const replaceAsset = useCallback((updatedAsset: AssetRecord) => {
+    setAssets((currentAssets) =>
+      currentAssets.map((asset) =>
+        asset.asset_id === updatedAsset.asset_id ? updatedAsset : asset,
+      ),
+    )
+  }, [])
+
   useEffect(() => {
     let isCurrent = true
     fetchAssets()
@@ -68,6 +76,7 @@ export default function useAssets() {
     loadAssets,
     pageCount: Math.max(1, Math.ceil(totalCount / pageSize)),
     pageSize,
+    replaceAsset,
     totalCount,
   }
 }
