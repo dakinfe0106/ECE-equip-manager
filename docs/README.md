@@ -287,6 +287,8 @@ python manage.py makemigrations --check --dry-run
 
 Once a migration has been merged into `main`, do not casually delete or rewrite it.
 
+Apply committed migrations to your local database after pulling changes. The deployment owner applies them to the shared database during deployment; merging into `main` does not apply migrations automatically.
+
 ---
 
 # Run the Backend
@@ -360,7 +362,7 @@ By default, Vite normally serves the frontend at:
 http://localhost:5173
 ```
 
-The intended frontend stack includes:
+The configured frontend stack includes:
 
 - React
 - TypeScript
@@ -370,9 +372,13 @@ The intended frontend stack includes:
 - ESLint
 - Vitest
 
-Vitest is configured as the frontend test runner. Tailwind CSS and React Router are intended parts of the frontend stack but are not currently declared in `frontend/package.json`.
+Vitest is configured as the frontend test runner. Tailwind CSS is configured in `vite.config.ts` and imported in `src/index.css`; existing global CSS is in its base layer. React Router uses `BrowserRouter` with routes defined in `src/AppRoutes.tsx`. The root route shows the health-check page, and unknown paths show a fallback. Business pages are not implemented yet.
 
-The browser frontend calls Django from a different origin. Django only accepts `/api/` requests from origins listed in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env` (comma-separated, default `http://localhost:5173`). If the frontend runs on a different port or host, add that origin explicitly; do not enable all origins.
+After pulling tooling changes, run `npm ci` from `frontend/`. No separate Tailwind or Router setup is needed per developer. Use Tailwind classes for component styling and React Router links for internal navigation. When deploying the frontend, configure the host to serve `index.html` for client-side routes while keeping `/api/` requests routed to Django.
+
+For local API configuration, copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_URL` (default `http://localhost:8000/api`). Restart Vite after changing it. Variables prefixed with `VITE_` are exposed to the browser; never put secrets in them. On Windows, use `npm.cmd` if PowerShell blocks `npm.ps1`.
+
+The browser frontend calls Django from a different origin. Django provides CORS response headers for origins listed in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env` (comma-separated, default `http://localhost:5173`), allowing the browser to read API responses. CORS is not authentication and does not prevent non-browser clients from calling the API. If the frontend runs on a different port or host, add that origin explicitly; do not enable all origins.
 
 ---
 
@@ -419,7 +425,7 @@ The frontend and backend run on different origins (`localhost:5173` and `localho
 
 1. Django is running and serving `/api/`.
 2. Django's CORS settings allow the frontend's origin, so the browser accepts the response.
-3. The frontend calls the right URL (currently `http://localhost:8000/api/health/` in `frontend/src/App.tsx`).
+3. The frontend calls the right URL (`VITE_API_URL` plus `/health/`, defaulting to `http://localhost:8000/api/health/`).
 
 Check them in this order:
 
@@ -441,9 +447,9 @@ The response must include the header `Access-Control-Allow-Origin: http://localh
 
 **3. The browser gets the response.** Open `http://localhost:5173`, open the browser developer tools (**Network** tab), and click **Test Backend Connection**. The `health/` request should have status `200`, and the page should show `{"status":"ok"}`. A `blocked by CORS policy` message in the **Console** tab means step 2 is failing.
 
-**4. Automated check.** `server/equipmanager/test_health.py` runs steps 1 and 2 through Django's test client. It runs with `python -m pytest` and in CI.
+**4. Automated checks.** `server/equipmanager/tests/test_health.py` verifies the response and CORS header through Django's test client. It runs with `python -m pytest` and in CI. The frontend's MSW tests exercise the API client with mocked HTTP responses; they do not verify connectivity to a running backend.
 
-Endpoints in the business apps require a logged-in Django session (see [Authentication](Architecture.md#9-authentication-and-authorization)), so they return `403` until login is implemented. A `403` from those endpoints means the connection works and the request was refused. `/api/health/` is public and is the endpoint to use for connection checks.
+Protected DRF endpoints require a logged-in Django session (see [Authentication](Architecture.md#9-authentication-and-authorization)) and return `403` for unauthenticated requests with the current configuration. The business apps currently have no routes; nonexistent endpoints return `404`. `/api/health/` is public and is the endpoint to use for connection checks.
 
 ---
 
@@ -477,7 +483,7 @@ Resource names use plural nouns and a trailing slash (see [API Conventions](Arch
 
 ## Trying a Protected Endpoint
 
-New endpoints require a logged-in session, so opening one before login exists returns `403`. To try it in the browser:
+Once a protected endpoint exists, opening it without a logged-in session returns `403`. To try it in the browser:
 
 1. Create a local admin account once with `python manage.py createsuperuser`.
 2. Log in at `http://localhost:8000/admin/`.
@@ -514,10 +520,10 @@ From `frontend`, run the available checks:
 ```bash
 npm run lint
 npm run build
-npm test -- --run --passWithNoTests
+npm test -- --run
 ```
 
-Vitest runs the frontend tests. CI currently treats an empty test suite as successful during initial scaffolding.
+Vitest runs the frontend tests. The test command fails if no tests are discovered, so missing tests or broken discovery cannot silently pass CI.
 
 ## Backend
 
@@ -590,14 +596,14 @@ git pull origin main
 git switch -c feature/<description>
 ```
 
-Before opening or updating a pull request:
+After completing branch work and before pushing, fetch and merge the latest `main` while on the feature branch:
 
 ```bash
 git fetch origin
 git merge origin/main
 ```
 
-Resolve conflicts carefully and rerun relevant linting and tests.
+If conflicts occur, the agent explains the competing changes and proposes a resolution. Obtain explicit user approval before editing conflicted files or completing the resolution. Rerun affected checks after integration and review the diff before pushing. Use brief, clear commit messages, such as `Add equipment search`.
 
 After pulling or merging `main`, from `server/equipmanager` with the virtual environment active:
 
@@ -608,7 +614,15 @@ python manage.py migrate                    # apply new migrations
 
 Also compare `.env.example` with your `.env` and copy over any new settings.
 
-Before every push, run the checks CI runs. If they pass locally, CI should pass:
+Before every push, run the checks CI runs. From `frontend/`:
+
+```bash
+npm run lint
+npm test -- --run
+npm run build
+```
+
+From `server/equipmanager/` with the virtual environment active:
 
 ```bash
 python -m ruff check .
@@ -617,17 +631,23 @@ python manage.py makemigrations --check --dry-run
 python -m pytest
 ```
 
-Push:
+Push when authorized by the user or approved workflow:
 
 ```bash
 git push -u origin feature/<description>
 ```
 
-Pull requests target `main`.
+The user creates the pull request in GitHub, targeting `main`. The agent provides a suggested title, a concise change summary, validation results, and any remaining actions; it does not create the PR automatically.
 
 CI runs automatically and checks the frontend and backend.
 
 Do not merge until required CI checks pass and the required review is complete.
+
+## Feature completion and acceptance
+
+Follow [Quality.md](Quality.md) for the Definition of Done and product acceptance process, and [AGENTS.md](../AGENTS.md) for the plan-and-approval workflow. Use the [PR template](../.github/pull_request_template.md) to document changes and validation.
+
+Frontend, backend, database, and testing tasks may be split under a parent feature. The responsible feature developer coordinates dependencies and integration. A finished sub-task or merged PR does not make the parent feature Done: all required work must be integrated, acceptance testing must pass, and the Product Owner must accept the result before the GitHub issue moves to Done.
 
 Use the Microsoft Teams group to communicate about pull requests and overlapping work, especially when multiple developers may be changing the same files or feature. Changes to shared files (`equipmanager/settings.py`, `equipmanager/urls.py`, `requirements*.txt`) are worth a message before you start.
 
@@ -694,14 +714,14 @@ Something still has a connection open, usually `runserver` in another terminal o
 
 **`Conflicting migrations detected; multiple leaf nodes in the migration graph`**
 
-You and a teammate each added a migration to the same app (for example, both created `0002_...` in `lending`). After merging `main`, run:
+If teammates create competing migrations, integrate the latest `main` and review both changes. For compatible operations, run:
 
 ```bash
 python manage.py makemigrations --merge
 python manage.py migrate
 ```
 
-Commit the generated merge migration. If your migration is not on `main` yet, you can instead delete your own migration file, run `python manage.py migrate <app> <last migration from main>` to unapply it locally, and run `makemigrations` again so it builds on top of your teammate's.
+Review and commit the merge migration. If the schema changes conflict, coordinate with the other developer before applying them. Preserve migrations already merged into `main`.
 
 **`No module named pytest` or `No module named ruff`**
 
@@ -742,9 +762,9 @@ migrations
 pytest
 ```
 
-During initial project scaffolding, CI may temporarily allow a project with no tests.
+Both frontend and backend CI jobs always run. Missing project files fail the checks rather than causing a job to be skipped.
 
-Once real frontend and backend tests exist, the no-tests exceptions should be removed.
+Both test runners must discover tests and pass. An empty suite fails CI, including pytest exit code 5. A passing suite must still include meaningful coverage for each implemented feature.
 
 ---
 

@@ -1,3 +1,8 @@
-# Routes for the inventory app, mounted under /api/ by equipmanager/urls.py.
-# Example: path('equipment/', views.EquipmentList.as_view(), name='equipment-list'),
-urlpatterns = []
+from django.urls import path
+
+from . import views
+
+urlpatterns = [
+    path("assets/", views.asset_list, name="asset-list"),
+    path("assets/lookup/", views.asset_list, name="asset-lookup"),
+]
