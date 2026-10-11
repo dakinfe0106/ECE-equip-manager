@@ -97,22 +97,24 @@ git switch -c feature/equipment-search
 
 Make changes and commit them:
 
+Use brief, clear commit messages that describe the change, such as `Add equipment search`. Stage only intended files.
+
 ```bash
 git status
-git add .
+git add <intended-files>
 git commit -m "Add equipment search endpoint"
 ```
 
-Before opening or updating a pull request, update your branch with the latest `main`:
+After completing branch work and before pushing, fetch and merge the latest `main` while on the feature branch:
 
 ```bash
 git fetch origin
 git merge origin/main
 ```
 
-If conflicts occur, resolve them deliberately, run the relevant checks again, then commit the conflict resolution.
+If conflicts occur, the agent explains the competing changes and proposes a resolution. Obtain explicit user approval before editing conflicted files or completing the resolution. After integration, rerun affected checks and review the diff before pushing.
 
-Push the branch:
+Push the branch when authorized by the user or approved workflow:
 
 ```bash
 git push -u origin feature/equipment-search
@@ -124,7 +126,7 @@ After the first push:
 git push
 ```
 
-Open a pull request into `main`.
+The user creates the pull request into `main` in GitHub. The agent supplies a suggested title, change summary, validation results, and remaining actions rather than creating the PR automatically.
 
 The pull request should explain:
 
@@ -144,6 +146,8 @@ git branch -d feature/equipment-search
 
 ### Merge strategy
 
+Use the [PR template](../.github/pull_request_template.md) to record validation and dependencies. Follow [Quality.md](Quality.md) for planning approval, split feature work, acceptance testing, and the Definition of Done. CI and code review are merge gates; the parent feature is Done only after integration, passing acceptance tests, and Product Owner acceptance.
+
 Use squash merge for pull requests.
 
 This keeps `main` easier to read by turning the work from one feature branch into one meaningful commit.
@@ -162,7 +166,7 @@ their version
 
 Do not remove conflict markers blindly.
 
-Understand both versions, decide what the final code should be, remove the markers, then run tests and linting before committing the resolution.
+Understand both versions and propose the final behavior. After the user approves the resolution, remove the markers, run affected tests and linting, and commit with a brief, clear message.
 
 ### Team communication
 
@@ -196,6 +200,8 @@ The frontend uses:
 - ESLint
 - Vitest
 
+Tailwind CSS is configured through `@tailwindcss/vite` and `frontend/src/index.css`. React Router uses declarative routing with `BrowserRouter` and `frontend/src/AppRoutes.tsx`. The initial `/` route shows the health-check page; unknown paths show a fallback page.
+
 ### State management
 
 The frontend will initially use React's built-in state management.
@@ -213,15 +219,15 @@ The server remains the source of truth for EMS data such as equipment, borrowers
 
 ### Styling
 
-Tailwind CSS is used for styling.
+Use Tailwind utility classes for component styling. Existing global CSS is kept in the base layer in `frontend/src/index.css`, so utility classes can override it.
 
 Reusable UI components should be created when the same pattern appears repeatedly, but we should avoid creating unnecessary abstractions for very small pieces of UI.
 
 ### Routing
 
-React Router manages frontend navigation.
+React Router manages frontend navigation. Add routes in `frontend/src/AppRoutes.tsx` and use `Link` or `NavLink` for internal navigation. The frontend host must serve `index.html` for client-side routes on direct requests; API requests must still reach Django.
 
-Example routes may include:
+Future business routes may include (these are not implemented yet):
 
 ```text
 /login
@@ -242,7 +248,7 @@ Developers should be able to run the same checks locally that CI runs:
 
 ```bash
 npm run lint
-npm test
+npm test -- --run
 npm run build
 ```
 
@@ -433,10 +439,10 @@ POST /api/equipment/
 }
 ```
 
-Example: unauthenticated request
+Example: unauthenticated request to a protected DRF endpoint using the configured session authentication
 
 ```http
-401 Unauthorized
+403 Forbidden
 ```
 
 ```json
@@ -444,6 +450,8 @@ Example: unauthenticated request
   "detail": "Authentication credentials were not provided."
 }
 ```
+
+Session authentication returns `403` for unauthenticated requests with the current settings. Other authentication schemes may return `401`. A URL without a configured endpoint returns `404`.
 
 Example: authenticated but not allowed
 
@@ -570,14 +578,14 @@ The EMS uses PostgreSQL 18.
 
 ### Environments
 
-The project currently distinguishes between local development and a future/shared staging environment.
+Developers use individual local PostgreSQL databases. Deployed instances use the shared database.
 
 ```text
 Local development
 → each developer uses local PostgreSQL
 
 Shared / staging
-→ used for integrated testing once configured
+→ used by deployed instances for integrated testing
 
 Production
 → not set up yet
@@ -706,6 +714,8 @@ python manage.py migrate
 
 This can be automated later once deployment is stable and understood by the team.
 
+The deployment owner applies committed migrations to the shared database during deployment. Merging into `main` does not apply migrations automatically.
+
 ---
 
 ## 13. Continuous Integration
@@ -783,18 +793,13 @@ flowchart TD
     BT --> PASS
 ```
 
-### Initial-project CI behavior
+### Required projects and test discovery
 
-During initial scaffolding, CI temporarily allows the frontend and backend to have no tests.
+The frontend and backend are permanent parts of the repository. Both CI jobs always run; missing project files cause failures rather than skipped jobs.
 
-Once real tests have been added:
+Frontend tests run with `npm test -- --run`, and backend tests run with `python -m pytest`. Both commands fail when no tests are discovered. CI does not override pytest exit code 5 or allow an empty frontend suite to pass.
 
-- remove frontend `--passWithNoTests`
-- remove the backend pytest no-tests exception
-
-The project-detection job can also be removed once `frontend/` and `server/` are permanent parts of the repository.
-
-At that point, their absence should be treated as an error rather than skipped.
+This catches missing tests and broken test discovery. It does not establish sufficient feature coverage by itself: each implementation still needs meaningful tests for its behavior.
 
 ---
 
@@ -839,8 +844,8 @@ Architecture should explain not only what we chose, but enough of the reasoning 
 | Backend directory | `server/` |
 | Frontend framework | React + TypeScript |
 | Build tool | Vite |
-| Styling | Tailwind CSS |
-| Routing | React Router |
+| Styling | Tailwind CSS with shared CSS in the base layer |
+| Routing | React Router in declarative mode |
 | Frontend state | React built-in state initially |
 | Node | 24 |
 | Package manager | npm |
