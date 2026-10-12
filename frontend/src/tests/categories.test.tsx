@@ -2,8 +2,9 @@ import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import AppRoutes from '../AppRoutes'
-import type { Category } from '../features/categories/api'
+import type { Category, EquipmentType } from '../features/categories/api'
 import CategoryTable from '../features/categories/components/CategoryTable'
+import EquipmentTypeTable from '../features/categories/components/EquipmentTypeTable'
 
 function renderAt(path: string): string {
   return renderToString(
@@ -122,5 +123,38 @@ describe('CategoryTable', () => {
 
     expect(failed).toContain('The category list could not be loaded.')
     expect(failed).not.toContain('There are no categories yet.')
+  })
+})
+
+describe('EquipmentTypeTable', () => {
+  const category = { category_id: 2, name: 'Lab Gear' }
+  const types: EquipmentType[] = [
+    { type_id: 3, name: 'Oscilloscope', description: 'Bench scope', category },
+    { type_id: 14, name: 'Multimeter', description: '', category },
+  ]
+
+  it('lists each type with a two-digit ID, its name and description', () => {
+    const html = renderToString(<EquipmentTypeTable equipmentTypes={types} />)
+
+    for (const heading of ['ID', 'Name', 'Description']) {
+      expect(html).toContain(`>${heading}</th>`)
+    }
+    expect(html.match(/<tr/g)).toHaveLength(3) // header row + 2 types
+    expect(html).toContain('>03</td>')
+    expect(html).toContain('>14</td>')
+    expect(html).toContain('Oscilloscope')
+    expect(html).toContain('Bench scope')
+  })
+
+  it('shows a dash when a type has no description', () => {
+    const html = renderToString(<EquipmentTypeTable equipmentTypes={[types[1]]} />)
+
+    expect(html).toContain('>—</td>')
+  })
+
+  it('says so when the category has no equipment types', () => {
+    const html = renderToString(<EquipmentTypeTable equipmentTypes={[]} />)
+
+    expect(html).toContain('This category has no equipment types yet.')
   })
 })

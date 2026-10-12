@@ -37,26 +37,37 @@ export default function CategoriesPage() {
   }
 
   return (
-    <section className="page-content" aria-labelledby="page-title">
-      <div className="page-heading">
+    <section
+      className="mx-auto flex h-full min-h-0 w-full max-w-[1440px] flex-col px-[34px] pb-[42px] pt-[31px] max-[980px]:px-6 max-[700px]:px-[14px] max-[700px]:pb-[30px] max-[700px]:pt-6"
+      aria-labelledby="page-title"
+    >
+      <div className="mb-6 flex items-end justify-between gap-5 max-[700px]:items-start">
         <div>
-          <h1 id="page-title">Categories</h1>
+          <h1
+            className="m-0 text-[25px] font-[690] leading-[1.25] tracking-[-0.55px] text-[#1f2b3e]"
+            id="page-title"
+          >
+            Categories
+          </h1>
         </div>
         {/* Shown as in the mockup but not connected: adding categories is another user story. */}
         <button
-          className="add-asset-button cursor-not-allowed opacity-70"
+          className="inline-flex min-h-9 cursor-not-allowed items-center justify-center gap-[7px] rounded-[6px] border border-[#276fdd] bg-[#2875e4] px-3 text-[11px]! font-semibold! text-white opacity-70"
           type="button"
           disabled
           title="Coming soon"
         >
-          <svg viewBox="0 0 20 20" aria-hidden="true">
+          <svg className="h-[14px] w-[14px] fill-none stroke-current [stroke-linecap:round] stroke-[1.8]" viewBox="0 0 20 20" aria-hidden="true">
             <path d="M10 4v12M4 10h12" />
           </svg>
           Add Category
         </button>
       </div>
 
-      <section className="asset-panel" aria-label="Category list">
+      <section
+        className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[9px] border border-[#e0e6ef] bg-white shadow-[0_3px_12px_rgb(29_49_77_/_4%)]"
+        aria-label="Category list"
+      >
         <CategoryToolbar
           show={show}
           searchText={searchText}
@@ -68,12 +79,18 @@ export default function CategoriesPage() {
         />
 
         {errorMessage && (
-          <p className="inline-message message-error" role="alert">
+          <p
+            className="mx-[18px] mb-[13px] rounded-[5px] border border-[#f3d0d2] bg-[#fff5f5] px-[11px] py-[9px] text-[11px] text-[#a5333b]"
+            role="alert"
+          >
             {errorMessage}
           </p>
         )}
         {loading && (
-          <p className="inline-message message-loading" role="status">
+          <p
+            className="mx-[18px] mb-[13px] rounded-[5px] border border-[#d5e4fb] bg-[#f3f8ff] px-[11px] py-[9px] text-[11px] text-[#315f9f]"
+            role="status"
+          >
             Loading categories…
           </p>
         )}

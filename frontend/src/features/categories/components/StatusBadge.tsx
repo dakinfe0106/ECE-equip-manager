@@ -1,8 +1,8 @@
 export default function StatusBadge({ isDeleted }: { isDeleted: boolean }) {
   return (
     <span
-      className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
-        isDeleted ? 'bg-slate-200 text-slate-600' : 'bg-emerald-100 text-emerald-800'
+      className={`inline-flex min-w-[68px] items-center justify-center rounded-xl px-2 py-1 text-[9px] font-[650] ${
+        isDeleted ? 'bg-[#e8ebf0] text-[#5b6574]' : 'bg-[#def5e8] text-[#16864f]'
       }`}
     >
       {isDeleted ? 'Deleted' : 'Active'}

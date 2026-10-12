@@ -3,6 +3,11 @@ import type { Category } from '../api'
 import { PencilIcon, TrashIcon } from './icons'
 import StatusBadge from './StatusBadge'
 
+const headerBaseClassName =
+  'h-10 bg-[#f7f9fc] px-[14px] text-[9px] font-[650] tracking-[0.15px] text-[#758196]'
+const headerClassName = `${headerBaseClassName} text-left`
+const cellClassName = 'h-12 border-t border-[#edf0f4] px-[14px] text-[10px]'
+
 interface CategoryTableProps {
   categories: Category[]
   emptyMessage: string
@@ -24,42 +29,44 @@ export default function CategoryTable({
   errorMessage,
 }: CategoryTableProps) {
   return (
-    <div className="table-scroll">
-      <table className="asset-table">
+    <div className="min-h-0 flex-1 overflow-auto border-t border-[#e8edf3]">
+      <table className="w-full border-collapse text-left text-[#4c596d] whitespace-nowrap">
         <thead>
           <tr>
-            <th scope="col">ID</th>
-            <th scope="col">Category Name</th>
-            <th scope="col">is_deleted</th>
-            <th scope="col" className="text-center!">Actions</th>
+            <th className={`${headerClassName} pl-[19px]`} scope="col">ID</th>
+            <th className={headerClassName} scope="col">Category Name</th>
+            <th className={headerClassName} scope="col">is_deleted</th>
+            <th className={`${headerBaseClassName} text-center`} scope="col">Actions</th>
           </tr>
         </thead>
         <tbody>
           {categories.map((category) => (
-            <tr key={category.category_id}>
-              <td className="record-id">{category.category_id.toString().padStart(2, '0')}</td>
-              <td>
+            <tr key={category.category_id} className="hover:bg-[#f8faff]">
+              <td className={`${cellClassName} pl-[19px] tabular-nums text-[#8a96a7]`}>
+                {category.category_id.toString().padStart(2, '0')}
+              </td>
+              <td className={cellClassName}>
                 <Link
-                  className="asset-identifier-link"
+                  className="py-[3px] text-[10px] font-[650] text-[#2871da] hover:text-[#174fa1] hover:underline focus-visible:outline-2 focus-visible:outline-[#347ee9] focus-visible:outline-offset-[3px]"
                   to={`/categories/${category.category_id}`}
                 >
                   {category.name}
                 </Link>
-                <span className="ml-2 text-[9px] text-slate-500">
+                <span className="ml-2 text-[9px] text-[#8a96a7]">
                   {describeTypeCount(category.equipment_type_count)}
                 </span>
               </td>
-              <td>
+              <td className={cellClassName}>
                 <StatusBadge isDeleted={category.is_deleted} />
               </td>
-              <td>
+              <td className={cellClassName}>
                 <div className="flex items-center justify-center gap-3">
                   <button
                     type="button"
                     disabled
                     title="Coming soon"
                     aria-label={`Edit ${category.name} (coming soon)`}
-                    className="cursor-not-allowed rounded p-1 text-blue-600"
+                    className="cursor-not-allowed rounded p-1 text-[#2875e4]"
                   >
                     <PencilIcon />
                   </button>
@@ -68,7 +75,7 @@ export default function CategoryTable({
                     disabled
                     title="Coming soon"
                     aria-label={`Delete ${category.name} (coming soon)`}
-                    className="cursor-not-allowed rounded p-1 text-red-600"
+                    className="cursor-not-allowed rounded p-1 text-[#d84d58]"
                   >
                     <TrashIcon />
                   </button>
@@ -78,7 +85,10 @@ export default function CategoryTable({
           ))}
           {!isLoading && categories.length === 0 && (
             <tr>
-              <td className="table-empty" colSpan={4}>
+              <td
+                className="h-[116px] border-t border-[#edf0f4] px-[14px] text-center text-[10px] text-[#8792a2] whitespace-normal"
+                colSpan={4}
+              >
                 {errorMessage ? 'The category list could not be loaded.' : emptyMessage}
               </td>
             </tr>
