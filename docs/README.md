@@ -471,7 +471,7 @@ By default, API endpoints require an authenticated Django session (`IsAuthentica
 
 ## Adding an Endpoint
 
-New endpoints go in the app that owns the feature, not in the project folder. For example, to add `/api/equipment/` to `inventory`:
+New endpoints go in the app that owns the feature, not in the project folder. Follow [Backend.md](Backend.md) for services, serializers, soft deletion, permissions, and the tests each endpoint needs. For example, to add `/api/equipment/` to `inventory`:
 
 1. Add the model to `inventory/models.py`, then run `python manage.py makemigrations inventory` and `python manage.py migrate`.
 2. Create `inventory/serializers.py` with a serializer for the model.
@@ -651,10 +651,11 @@ Frontend, backend, database, and testing tasks may be split under a parent featu
 
 Use the Microsoft Teams group to communicate about pull requests and overlapping work, especially when multiple developers may be changing the same files or feature. Changes to shared files (`equipmanager/settings.py`, `equipmanager/urls.py`, `requirements*.txt`) are worth a message before you start.
 
-For the complete Git workflow and architecture decisions, see:
+For the complete Git workflow and architecture decisions, and for backend code conventions, see:
 
 ```text
 docs/Architecture.md
+docs/Backend.md
 ```
 
 ---
