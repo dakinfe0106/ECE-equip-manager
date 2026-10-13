@@ -16,4 +16,4 @@ class EquipmentTypeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EquipmentType
-        fields: ClassVar = ["id", "name", "description", "category"]
+        fields: ClassVar = ["id", "name", "description", "category", "is_deleted"]
