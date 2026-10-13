@@ -1,5 +1,7 @@
 from django.contrib import admin
+
 from .models import Category, EquipmentType
+
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
