@@ -1,22 +1,26 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
+import { apiBaseUrl, fetchHealthCheck } from '../../api';
 
 const server = setupServer(
-    http.get('http://localhost:8000/api/health/', () => {
+    http.get(`${apiBaseUrl}/health/`, () => {
         return HttpResponse.json({ status: 'ok' }, { status: 200 });
     })
 );
 
-beforeAll(() => server.listen());
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-describe('Backend Integration', () => {
-    it('successfully reaches the health check endpoint', async () => {
-        const response = await fetch('http://localhost:8000/api/health/');
-        const data = await response.json();
-
-        expect(response.status).toBe(200);
+describe('Health check API client with mocked HTTP', () => {
+    it('returns the health response', async () => {
+        const data = await fetchHealthCheck();
         expect(data.status).toBe('ok');
+    });
+
+    it('rejects an unsuccessful health response', async () => {
+        server.use(http.get(`${apiBaseUrl}/health/`, () => new HttpResponse(null, { status: 503 })));
+        await expect(fetchHealthCheck()).rejects.toThrow('Health check failed (503)');
     });
 });
