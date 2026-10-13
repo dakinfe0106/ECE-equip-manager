@@ -63,7 +63,7 @@ To ensure your Pull Request passes the GitHub Actions CI pipeline, you must run 
 
 - API endpoints should use the `/api/` base path (e.g., `GET /api/equipment-types/`).
 
-- Use standard HTTP methods: `GET` (retrieve), `POST` (create), `PATCH` (partial update), `DELETE` (remove).
+- Use standard HTTP methods: `GET` (retrieve), `POST` (create), `PATCH` (partial update), `DELETE` (remove). Note: Historical records like Loans and Maintenance do not support DELETE endpoints.
 
 **2. State Management**
 
@@ -109,7 +109,7 @@ To ensure your Pull Request passes the GitHub Actions CI pipeline, you must run 
 # 🆘 Troubleshooting & Common Issues
 
 - **`npm ci` fails:** Check your internet connection and ensure you are using the correct Node.js version (v24). You can check your npm registry with `npm config get registry`.
-- **CI Pipeline fails on linting:** Run `npm run lint` locally. Ruff/ESLint will often provide an auto-fix command (e.g., `npm run lint -- --fix`).
+- **CI Pipeline fails on linting:** Run `npm run lint` locally. ESLint will often provide an auto-fix command (e.g., `npm run lint -- --fix`).
 - **API returns 401/403:** Ensure your Django backend is running, and that you are properly handling authentication cookies/tokens as defined by the backend team.
 
 *For backend setup instructions, API endpoint definitions, or database schema details, please refer to `docs/README.md` and `docs/Architecture.md`.*
