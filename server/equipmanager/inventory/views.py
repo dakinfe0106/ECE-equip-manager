@@ -3,10 +3,15 @@ from rest_framework.permissions import AllowAny
 from .models import EquipmentType, Category
 from .serializers import EquipmentTypeSerializer
 from .serializers import EquipmentTypeSerializer, CategorySerializer
+from typing import ClassVar
 
 
-class EquipmentTypeList(generics.ListAPIView):
+class EquipmentTypeList(generics.ListCreateAPIView):
+    """
+    API endpoint to list all active equipment types.
+    """
     serializer_class = EquipmentTypeSerializer
+    permission_classes: ClassVar = [AllowAny]  
 
     def get_queryset(self):
         return EquipmentType.objects.filter(
@@ -18,7 +23,6 @@ class CategoryList(generics.ListAPIView):
     """
     API endpoint to list all active categories (used for the dropdown).
     """
-    # Best practice: Only show categories that aren't deleted, matching Treasure's logic
     queryset = Category.objects.filter(is_deleted=False)
     serializer_class = CategorySerializer
-    permission_classes = [AllowAny]  # Allows the frontend to fetch this without logging in
+    permission_classes: ClassVar = [AllowAny]  
