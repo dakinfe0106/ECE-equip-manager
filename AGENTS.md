@@ -15,6 +15,7 @@ Read these before implementing a feature:
 - [docs/README.md](docs/README.md): canonical setup, commands, testing, migrations, and Git workflow.
 - [docs/Architecture.md](docs/Architecture.md): architecture, business boundaries, API conventions, authentication, and deletion policy.
 - [docs/Quality.md](docs/Quality.md): split feature work, quality gates, and Product Owner acceptance.
+- [docs/Backend.md](docs/Backend.md): backend code conventions (app layout, services, soft deletion, authentication, permissions, testing) for backend features.
 - [.github/workflows/ci.yml](.github/workflows/ci.yml): checks executed in CI.
 - Relevant source files, tests, and dependency/configuration files for the area being changed.
 
@@ -84,6 +85,7 @@ Create local `.env` files from `frontend/.env.example` and `server/equipmanager/
 ### Backend and API
 
 - Django owns business rules, validation, database access, and authorization. Frontend restrictions do not replace backend checks.
+- Follow [docs/Backend.md](docs/Backend.md) for code-level backend conventions. Raise conflicts between it and `docs/database.md` or `docs/Architecture.md` instead of choosing one silently.
 - Use Django ORM and Django REST Framework conventions. Keep shared project configuration separate from app-specific business features.
 - Add routes to the owning app's `urls.py`. All four apps already mount under `/api/`; paths must be unique across apps.
 - Use plural resource names, trailing slashes, standard HTTP methods, JSON, and DRF error structures. Prefer `PATCH` for partial updates.

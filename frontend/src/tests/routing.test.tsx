@@ -23,5 +23,6 @@ describe('Application routes', () => {
     expect(html).toContain('Page not found')
     expect(html).toContain('href="/"')
     expect(html).not.toContain('Search by Asset ID')
+    expect(html).not.toContain('Test Backend Connection')
   })
 })
