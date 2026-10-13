@@ -1,7 +1,6 @@
 from rest_framework import generics
 from rest_framework.permissions import AllowAny
 from .models import EquipmentType, Category
-from .serializers import EquipmentTypeSerializer
 from .serializers import EquipmentTypeSerializer, CategorySerializer
 from typing import ClassVar
 
