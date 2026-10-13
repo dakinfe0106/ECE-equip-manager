@@ -1,75 +1,38 @@
-# React + TypeScript + Vite
+﻿# ECE Equipment Manager Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + TypeScript application built with Vite, using Tailwind CSS, React Router, ESLint, and Vitest.
 
-Currently, two official plugins are available:
+## Local development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Use Node.js 24. From this directory:
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```sh
+npm ci
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+Copy `.env.example` to `.env` when you need local configuration. `VITE_API_URL` sets the API base URL, defaulting to `http://localhost:8000/api`. Restart Vite after changes. Never put secrets in `VITE_` variables: they are exposed to the browser.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+The current page has a **Test Backend Connection** button that calls `/health/` under the configured API base. Run Django separately to test the real connection. See [the setup guide](../docs/README.md#frontend-setup) for backend setup and CORS instructions.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+On Windows, use `npm.cmd` if PowerShell blocks `npm.ps1`.
 
+## Styling and routing
+
+Tailwind runs through `@tailwindcss/vite` in `vite.config.ts` and is imported in `src/index.css`. Use utility classes for component styles; shared global CSS belongs in the base layer. React Router uses `BrowserRouter` in `src/main.tsx`; add routes in `src/AppRoutes.tsx` and use `Link` or `NavLink` for internal navigation.
+
+The initial `/` route displays the health-check page. Unknown paths display a fallback with a home link. Business pages are not implemented yet. Teammates only need `npm ci` after pulling these changes.
+
+In deployment, the frontend host must serve `index.html` for direct requests to client-side routes. Keep `/api/` requests routed to Django.
+
+## Checks
+
+```sh
+npm run lint
+npm test -- --run
+npm run build
 ```
+
+Tests use MSW to mock HTTP responses; they do not verify connectivity to a running backend. An empty suite fails CI. The build includes TypeScript checks and produces `dist/`.
+
+Follow [AGENTS.md](../AGENTS.md) for planning and approval, [Architecture.md](../docs/Architecture.md) for conventions, and [Quality.md](../docs/Quality.md) for feature acceptance.
