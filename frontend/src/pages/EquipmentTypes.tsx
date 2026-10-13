@@ -1,3 +1,4 @@
+import { AddEquipmentTypeForm } from '../components/AddEquipmentTypeForm'
 import { useEffect, useState } from 'react'
 import './EquipmentTypes.css'
 
@@ -54,6 +55,9 @@ function EquipmentTypes() {
         <h1>Equipment Types</h1>
         <p>View the equipment types used to classify individual assets.</p>
       </div>
+
+      {/* ADD THIS LINE RIGHT HERE */}
+      <AddEquipmentTypeForm />
 
       <div className="equipment-types-card">
         {loading && (

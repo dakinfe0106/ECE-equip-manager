@@ -80,6 +80,11 @@ CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:
 CORS_ALLOW_CREDENTIALS = True
 CORS_URLS_REGEX = r'^/api/.*$'
 
+CSRF_TRUSTED_ORIGINS = [
+       "http://localhost:5173",
+       "http://127.0.0.1:5173",
+   ]
+
 ROOT_URLCONF = 'equipmanager.urls'
 
 TEMPLATES = [
