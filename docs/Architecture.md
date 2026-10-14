@@ -36,10 +36,12 @@ The project uses a monorepo.
 
 ```text
 ECE-equip-manager/
+├── .github/        # CI workflow and PR template
 ├── frontend/
 ├── server/
 ├── docs/
 ├── .gitignore
+├── AGENTS.md       # Workflow rules for developers and coding agents
 └── README.md
 ```
 
@@ -202,6 +204,8 @@ The frontend uses:
 
 Tailwind CSS is configured through `@tailwindcss/vite` and `frontend/src/index.css`. React Router uses declarative routing with `BrowserRouter` and `frontend/src/AppRoutes.tsx`. The initial `/` route shows the health-check page; unknown paths show a fallback page.
 
+Frontend code conventions are in [Frontend-Standards.md](Frontend-Standards.md).
+
 ### State management
 
 The frontend will initially use React's built-in state management.
@@ -271,6 +275,8 @@ The backend uses:
 The local Python environment is created with `.venv`.
 
 The virtual environment must not be committed.
+
+Backend code conventions are in [Backend.md](Backend.md). The database schema and business rules are in [database.md](database.md).
 
 ---
 
@@ -377,7 +383,7 @@ Use standard HTTP methods according to their normal meaning:
 | `POST` | Create a resource |
 | `PATCH` | Partially update a resource |
 | `PUT` | Replace a resource when a full replacement is actually needed |
-| `DELETE` | Delete a resource |
+| `DELETE` | Soft-delete a resource (see section 10) |
 
 `PATCH` will usually be preferred over `PUT` when only a few fields are changing.
 
@@ -389,9 +395,9 @@ Example:
 
 ```json
 {
-  "id": 42,
+  "asset_id": 42,
   "name": "Oscilloscope",
-  "status": "available"
+  "status": "Available"
 }
 ```
 
@@ -399,7 +405,7 @@ Example:
 
 API endpoints should use appropriate HTTP status codes and Django REST Framework's standard error structures instead of inventing a different error format for each feature.
 
-Example: missing resource
+Example: missing resource (the `detail` messages below are illustrative; DRF's default wording may differ)
 
 ```http
 GET /api/equipment/42/
@@ -521,15 +527,9 @@ The backend is always the final authority for authorization.
 
 The React frontend may hide or disable controls based on a user's permissions, but Django must still enforce permissions on protected API operations.
 
-Initial user groups are expected to include:
+The approved roles are Technician, Faculty, and Administrator. Transient staff, such as co-op students in the Shop, may also need access, which must be revocable. The working permission policy is in [database.md section 5](database.md#5-permissions-scope).
 
-- Shop Technicians
-- authorized ECE Faculty
-- transient staff if their access requirements are confirmed
-
-Authorization should be based on roles and permissions rather than repeatedly hard-coding role names throughout the application.
-
-The exact permission matrix should be finalized with project stakeholders.
+Authorization should be based on roles and permissions rather than repeatedly hard-coding role names throughout the application. How roles map to Django permissions is a pending decision in [Backend.md](Backend.md#9-pending-decisions).
 
 ---
 
@@ -542,13 +542,12 @@ For records that need to be recoverable, use soft deletion instead of immediatel
 Example:
 
 ```text
-id: 42
+asset_id: 42
 name: Oscilloscope
 is_deleted: true
-deleted_at: 2026-10-01 14:30
 ```
 
-Restoring the record would return it to its active state.
+Restoring the record would return it to its active state. Soft-deletable tables have only the `is_deleted` flag; see [database.md](database.md) for which tables are soft-deleted.
 
 Conceptually:
 
@@ -566,7 +565,7 @@ Record becomes active again
 
 Permanent deletion should only happen through a clearly defined process when requirements justify it.
 
-The retention period and final permanent-deletion policy should be confirmed later rather than invented now.
+The current development policy is to retain records indefinitely. The retention period and final permanent-deletion policy must be confirmed before production use rather than invented now (see [database.md section 4](database.md#import-reporting-retention)).
 
 ---
 
@@ -866,7 +865,7 @@ Architecture should explain not only what we chose, but enough of the reasoning 
 | Deletion | Soft deletion for recoverable records |
 | Database | PostgreSQL 18 |
 | Local DB | Local PostgreSQL per developer |
-| Staging DB | Shared hosted PostgreSQL once configured |
+| Staging DB | Shared PostgreSQL used by deployed instances |
 | Production | Not configured yet |
 | Schema changes | Django migrations |
 | CI | GitHub Actions |
