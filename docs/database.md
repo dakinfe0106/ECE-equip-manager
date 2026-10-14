@@ -55,6 +55,8 @@
 
 **Asset statuses:** `Available`, `On_Loan`, `Under_Maintenance`, `Retired`.
 
+Asset ID search trims surrounding whitespace and matches identifiers by case-insensitive substring; a full identifier returns its matching asset. Asset results are paginated at 20 per page. Results exclude assets whose asset, equipment type, or category is soft-deleted.
+
 ### Borrower
 
 | Column                | Type         | Nullable | Constraints/default                                  |
