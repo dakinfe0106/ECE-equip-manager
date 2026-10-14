@@ -1,91 +1,127 @@
-import { useState, type FormEvent } from "react";
-import "./AddAssetForm.css";
-
-const equipmentTypes: Record<string, string[]> = {
-  Electronics: ["Computer", "Monitor", "Printer", "Other"],
-  Tools: ["Hand Tool", "Power Tool", "Measuring Tool", "Other"],
-  "Lab Equipment": ["Testing Equipment", "Measurement Equipment", "Other"],
-  Other: ["Other"],
-};
-
-const statuses = [
-  "Available",
-  "On Loan",
-  "Under Maintenance",
-  "Retired",
-] as const;
-
-type AssetStatus = (typeof statuses)[number];
-
-export interface NewAsset {
-  assetId: string;
-  name: string;
-  category: string;
-  equipmentType: string;
-  acquisitionDate: string;
-  status: AssetStatus;
-}
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router'
+import {
+  AssetLookupError,
+  createAsset,
+  fetchCategories,
+  fetchEquipmentTypes,
+  type CategoryOption,
+  type EquipmentTypeOption,
+} from '../api'
+import './AddAssetForm.css'
 
 interface AddAssetFormProps {
-  onCancel?: () => void;
-  onSubmitAsset?: (asset: NewAsset) => void;
+  onCancel?: () => void
 }
 
-export default function AddAssetForm({
-  onCancel,
-  onSubmitAsset,
-}: AddAssetFormProps) {
-  const [assetId, setAssetId] = useState("");
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState("");
-  const [equipmentType, setEquipmentType] = useState("");
-  const [acquisitionDate, setAcquisitionDate] = useState("");
-  const [status, setStatus] = useState<AssetStatus>("Available");
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+function getErrorMessage(error: unknown): string {
+  if (error instanceof AssetLookupError && error.status === 403) {
+    if (error.message.toLowerCase().includes('csrf')) {
+      return 'The request could not be verified. Refresh the page and try again.'
+    }
+    return 'You are not authorized to add assets. Sign in with your EMS account and try again.'
+  }
+  if (error instanceof AssetLookupError) {
+    return error.message
+  }
+  return 'Could not connect to equipment records. Please try again.'
+}
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    setSuccess(false);
+export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
+  const navigate = useNavigate()
+  const [assetIdentifier, setAssetIdentifier] = useState('')
+  const [name, setName] = useState('')
+  const [categoryId, setCategoryId] = useState('')
+  const [equipmentTypeId, setEquipmentTypeId] = useState('')
+  const [acquisitionDate, setAcquisitionDate] = useState('')
+  const [categories, setCategories] = useState<CategoryOption[]>([])
+  const [equipmentTypes, setEquipmentTypes] = useState<EquipmentTypeOption[]>([])
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true)
+  const [isLoadingTypes, setIsLoadingTypes] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
 
-    const cleanedId = assetId.trim();
-    const cleanedName = name.trim();
+  useEffect(() => {
+    let isCurrent = true
+    fetchCategories()
+      .then((items) => {
+        if (isCurrent) setCategories(items)
+      })
+      .catch((loadError: unknown) => {
+        if (isCurrent) setError(getErrorMessage(loadError))
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingCategories(false)
+      })
 
-    if (!cleanedId || !cleanedName || !category || !equipmentType) {
-      setError("Please complete all required fields.");
-      return;
+    return () => {
+      isCurrent = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!categoryId) {
+      return
     }
 
-    const newAsset: NewAsset = {
-      assetId: cleanedId,
-      name: cleanedName,
-      category,
-      equipmentType,
-      acquisitionDate,
-      status,
-    };
+    let isCurrent = true
+    fetchEquipmentTypes(Number(categoryId))
+      .then((items) => {
+        if (isCurrent) setEquipmentTypes(items)
+      })
+      .catch((loadError: unknown) => {
+        if (isCurrent) setError(getErrorMessage(loadError))
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingTypes(false)
+      })
 
-    if (onSubmitAsset) {
-      onSubmitAsset(newAsset);
-    } else {
-      // Frontend demonstration only: this does not save to the backend.
-      console.info("Add Asset form submission (not persisted):", newAsset);
+    return () => {
+      isCurrent = false
+    }
+  }, [categoryId])
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setSuccessMessage('')
+
+    if (!assetIdentifier.trim() || !name.trim() || !categoryId || !equipmentTypeId) {
+      setError('Please complete all required fields.')
+      return
     }
 
-    setSuccess(true);
+    setIsSubmitting(true)
+    try {
+      const asset = await createAsset({
+        asset_identifier: assetIdentifier.trim(),
+        name: name.trim(),
+        equipment_type_id: Number(equipmentTypeId),
+        acquisition_date: acquisitionDate || null,
+      })
+      setSuccessMessage(`Asset ${asset.asset_identifier} was added successfully.`)
+      setAssetIdentifier('')
+      setName('')
+      setCategoryId('')
+      setEquipmentTypeId('')
+      setEquipmentTypes([])
+      setAcquisitionDate('')
+    } catch (submitError: unknown) {
+      setError(getErrorMessage(submitError))
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
-    <section className="add-asset">
+    <section className="add-asset" aria-labelledby="add-asset-title">
       <header className="add-asset__header">
-        <div>
-          <p className="add-asset__eyebrow">Equipment Management</p>
-          <h1>Add New Asset</h1>
-          <p className="add-asset__description">
-            Enter the details below to register an equipment asset.
-          </p>
-        </div>
+        <p className="add-asset__eyebrow">Equipment Management</p>
+        <h1 id="add-asset-title">Add New Asset</h1>
+        <p className="add-asset__description">
+          Enter the details below to register an equipment asset.
+        </p>
       </header>
 
       <form className="add-asset__form" onSubmit={handleSubmit} noValidate>
@@ -94,10 +130,11 @@ export default function AddAssetForm({
             <label htmlFor="asset-id">Asset ID <span>*</span></label>
             <input
               id="asset-id"
-              name="assetId"
-              value={assetId}
-              onChange={(event) => setAssetId(event.target.value)}
+              name="asset_identifier"
+              value={assetIdentifier}
+              onChange={(event) => setAssetIdentifier(event.target.value)}
               placeholder="e.g. ECE-001"
+              maxLength={100}
               required
             />
           </div>
@@ -110,6 +147,7 @@ export default function AddAssetForm({
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="e.g. Digital Multimeter"
+              maxLength={255}
               required
             />
           </div>
@@ -118,38 +156,51 @@ export default function AddAssetForm({
             <label htmlFor="asset-category">Category <span>*</span></label>
             <select
               id="asset-category"
-              name="category"
-              value={category}
+              name="category_id"
+              value={categoryId}
               onChange={(event) => {
-                setCategory(event.target.value);
-                setEquipmentType("");
+                const nextCategoryId = event.target.value
+                setCategoryId(nextCategoryId)
+                setEquipmentTypes([])
+                setEquipmentTypeId('')
+                setIsLoadingTypes(Boolean(nextCategoryId))
+                setError('')
               }}
+              disabled={isLoadingCategories || categories.length === 0}
               required
             >
-              <option value="">Select a category</option>
-              {Object.keys(equipmentTypes).map((item) => (
-                <option key={item} value={item}>{item}</option>
+              <option value="">
+                {isLoadingCategories ? 'Loading categories…' : 'Select a category'}
+              </option>
+              {categories.map((category) => (
+                <option key={category.category_id} value={category.category_id}>
+                  {category.name}
+                </option>
               ))}
             </select>
           </div>
 
           <div className="add-asset__field">
-            <label htmlFor="equipment-type">
-              Equipment type <span>*</span>
-            </label>
+            <label htmlFor="equipment-type">Equipment type <span>*</span></label>
             <select
               id="equipment-type"
-              name="equipmentType"
-              value={equipmentType}
-              onChange={(event) => setEquipmentType(event.target.value)}
-              disabled={!category}
+              name="equipment_type_id"
+              value={equipmentTypeId}
+              onChange={(event) => setEquipmentTypeId(event.target.value)}
+              disabled={!categoryId || isLoadingTypes || equipmentTypes.length === 0}
               required
             >
               <option value="">
-                {category ? "Select an equipment type" : "Select a category first"}
+                {!categoryId
+                  ? 'Select a category first'
+                  : isLoadingTypes
+                    ? 'Loading equipment types…'
+                    : 'Select an equipment type'}
               </option>
-              {(equipmentTypes[category] ?? []).map((item) => (
-                <option key={item} value={item}>{item}</option>
+              {equipmentTypes.map((equipmentType) => (
+                <option key={equipmentType.type_id} value={equipmentType.type_id}>
+                  {equipmentType.name}
+                </option>
               ))}
             </select>
           </div>
@@ -158,49 +209,61 @@ export default function AddAssetForm({
             <label htmlFor="acquisition-date">Acquisition date</label>
             <input
               id="acquisition-date"
-              name="acquisitionDate"
+              name="acquisition_date"
               type="date"
               value={acquisitionDate}
               onChange={(event) => setAcquisitionDate(event.target.value)}
             />
           </div>
-
-          <div className="add-asset__field">
-            <label htmlFor="asset-status">Status <span>*</span></label>
-            <select
-              id="asset-status"
-              name="status"
-              value={status}
-              onChange={(event) => setStatus(event.target.value as AssetStatus)}
-              required
-            >
-              {statuses.map((item) => (
-                <option key={item} value={item}>{item}</option>
-              ))}
-            </select>
-          </div>
         </div>
 
-        <p className="add-asset__required">* Required fields</p>
-
+        <p className="add-asset__required">
+          * Required fields. New assets start with Available status.
+        </p>
+        {!isLoadingCategories && categories.length === 0 && !error && (
+          <p className="add-asset__message add-asset__message--error" role="status">
+            No active categories are set up yet. Ask an administrator to add categories and equipment types.
+          </p>
+        )}
+        {categoryId && !isLoadingTypes && equipmentTypes.length === 0 && !error && (
+          <p className="add-asset__message" role="status">
+            No active equipment types are available for this category.
+          </p>
+        )}
         {error && <p className="add-asset__message add-asset__message--error" role="alert">{error}</p>}
-        {success && (
+        {successMessage && (
           <p className="add-asset__message add-asset__message--success" role="status">
-            Form submitted in this frontend demo. The asset has not been saved to the database.
+            {successMessage} <Link to="/">View assets</Link>
           </p>
         )}
 
         <div className="add-asset__actions">
-          {onCancel && (
-            <button className="add-asset__button add-asset__button--secondary" type="button" onClick={onCancel}>
+          {onCancel ? (
+            <button
+              className="add-asset__button add-asset__button--secondary"
+              type="button"
+              onClick={onCancel}
+            >
+              Cancel
+            </button>
+          ) : (
+            <button
+              className="add-asset__button add-asset__button--secondary"
+              type="button"
+              onClick={() => navigate('/')}
+            >
               Cancel
             </button>
           )}
-          <button className="add-asset__button add-asset__button--primary" type="submit">
-            Submit Asset
+          <button
+            className="add-asset__button add-asset__button--primary"
+            type="submit"
+            disabled={isSubmitting || isLoadingCategories || categories.length === 0}
+          >
+            {isSubmitting ? 'Submitting…' : 'Submit Asset'}
           </button>
         </div>
       </form>
     </section>
-  );
+  )
 }
