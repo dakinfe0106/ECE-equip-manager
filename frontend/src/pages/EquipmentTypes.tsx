@@ -1,10 +1,5 @@
-<<<<<<< HEAD
-import { AddEquipmentTypeForm } from '../components/AddEquipmentTypeForm'
-import { useEffect, useState } from 'react'
-import './EquipmentTypes.css'
-=======
 import { useEffect, useMemo, useState } from 'react'
->>>>>>> 858475976e8caa1df75f3b013cee278339c53948
+import AddEquipmentTypeForm from '../components/AddEquipmentTypeForm' 
 
 type Category = {
   category_id: number
@@ -26,6 +21,7 @@ function EquipmentTypes() {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [show, setShow] = useState('active')
+  const [showAddForm, setShowAddForm] = useState(false)
 
   useEffect(() => {
     const fetchEquipmentTypes = async () => {
@@ -88,18 +84,25 @@ function EquipmentTypes() {
 
         <button
           type="button"
+          onClick={() => setShowAddForm(!showAddForm)} // <-- ADD THIS onClick
           className="rounded-md bg-blue-600 px-5 py-2.5 font-medium text-white hover:bg-blue-700"
         >
-          + Add Equipment Type
+          {showAddForm ? 'Cancel' : '+ Add Equipment Type'} {/* <-- Toggle text */}
         </button>
       </div>
+      
+      {/* Conditionally render your form when the button is clicked */}
+      {showAddForm && (
+        <div className="mb-6 rounded-lg border border-slate-300 bg-slate-50 p-6 shadow-sm">
+          <AddEquipmentTypeForm 
+            onSuccess={() => {
+              setShowAddForm(false) // Close the form on success
+              window.location.reload() // Refresh the table to show the new item
+            }} 
+          />
+        </div>
+      )}
 
-<<<<<<< HEAD
-      {/* ADD THIS LINE RIGHT HERE */}
-      <AddEquipmentTypeForm />
-
-      <div className="equipment-types-card">
-=======
       {/* Main card */}
       <div className="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
         {/* Toolbar */}
@@ -142,7 +145,6 @@ function EquipmentTypes() {
         </div>
 
         {/* Loading/error */}
->>>>>>> 858475976e8caa1df75f3b013cee278339c53948
         {loading && (
           <p className="p-6 text-sm text-slate-600">
             Loading equipment types...

@@ -1,22 +1,28 @@
 import React, { useState, useEffect } from 'react';
 
+// Updated to match the team's database schema (category_id instead of id)
 type Category = {
-  id: number;
+  category_id: number;
   name: string;
 };
+
+interface AddEquipmentTypeFormProps {
+  onSuccess?: () => void;
+}
 
 /**
  * AddEquipmentTypeForm
  * Allows Shop Techs to create a new equipment type within a selected category.
  * Handles API submission and displays validation errors (like duplicates).
  */
-export const AddEquipmentTypeForm: React.FC = () => {
+export default function AddEquipmentTypeForm({ onSuccess }: AddEquipmentTypeFormProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState<number | ''>('');
   const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch categories on load to populate the dropdown
   useEffect(() => {
@@ -30,7 +36,7 @@ export const AddEquipmentTypeForm: React.FC = () => {
         setCategories(data);
       } catch (err) {
         console.error(err);
-        setError('Could not load categories. Please refresh the page.');
+        setError('Could not load categories. Please ensure the backend is running.');
       }
     };
     fetchCategories();
@@ -40,6 +46,7 @@ export const AddEquipmentTypeForm: React.FC = () => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
+    setIsSubmitting(true);
 
     try {
       const response = await fetch('http://localhost:8000/api/equipment-types/', {
@@ -47,7 +54,6 @@ export const AddEquipmentTypeForm: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        // Note: We use category_id to match the write_only field we added in the serializer
         credentials: 'include',
         body: JSON.stringify({ 
           name, 
@@ -63,76 +69,97 @@ export const AddEquipmentTypeForm: React.FC = () => {
       }
 
       setSuccess('Equipment type added successfully!');
+      
+      // Reset form
       setName('');
       setDescription('');
       setCategoryId('');
       
-      // Reload the page after a short delay so the new item appears in table
-      setTimeout(() => window.location.reload(), 1500);
+      // Trigger the parent component to close the form and refresh the table
+      if (onSuccess) {
+        setTimeout(() => onSuccess(), 1000);
+      }
 
     } catch (err: unknown) {
-      // Safely check if the error is an Error object before accessing .message
       const errorMessage = err instanceof Error 
         ? err.message 
         : 'An unknown error occurred while adding the equipment type.';
-      
       setError(errorMessage);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="add-equipment-type-form" style={{ marginBottom: '20px', padding: '20px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc' }}>
-      <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '15px' }}>Add New Equipment Type</h2>
+    <div className="rounded-lg border border-slate-300 bg-slate-50 p-6 shadow-sm">
+      <h2 className="mb-4 text-lg font-semibold text-slate-900">Add New Equipment Type</h2>
       
-      {error && <p style={{ color: '#dc2626', marginBottom: '10px', fontSize: '0.9rem' }}>⚠️ {error}</p>}
-      {success && <p style={{ color: '#16a34a', marginBottom: '10px', fontSize: '0.9rem' }}>✅ {success}</p>}
+      {error && (
+        <p className="mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700">
+          ⚠️ {error}
+        </p>
+      )}
+      {success && (
+        <p className="mb-4 rounded-md bg-green-50 p-3 text-sm text-green-700">
+          ✅ {success}
+        </p>
+      )}
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Category *</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Category <span className="text-red-500">*</span>
+          </label>
           <select 
             value={categoryId} 
-            onChange={(e) => setCategoryId(Number(e.target.value))} 
+            onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : '')} 
             required
-            style={{ padding: '8px', width: '100%', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           >
             <option value="">Select a category...</option>
             {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
+              <option key={cat.category_id} value={cat.category_id}>
+                {cat.name}
+              </option>
             ))}
           </select>
         </div>
 
         <div>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Type Name *</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Type Name <span className="text-red-500">*</span>
+          </label>
           <input 
             type="text" 
             value={name} 
             onChange={(e) => setName(e.target.value)} 
             required
             placeholder="e.g., Standard Laptop"
-            style={{ padding: '8px', width: '100%', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           />
         </div>
 
         <div>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: '500' }}>Description (Optional)</label>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Description (Optional)
+          </label>
           <input 
             type="text" 
             value={description} 
             onChange={(e) => setDescription(e.target.value)} 
             placeholder="e.g., Dell Optiplex machines"
-            style={{ padding: '8px', width: '100%', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
           />
         </div>
 
         <button 
           type="submit" 
-          style={{ padding: '10px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+          disabled={isSubmitting}
+          className="mt-2 w-full rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
         >
-          Add Equipment Type
+          {isSubmitting ? 'Adding...' : 'Add Equipment Type'}
         </button>
       </form>
     </div>
   );
-};
+}
