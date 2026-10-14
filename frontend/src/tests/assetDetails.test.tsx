@@ -25,7 +25,9 @@ const noop = () => {}
 
 describe('AssetDetails modal', () => {
   it('shows every field required by the acceptance criteria', () => {
-    const html = renderToString(<AssetDetails asset={makeAsset()} onClose={noop} />)
+    const html = renderToString(
+      <AssetDetails asset={makeAsset()} onAssetUpdated={noop} onClose={noop} />,
+    )
 
     expect(html).toContain('<dialog')
     expect(html).toContain('aria-labelledby="details-title"')
@@ -36,12 +38,17 @@ describe('AssetDetails modal', () => {
     expect(html).toContain('2022-09-01')
     expect(html).toContain('status-on-loan')
     expect(html).toContain('On Loan')
+    expect(html).toContain('Edit information')
     expect(html).toContain('Close asset details')
   })
 
   it('says when the acquisition date is missing', () => {
     const html = renderToString(
-      <AssetDetails asset={makeAsset({ acquisition_date: null })} onClose={noop} />,
+      <AssetDetails
+        asset={makeAsset({ acquisition_date: null })}
+        onAssetUpdated={noop}
+        onClose={noop}
+      />,
     )
     expect(html).toContain('Not recorded')
   })
@@ -52,7 +59,9 @@ describe('AssetDetails modal', () => {
       { certification_id: 1, name: 'Lab Safety' },
       { certification_id: 2, name: 'High Voltage' },
     ]
-    const html = renderToString(<AssetDetails asset={asset} onClose={noop} />)
+    const html = renderToString(
+      <AssetDetails asset={asset} onAssetUpdated={noop} onClose={noop} />,
+    )
 
     expect(html).toContain('Required certifications')
     expect(html).toContain('Lab Safety')
@@ -62,13 +71,17 @@ describe('AssetDetails modal', () => {
   it('says none are required when the list is empty', () => {
     const asset = makeAsset()
     asset.equipment_type.required_certifications = []
-    const html = renderToString(<AssetDetails asset={asset} onClose={noop} />)
+    const html = renderToString(
+      <AssetDetails asset={asset} onAssetUpdated={noop} onClose={noop} />,
+    )
 
     expect(html).toContain('None required')
   })
 
   it('hides the certifications row until the API provides it', () => {
-    const html = renderToString(<AssetDetails asset={makeAsset()} onClose={noop} />)
+    const html = renderToString(
+      <AssetDetails asset={makeAsset()} onAssetUpdated={noop} onClose={noop} />,
+    )
     expect(html).not.toContain('Required certifications')
   })
 })

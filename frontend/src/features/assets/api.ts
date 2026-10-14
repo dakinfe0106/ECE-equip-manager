@@ -10,7 +10,6 @@ export interface AssetRecord {
     type_id: number
     name: string
     description: string
-    // Present once the backend serves certification requirements (issue #7).
     required_certifications?: {
       certification_id: number
       name: string
@@ -32,8 +31,8 @@ export interface PaginatedAssets {
 export class AssetLookupError extends Error {
   readonly status: number
 
-  constructor(status: number) {
-    super(`Asset lookup failed (${status})`)
+  constructor(status: number, message = `Asset lookup failed (${status})`) {
+    super(message)
     this.name = 'AssetLookupError'
     this.status = status
   }
@@ -50,6 +49,55 @@ export async function fetchAssets(page = 1, assetIdentifier = ''): Promise<Pagin
   })
   if (!response.ok) {
     throw new AssetLookupError(response.status)
+  }
+  return response.json()
+}
+
+export type AssetUpdate = Pick<AssetRecord, 'name' | 'acquisition_date'>
+
+function getCsrfToken(): string | undefined {
+  if (typeof document === 'undefined') {
+    return undefined
+  }
+  return document.cookie
+    .split('; ')
+    .find((cookie) => cookie.startsWith('csrftoken='))
+    ?.slice('csrftoken='.length)
+}
+
+export async function updateAsset(
+  assetId: number,
+  changes: AssetUpdate,
+): Promise<AssetRecord> {
+  const headers = new Headers({ 'Content-Type': 'application/json' })
+  const csrfToken = getCsrfToken()
+  if (csrfToken) {
+    headers.set('X-CSRFToken', decodeURIComponent(csrfToken))
+  }
+
+  const response = await fetch(`${apiBaseUrl}/assets/${assetId}/`, {
+    method: 'PATCH',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify(changes),
+  })
+  if (!response.ok) {
+    let message = `Asset update failed (${response.status})`
+    try {
+      const body: unknown = await response.json()
+      if (typeof body === 'object' && body !== null && 'detail' in body) {
+        message = String(body.detail)
+      } else if (
+        typeof body === 'object' &&
+        body !== null &&
+        'asset_identifier' in body
+      ) {
+        message = String(body.asset_identifier)
+      }
+    } catch {
+      // Keep the explicit HTTP failure message when the response has no JSON body.
+    }
+    throw new AssetLookupError(response.status, message)
   }
   return response.json()
 }
