@@ -1,6 +1,6 @@
 # Backend Implementation Guide
 
-**Status:** Proposed. Sections marked _Proposed_ and the [pending decisions](#9-pending-decisions) need team agreement before they are treated as binding.
+**Status:** Sections without a _Proposed_ label are agreed conventions and are binding. Items marked _Proposed_ and the [pending decisions](#9-pending-decisions) need team agreement first: when a task depends on one, raise it in the plan instead of implementing it silently.
 
 This guide explains how to build a backend feature inside one Django app. It adds code-level conventions and does not repeat other documents:
 
@@ -39,7 +39,50 @@ Each app uses only the files it needs:
 
 Cross-app imports are allowed where ownership requires them. For example, `lending.services` uses `inventory.models.Asset`. Keep the import in one direction where possible and do not move models to avoid an import.
 
-## 3. Views, URLs, and serializers
+## 3. Models, views, URLs, and serializers
+
+### Models
+
+- Name the primary key as [database.md](database.md#1-conventions) shows, for example `category_id = models.AutoField(primary_key=True)`. `users.User` keeps Django's default `id`. URLs capture the key as `pk`.
+- Join models use `pk = models.CompositePrimaryKey('borrower_id', 'certification_id')`. Django admin cannot register models with a composite primary key, so manage these links through the parent records.
+- Reference users through `settings.AUTH_USER_MODEL`, for example the maintenance technician foreign key.
+- Trim strings at every entry point before saving:
+  - API: DRF `CharField` trims by default. Never set `trim_whitespace=False`.
+  - Django admin: form fields strip whitespace by default.
+  - Services and imports: call `normalize_text()` from `equipmanager/text.py`. Add this shared helper (not a business app) with the first model that has string fields:
+
+    ```python
+    def normalize_text(value: str) -> str:
+        return value.strip()
+    ```
+
+- Add database constraints as the final guard. Name them `<app>_<model>_<purpose>`:
+
+  ```python
+  from django.db import models
+  from django.db.models import Q
+  from django.db.models.functions import Lower, Trim
+
+
+  class Category(models.Model):
+      category_id = models.AutoField(primary_key=True)
+      name = models.CharField(max_length=255)
+      is_deleted = models.BooleanField(default=False)
+
+      class Meta:
+          constraints = [
+              models.UniqueConstraint(Lower('name'), name='inventory_category_name_ci_unique'),
+              models.CheckConstraint(
+                  condition=Q(name=Trim('name')) & ~Q(name=''),
+                  name='inventory_category_name_trimmed_nonempty',
+              ),
+          ]
+  ```
+
+  - Every required string gets the trimmed, nonempty `CheckConstraint`. Optional strings that default to `""` do not.
+  - Case-insensitive names use `UniqueConstraint(Lower('name'), ...)`. For `EquipmentType`, scope it to the category: `UniqueConstraint(Lower('name'), 'category', name=...)`.
+  - Do not add a condition to these unique constraints. Soft-deleted rows keep their names reserved.
+  - Store the value with the case the user entered. Do not lowercase it.
 
 ### Views
 
@@ -68,9 +111,9 @@ _Proposed_ resource paths, derived from `database.md` tables:
 ### Serializers
 
 - Use `ModelSerializer` for resources. List `fields` explicitly; never use `fields = '__all__'`.
-- Mark server-controlled fields as read-only: `id`, `status`, `is_deleted`, loan return fields, and maintenance end dates.
+- Mark server-controlled fields as read-only: the primary key, `status`, `is_deleted`, loan return fields, and maintenance end dates.
 - Use a separate small serializer for an action's input, for example `LoanReturnSerializer` with `return_condition` and `actual_return_date`.
-- DRF `CharField` trims whitespace by default. Do not disable it for identifying fields.
+- DRF `CharField` trims whitespace and rejects blank values by default. Keep both defaults for required strings (see [Models](#models)).
 - Check uniqueness in the serializer against **all** rows, including soft-deleted ones, using the scope `database.md` defines for each field:
   - `Category.name` and `Certification.name`: `name__iexact` across the whole table.
   - `EquipmentType.name`: `name__iexact` within the same category only. The same type name may exist in another category.
@@ -244,7 +287,7 @@ Each endpoint needs tests for:
 
 | Decision | Options | Blocks |
 | --- | --- | --- |
-| `SystemUser` vs `users.User` | Add `role`/`unb_id` to `users.User`, or a profile with a one-to-one link | Permissions, maintenance technician field |
+| `SystemUser` fields on `users.User` | Add `role`/`unb_id` to `users.User`, or a profile with a one-to-one link. Either way, SystemUser is implemented on `users.User` and foreign keys use `settings.AUTH_USER_MODEL` | Permissions, user management |
 | Roles and permissions | Groups with model permissions (proposed), or a `role` field with custom checks | Every protected endpoint |
 | `TIME_ZONE` | Currently `UTC`. `America/Moncton` matches the Shop. Under UTC the date rolls over at 8 p.m. local time in AST and 9 p.m. in ADT, so loans would show as overdue a day early. Changing `TIME_ZONE` only helps if code uses `timezone.localdate()` (see [section 4](#4-business-logic-and-transactions)) | Overdue rules, analytics |
 | User soft deletion vs `is_active` | Keep both flags and set `is_active = False` whenever `is_deleted = True` (current guidance), or use `is_active` as the users' only soft-delete flag and update `database.md` | User management, login |
