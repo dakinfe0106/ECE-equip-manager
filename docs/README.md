@@ -8,6 +8,7 @@ The current process relies heavily on manually maintained Excel files. This proj
 
 ```text
 ECE-equip-manager/
+├── .github/                   # CI workflow and pull request template
 ├── frontend/                  # React + TypeScript frontend
 ├── server/
 │   ├── .venv/                 # Local Python environment, not committed
@@ -24,10 +25,17 @@ ECE-equip-manager/
 │       ├── inventory/         # App: equipment categories, types, assets
 │       ├── lending/           # App: borrowers, loans, returns, lending history
 │       ├── maintenance/       # App: maintenance records and workflows
-│       └── users/             # App: users, authentication, roles, permissions
+│       ├── users/             # App: users, authentication, roles, permissions
+│       └── tests/             # Project-wide tests (health check, auth defaults)
 ├── docs/
-│   └── Architecture.md
+│   ├── README.md              # This guide
+│   ├── Architecture.md        # Architecture and the reasons behind it
+│   ├── Backend.md             # Backend code conventions and pending decisions
+│   ├── database.md            # Database schema and business rules
+│   ├── Frontend-Standards.md  # Frontend code conventions
+│   └── Quality.md             # Definition of Done and PO acceptance
 ├── .gitignore
+├── AGENTS.md                  # Workflow rules for developers and coding agents
 └── README.md
 ```
 
@@ -197,9 +205,9 @@ The shared/staging database is separate and should not normally be used for loca
 
 Download PostgreSQL 18 from the [EDB installer](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads) for macOS or Windows. Keep the default port (`5432`) and the `postgres` superuser, and remember the password you choose. The installer includes pgAdmin 4 and `psql`.
 
-Only run one PostgreSQL server on your computer. If you already use Postgres.app, Homebrew PostgreSQL, or another EDB installation, keep that server and do not install or start a second one.
+Only run one PostgreSQL server on your computer. If you already run PostgreSQL 18 from Postgres.app, Homebrew, or another EDB installation, keep that server and do not install or start a second one. The project and CI use PostgreSQL 18; other major versions are not supported.
 
-Add the PostgreSQL command-line tools to your PATH if `psql` is not found. Replace `18` with `17` if using PostgreSQL 17:
+Add the PostgreSQL command-line tools to your PATH if `psql` is not found:
 
 ### macOS
 
@@ -220,21 +228,7 @@ psql --version
 
 The PostgreSQL service normally starts when the computer boots. If it is not running, see [Troubleshooting](#troubleshooting).
 
-The default PostgreSQL port is:
-
-```text
-5432
-```
-
-Only run one PostgreSQL server on your machine.
-
-## 2. Verify PostgreSQL
-
-```bash
-psql --version
-```
-
-## 3. Create the local database
+## 2. Create the local database
 
 Using `psql`:
 
@@ -378,7 +372,7 @@ After pulling tooling changes, run `npm ci` from `frontend/`. No separate Tailwi
 
 For local API configuration, copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_URL` (default `http://localhost:8000/api`). Restart Vite after changing it. Variables prefixed with `VITE_` are exposed to the browser; never put secrets in them. On Windows, use `npm.cmd` if PowerShell blocks `npm.ps1`.
 
-The browser frontend calls Django from a different origin. Django provides CORS response headers for origins listed in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env` (comma-separated, default `http://localhost:5173`), allowing the browser to read API responses. CORS is not authentication and does not prevent non-browser clients from calling the API. If the frontend runs on a different port or host, add that origin explicitly; do not enable all origins.
+The browser frontend calls Django from a different origin. Django provides CORS response headers for origins listed in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env` (comma-separated, default `http://localhost:5173`), allowing the browser to read API responses. These origins are also trusted for Django CSRF checks so authenticated session requests such as asset edits can be sent from the frontend. CORS is not authentication and does not prevent non-browser clients from calling the API. If the frontend runs on a different port or host, add that origin explicitly; do not enable all origins.
 
 ---
 
@@ -466,12 +460,16 @@ All endpoints live under `/api/` and end with a trailing slash.
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/api/health/` | Public. Checks that the API is reachable: `{"status": "ok"}` |
+| GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search. |
+| PATCH | `/api/assets/<asset_id>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
+
+The general asset edit endpoint keeps `asset_identifier`, `equipment_type`, and `status` read-only. Status transitions must use their corresponding loan, maintenance, retirement, or reactivation workflow so related records and state changes remain consistent.
 
 By default, API endpoints require an authenticated Django session (`IsAuthenticated` in `REST_FRAMEWORK` settings). A view that must be public has to opt out explicitly.
 
 ## Adding an Endpoint
 
-New endpoints go in the app that owns the feature, not in the project folder. Follow [Backend.md](Backend.md) for services, serializers, soft deletion, permissions, and the tests each endpoint needs. For example, to add `/api/equipment/` to `inventory`:
+New endpoints go in the app that owns the feature, not in the project folder. Follow [Backend.md](Backend.md) for models, services, serializers, soft deletion, permissions, and the tests each endpoint needs. Before adding or changing a model, read [database.md](database.md); schema changes must match it, and any approved schema change updates it in the same pull request. For example, to add `/api/equipment/` to `inventory`:
 
 1. Add the model to `inventory/models.py`, then run `python manage.py makemigrations inventory` and `python manage.py migrate`.
 2. Create `inventory/serializers.py` with a serializer for the model.
@@ -491,15 +489,17 @@ Once a protected endpoint exists, opening it without a logged-in session returns
 
 Use the same host for both steps. Cookies for `localhost` and `127.0.0.1` are separate, so logging in on one does not log you in on the other.
 
-In tests, log in with the test client instead:
+In tests, log in with DRF's `APIClient` instead:
 
 ```python
 import pytest
 from django.contrib.auth import get_user_model
+from rest_framework.test import APIClient
 
 
 @pytest.mark.django_db
-def test_equipment_list_requires_login(client):
+def test_equipment_list_requires_login():
+    client = APIClient()
     assert client.get('/api/equipment/').status_code == 403
 
     user = get_user_model().objects.create_user(username='tech', password='pw-for-tests')
@@ -649,14 +649,9 @@ Follow [Quality.md](Quality.md) for the Definition of Done and product acceptanc
 
 Frontend, backend, database, and testing tasks may be split under a parent feature. The responsible feature developer coordinates dependencies and integration. A finished sub-task or merged PR does not make the parent feature Done: all required work must be integrated, acceptance testing must pass, and the Product Owner must accept the result before the GitHub issue moves to Done.
 
-Use the Microsoft Teams group to communicate about pull requests and overlapping work, especially when multiple developers may be changing the same files or feature. Changes to shared files (`equipmanager/settings.py`, `equipmanager/urls.py`, `requirements*.txt`) are worth a message before you start.
+Use the Microsoft Teams group to communicate about pull requests and overlapping work, especially when multiple developers may be changing the same files or feature. Changes to shared files (`equipmanager/settings.py`, `equipmanager/urls.py`, `requirements.txt`, `.env.example` files, `.github/workflows/ci.yml`, and the documents in `docs/`) are worth a message before you start.
 
-For the complete Git workflow and architecture decisions, and for backend code conventions, see:
-
-```text
-docs/Architecture.md
-docs/Backend.md
-```
+For the reasons behind the Git workflow and other architecture decisions, see [Architecture.md](Architecture.md#4-git-and-collaboration-workflow).
 
 ---
 
@@ -672,7 +667,7 @@ Make sure `DB_PASSWORD` in `server/equipmanager/.env` matches the password for y
 
 **`database "equipmanager" does not exist`**
 
-Create it by following [PostgreSQL Setup](#postgresql-setup), step 3.
+Create it by following [PostgreSQL Setup](#postgresql-setup), step 2.
 
 **`KeyError: 'DJANGO_SECRET_KEY'` or `The SECRET_KEY setting must not be empty`**
 
@@ -693,6 +688,10 @@ The virtual environment is not active. Activate it (`source server/.venv/bin/act
 **Frontend shows `blocked by CORS policy` in the browser console**
 
 The frontend's origin is not in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env`. Add it (for example `http://localhost:5173`) and restart `runserver`.
+
+**Asset edits return `403` even though the asset list loads**
+
+Check that the frontend origin (including its scheme, host, and port) is listed in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env`, then restart `runserver`. This setting also configures the origins Django trusts for CSRF checks on session-authenticated updates.
 
 **`relation "..." does not exist`**
 
@@ -771,8 +770,11 @@ Both test runners must discover tests and pass. An empty suite fails CI, includi
 
 # Documentation
 
-Architecture decisions, diagrams, conventions, authentication direction, deletion strategy, migration rules, CI behavior, and database environment decisions are documented in:
-
-```text
-docs/Architecture.md
-```
+| Document | Purpose |
+| --- | --- |
+| [AGENTS.md](../AGENTS.md) | Planning, approval, verification, and Git workflow for developers and coding agents, and which documents to read for each kind of change |
+| [Architecture.md](Architecture.md) | Architecture decisions, diagrams, authentication direction, deletion strategy, migration rules, CI behavior, and database environments |
+| [Backend.md](Backend.md) | Backend code conventions and pending decisions |
+| [database.md](database.md) | Database schema, constraints, business rules, and permission policy |
+| [Frontend-Standards.md](Frontend-Standards.md) | Frontend code conventions |
+| [Quality.md](Quality.md) | Splitting feature work, merge gates, Definition of Done, and PO acceptance |
