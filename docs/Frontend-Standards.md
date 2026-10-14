@@ -28,18 +28,22 @@ Follow these steps to get the frontend running on your local machine:
    ```bash
    node --version  # Should be v24.x.x
    npm --version
+   ```
 
 2. **Navigate to Frontend Directory:** From the root of the monorepo, move into the frontend folder:
-    ```bash
-       cd frontend
+   ```bash
+   cd frontend
+   ```
 
 3. **Install Dependencies:** Always use `npm ci` to respect the exact versions in the lockfile and ensure consistency across the team.
-    ```bash
-    npm ci
+   ```bash
+   npm ci
+   ```
 
 4. **Start the Development Server:**
-    ```bash
-       npm run dev
+   ```bash
+   npm run dev
+   ```
 
 The application will be available at `http://localhost:5173`. It supports Hot Module Replacement (HMR), so your changes will reflect instantly.
 
@@ -47,9 +51,9 @@ The application will be available at `http://localhost:5173`. It supports Hot Mo
 To ensure your Pull Request passes the GitHub Actions CI pipeline, you must run these checks locally before pushing your code:
 
 ```bash
-    npm run lint    # Checks for TypeScript errors and ESLint rule violations
-    npm test        # Runs Vitest unit tests
-    npm run build   # Ensures the app compiles successfully for production
+    npm run lint        # Checks for ESLint rule violations
+    npm test -- --run   # Runs Vitest unit tests once (plain `npm test` starts watch mode and does not exit)
+    npm run build       # Type-checks with TypeScript (tsc -b) and builds the app for production
 ```
 *Tip: If a check fails, read the error message carefully. It will usually tell you the exact file and line number to fix.*
 
@@ -63,7 +67,7 @@ To ensure your Pull Request passes the GitHub Actions CI pipeline, you must run 
 
 - API endpoints should use the `/api/` base path (e.g., `GET /api/equipment-types/`).
 
-- Use standard HTTP methods: `GET` (retrieve), `POST` (create), `PATCH` (partial update), `DELETE` (remove). Note: Historical records like Loans and Maintenance do not support DELETE endpoints.
+- Use standard HTTP methods: `GET` (retrieve), `POST` (create), `PATCH` (partial update), `DELETE` (soft delete). Note: Historical records like Loans and Maintenance do not support DELETE endpoints.
 
 **2. State Management**
 
@@ -96,7 +100,7 @@ To ensure your Pull Request passes the GitHub Actions CI pipeline, you must run 
     git pull origin main
     git switch -c feature/your-feature-name
 ```
-**2. Committing:** Make small, logical commits with clear messages (e.g., `feat: add equipment type list view`).
+**2. Committing:** Make small, logical commits with clear messages (e.g., `Add equipment type list view`).
 
 **3. Pull Requests:**
 
@@ -110,6 +114,6 @@ To ensure your Pull Request passes the GitHub Actions CI pipeline, you must run 
 
 - **`npm ci` fails:** Check your internet connection and ensure you are using the correct Node.js version (v24). You can check your npm registry with `npm config get registry`.
 - **CI Pipeline fails on linting:** Run `npm run lint` locally. ESLint will often provide an auto-fix command (e.g., `npm run lint -- --fix`).
-- **API returns 401/403:** Ensure your Django backend is running, and that you are properly handling authentication cookies/tokens as defined by the backend team.
+- **API returns 403:** The request has no logged-in Django session, or the user lacks the permission. This project is configured for session authentication (cookies) only; token authentication is not enabled. See `docs/Backend.md` section 6.
 
-*For backend setup instructions, API endpoint definitions, or database schema details, please refer to `docs/README.md` and `docs/Architecture.md`.*
+*For backend setup instructions and API endpoint definitions, please refer to `docs/README.md` and `docs/Architecture.md`. For database schema details, see `docs/database.md`.*

@@ -10,14 +10,26 @@ Follow the developer's task instructions and the agent platform's higher-priorit
 
 The ECE Equipment Management System manages equipment inventory, lending, returns, maintenance, and user access for the ECE Shop.
 
-Read these before implementing a feature:
+Project documents:
 
 - [docs/README.md](docs/README.md): canonical setup, commands, testing, migrations, and Git workflow.
 - [docs/Architecture.md](docs/Architecture.md): architecture, business boundaries, API conventions, authentication, and deletion policy.
 - [docs/Quality.md](docs/Quality.md): split feature work, quality gates, and Product Owner acceptance.
-- [docs/Backend.md](docs/Backend.md): backend code conventions (app layout, services, soft deletion, authentication, permissions, testing) for backend features.
+- [docs/Backend.md](docs/Backend.md): backend code conventions (models, services, soft deletion, authentication, permissions, testing) and pending decisions.
+- [docs/database.md](docs/database.md): tables, constraints, business rules, and the permission policy.
+- [docs/Frontend-Standards.md](docs/Frontend-Standards.md): frontend code conventions.
 - [.github/workflows/ci.yml](.github/workflows/ci.yml): checks executed in CI.
-- Relevant source files, tests, and dependency/configuration files for the area being changed.
+
+Before planning, read the documents for the kind of change, plus the relevant source files, tests, and dependency/configuration files:
+
+| Change | Read |
+| --- | --- |
+| Any change | This file and [docs/Quality.md](docs/Quality.md) |
+| Frontend | [docs/Frontend-Standards.md](docs/Frontend-Standards.md); [docs/Architecture.md](docs/Architecture.md) sections 5 and 8 |
+| Backend or API | [docs/Backend.md](docs/Backend.md); [docs/Architecture.md](docs/Architecture.md) sections 7 to 10 |
+| Models, migrations, queries, or business rules | [docs/database.md](docs/database.md), plus the backend row |
+| Setup, commands, dependencies, Git, or CI | [docs/README.md](docs/README.md) and [ci.yml](.github/workflows/ci.yml) |
+| Documentation only | The affected documents and the documents that link to them |
 
 Use checked-in code and configuration to verify what is currently implemented. Tailwind CSS is configured through its Vite plugin and the main stylesheet. React Router uses `BrowserRouter` with routes in `frontend/src/AppRoutes.tsx`. Do not assume planned business pages already exist. Flag inconsistencies and update affected documentation when resolving them.
 
@@ -32,6 +44,7 @@ Use checked-in code and configuration to verify what is currently implemented. T
 | `server/equipmanager/lending/`      | Borrowers, loans, checkout, returns, and lending history                             |
 | `server/equipmanager/maintenance/`  | Maintenance records and repair workflows                                             |
 | `server/equipmanager/users/`        | Custom user model, authentication, roles, and permissions                            |
+| `server/equipmanager/tests/`        | Project-wide backend tests (health check, settings, authentication defaults)         |
 | `docs/`                             | Setup instructions and architecture decisions                                        |
 | `.github/workflows/`                | GitHub Actions CI                                                                    |
 
@@ -75,6 +88,7 @@ Create local `.env` files from `frontend/.env.example` and `server/equipmanager/
 
 ### Frontend
 
+- Follow [docs/Frontend-Standards.md](docs/Frontend-Standards.md) for frontend code conventions.
 - Use TypeScript and existing React patterns. Keep types explicit at API boundaries; avoid using `any` to bypass type errors.
 - Start with React's built-in state management. The server is the source of truth for equipment, borrowers, loans, and maintenance data.
 - Communicate with Django through HTTP/JSON; never access the database from the frontend.
@@ -85,7 +99,7 @@ Create local `.env` files from `frontend/.env.example` and `server/equipmanager/
 ### Backend and API
 
 - Django owns business rules, validation, database access, and authorization. Frontend restrictions do not replace backend checks.
-- Follow [docs/Backend.md](docs/Backend.md) for code-level backend conventions. Raise conflicts between it and `docs/database.md` or `docs/Architecture.md` instead of choosing one silently.
+- Follow [docs/Backend.md](docs/Backend.md) for code-level backend conventions. Sections without a _Proposed_ label are binding. When a task depends on a _Proposed_ item or a pending decision, raise it in the plan instead of choosing silently. Raise conflicts between Backend.md and `docs/database.md` or `docs/Architecture.md` the same way.
 - Use Django ORM and Django REST Framework conventions. Keep shared project configuration separate from app-specific business features.
 - Add routes to the owning app's `urls.py`. All four apps already mount under `/api/`; paths must be unique across apps.
 - Use plural resource names, trailing slashes, standard HTTP methods, JSON, and DRF error structures. Prefer `PATCH` for partial updates.

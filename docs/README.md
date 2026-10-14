@@ -8,6 +8,7 @@ The current process relies heavily on manually maintained Excel files. This proj
 
 ```text
 ECE-equip-manager/
+├── .github/                   # CI workflow and pull request template
 ├── frontend/                  # React + TypeScript frontend
 ├── server/
 │   ├── .venv/                 # Local Python environment, not committed
@@ -24,10 +25,17 @@ ECE-equip-manager/
 │       ├── inventory/         # App: equipment categories, types, assets
 │       ├── lending/           # App: borrowers, loans, returns, lending history
 │       ├── maintenance/       # App: maintenance records and workflows
-│       └── users/             # App: users, authentication, roles, permissions
+│       ├── users/             # App: users, authentication, roles, permissions
+│       └── tests/             # Project-wide tests (health check, auth defaults)
 ├── docs/
-│   └── Architecture.md
+│   ├── README.md              # This guide
+│   ├── Architecture.md        # Architecture and the reasons behind it
+│   ├── Backend.md             # Backend code conventions and pending decisions
+│   ├── database.md            # Database schema and business rules
+│   ├── Frontend-Standards.md  # Frontend code conventions
+│   └── Quality.md             # Definition of Done and PO acceptance
 ├── .gitignore
+├── AGENTS.md                  # Workflow rules for developers and coding agents
 └── README.md
 ```
 
@@ -197,9 +205,9 @@ The shared/staging database is separate and should not normally be used for loca
 
 Download PostgreSQL 18 from the [EDB installer](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads) for macOS or Windows. Keep the default port (`5432`) and the `postgres` superuser, and remember the password you choose. The installer includes pgAdmin 4 and `psql`.
 
-Only run one PostgreSQL server on your computer. If you already use Postgres.app, Homebrew PostgreSQL, or another EDB installation, keep that server and do not install or start a second one.
+Only run one PostgreSQL server on your computer. If you already run PostgreSQL 18 from Postgres.app, Homebrew, or another EDB installation, keep that server and do not install or start a second one. The project and CI use PostgreSQL 18; other major versions are not supported.
 
-Add the PostgreSQL command-line tools to your PATH if `psql` is not found. Replace `18` with `17` if using PostgreSQL 17:
+Add the PostgreSQL command-line tools to your PATH if `psql` is not found:
 
 ### macOS
 
@@ -220,21 +228,7 @@ psql --version
 
 The PostgreSQL service normally starts when the computer boots. If it is not running, see [Troubleshooting](#troubleshooting).
 
-The default PostgreSQL port is:
-
-```text
-5432
-```
-
-Only run one PostgreSQL server on your machine.
-
-## 2. Verify PostgreSQL
-
-```bash
-psql --version
-```
-
-## 3. Create the local database
+## 2. Create the local database
 
 Using `psql`:
 
@@ -471,7 +465,7 @@ By default, API endpoints require an authenticated Django session (`IsAuthentica
 
 ## Adding an Endpoint
 
-New endpoints go in the app that owns the feature, not in the project folder. Follow [Backend.md](Backend.md) for services, serializers, soft deletion, permissions, and the tests each endpoint needs. For example, to add `/api/equipment/` to `inventory`:
+New endpoints go in the app that owns the feature, not in the project folder. Follow [Backend.md](Backend.md) for models, services, serializers, soft deletion, permissions, and the tests each endpoint needs. Before adding or changing a model, read [database.md](database.md); schema changes must match it, and any approved schema change updates it in the same pull request. For example, to add `/api/equipment/` to `inventory`:
 
 1. Add the model to `inventory/models.py`, then run `python manage.py makemigrations inventory` and `python manage.py migrate`.
 2. Create `inventory/serializers.py` with a serializer for the model.
@@ -491,15 +485,17 @@ Once a protected endpoint exists, opening it without a logged-in session returns
 
 Use the same host for both steps. Cookies for `localhost` and `127.0.0.1` are separate, so logging in on one does not log you in on the other.
 
-In tests, log in with the test client instead:
+In tests, log in with DRF's `APIClient` instead:
 
 ```python
 import pytest
 from django.contrib.auth import get_user_model
+from rest_framework.test import APIClient
 
 
 @pytest.mark.django_db
-def test_equipment_list_requires_login(client):
+def test_equipment_list_requires_login():
+    client = APIClient()
     assert client.get('/api/equipment/').status_code == 403
 
     user = get_user_model().objects.create_user(username='tech', password='pw-for-tests')
@@ -649,14 +645,9 @@ Follow [Quality.md](Quality.md) for the Definition of Done and product acceptanc
 
 Frontend, backend, database, and testing tasks may be split under a parent feature. The responsible feature developer coordinates dependencies and integration. A finished sub-task or merged PR does not make the parent feature Done: all required work must be integrated, acceptance testing must pass, and the Product Owner must accept the result before the GitHub issue moves to Done.
 
-Use the Microsoft Teams group to communicate about pull requests and overlapping work, especially when multiple developers may be changing the same files or feature. Changes to shared files (`equipmanager/settings.py`, `equipmanager/urls.py`, `requirements*.txt`) are worth a message before you start.
+Use the Microsoft Teams group to communicate about pull requests and overlapping work, especially when multiple developers may be changing the same files or feature. Changes to shared files (`equipmanager/settings.py`, `equipmanager/urls.py`, `requirements.txt`, `.env.example` files, `.github/workflows/ci.yml`, and the documents in `docs/`) are worth a message before you start.
 
-For the complete Git workflow and architecture decisions, and for backend code conventions, see:
-
-```text
-docs/Architecture.md
-docs/Backend.md
-```
+For the reasons behind the Git workflow and other architecture decisions, see [Architecture.md](Architecture.md#4-git-and-collaboration-workflow).
 
 ---
 
@@ -672,7 +663,7 @@ Make sure `DB_PASSWORD` in `server/equipmanager/.env` matches the password for y
 
 **`database "equipmanager" does not exist`**
 
-Create it by following [PostgreSQL Setup](#postgresql-setup), step 3.
+Create it by following [PostgreSQL Setup](#postgresql-setup), step 2.
 
 **`KeyError: 'DJANGO_SECRET_KEY'` or `The SECRET_KEY setting must not be empty`**
 
@@ -771,8 +762,11 @@ Both test runners must discover tests and pass. An empty suite fails CI, includi
 
 # Documentation
 
-Architecture decisions, diagrams, conventions, authentication direction, deletion strategy, migration rules, CI behavior, and database environment decisions are documented in:
-
-```text
-docs/Architecture.md
-```
+| Document | Purpose |
+| --- | --- |
+| [AGENTS.md](../AGENTS.md) | Planning, approval, verification, and Git workflow for developers and coding agents, and which documents to read for each kind of change |
+| [Architecture.md](Architecture.md) | Architecture decisions, diagrams, authentication direction, deletion strategy, migration rules, CI behavior, and database environments |
+| [Backend.md](Backend.md) | Backend code conventions and pending decisions |
+| [database.md](database.md) | Database schema, constraints, business rules, and permission policy |
+| [Frontend-Standards.md](Frontend-Standards.md) | Frontend code conventions |
+| [Quality.md](Quality.md) | Splitting feature work, merge gates, Definition of Done, and PO acceptance |

@@ -1,4 +1,4 @@
-﻿# ECE Equipment Manager Frontend
+# ECE Equipment Manager Frontend
 
 React + TypeScript application built with Vite, using Tailwind CSS, React Router, ESLint, and Vitest.
 
@@ -21,7 +21,7 @@ On Windows, use `npm.cmd` if PowerShell blocks `npm.ps1`.
 
 Tailwind runs through `@tailwindcss/vite` in `vite.config.ts` and is imported in `src/index.css`. Use utility classes for component styles; shared global CSS belongs in the base layer. React Router uses `BrowserRouter` in `src/main.tsx`; add routes in `src/AppRoutes.tsx` and use `Link` or `NavLink` for internal navigation.
 
-The initial `/` route displays the health-check page. Unknown paths display a fallback with a home link. Business pages are not implemented yet. Teammates only need `npm ci` after pulling these changes.
+The initial `/` route displays the health-check page. Unknown paths display a fallback with a home link. Business pages are not implemented yet. Run `npm ci` after pulling changes to `package-lock.json`.
 
 In deployment, the frontend host must serve `index.html` for direct requests to client-side routes. Keep `/api/` requests routed to Django.
 
@@ -35,4 +35,4 @@ npm run build
 
 Tests use MSW to mock HTTP responses; they do not verify connectivity to a running backend. An empty suite fails CI. The build includes TypeScript checks and produces `dist/`.
 
-Follow [AGENTS.md](../AGENTS.md) for planning and approval, [Architecture.md](../docs/Architecture.md) for conventions, and [Quality.md](../docs/Quality.md) for feature acceptance.
+Follow [Frontend-Standards.md](../docs/Frontend-Standards.md) for frontend code conventions, [AGENTS.md](../AGENTS.md) for planning and approval, [Architecture.md](../docs/Architecture.md) for architecture, and [Quality.md](../docs/Quality.md) for feature acceptance.
