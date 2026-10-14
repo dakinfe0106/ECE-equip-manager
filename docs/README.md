@@ -378,7 +378,7 @@ After pulling tooling changes, run `npm ci` from `frontend/`. No separate Tailwi
 
 For local API configuration, copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_URL` (default `http://localhost:8000/api`). Restart Vite after changing it. Variables prefixed with `VITE_` are exposed to the browser; never put secrets in them. On Windows, use `npm.cmd` if PowerShell blocks `npm.ps1`.
 
-The browser frontend calls Django from a different origin. Django provides CORS response headers for origins listed in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env` (comma-separated, default `http://localhost:5173`), allowing the browser to read API responses. CORS is not authentication and does not prevent non-browser clients from calling the API. If the frontend runs on a different port or host, add that origin explicitly; do not enable all origins.
+The browser frontend calls Django from a different origin. Django provides CORS response headers for origins listed in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env` (comma-separated, default `http://localhost:5173`), allowing the browser to read API responses. These origins are also trusted for Django CSRF checks so authenticated session requests such as asset edits can be sent from the frontend. CORS is not authentication and does not prevent non-browser clients from calling the API. If the frontend runs on a different port or host, add that origin explicitly; do not enable all origins.
 
 ---
 
@@ -466,6 +466,10 @@ All endpoints live under `/api/` and end with a trailing slash.
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/api/health/` | Public. Checks that the API is reachable: `{"status": "ok"}` |
+| GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search. |
+| PATCH | `/api/assets/<asset_id>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
+
+The general asset edit endpoint keeps `asset_identifier`, `equipment_type`, and `status` read-only. Status transitions must use their corresponding loan, maintenance, retirement, or reactivation workflow so related records and state changes remain consistent.
 
 By default, API endpoints require an authenticated Django session (`IsAuthenticated` in `REST_FRAMEWORK` settings). A view that must be public has to opt out explicitly.
 
@@ -693,6 +697,10 @@ The virtual environment is not active. Activate it (`source server/.venv/bin/act
 **Frontend shows `blocked by CORS policy` in the browser console**
 
 The frontend's origin is not in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env`. Add it (for example `http://localhost:5173`) and restart `runserver`.
+
+**Asset edits return `403` even though the asset list loads**
+
+Check that the frontend origin (including its scheme, host, and port) is listed in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env`, then restart `runserver`. This setting also configures the origins Django trusts for CSRF checks on session-authenticated updates.
 
 **`relation "..." does not exist`**
 
