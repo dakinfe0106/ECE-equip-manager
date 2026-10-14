@@ -42,13 +42,15 @@
 | ---------------- | ------------ | -------- | ---------------------------------------------- |
 | asset_id         | int          | No       | PK                                             |
 | type_id          | int          | No       | FK → EquipmentType.type_id (`PROTECT`)         |
-| asset_identifier | varchar(100) | No       | Globally unique, including soft-deleted assets |
+| asset_identifier | varchar(100) | No       | Globally unique case-insensitively after trimming, including soft-deleted assets |
 | name             | varchar(255) | No       | Required                                       |
 | acquisition_date | date         | **Yes**  | Optional for imported/older assets             |
 | status           | varchar(20)  | No       | Default `Available`; choices below             |
 | is_deleted       | boolean      | No       | Default `False`                                |
 
 **Asset statuses:** `Available`, `On_Loan`, `Under_Maintenance`, `Retired`.
+
+Asset ID search trims surrounding whitespace and matches identifiers by case-insensitive substring; a full identifier returns its matching asset. Asset results are paginated at 20 per page. Results exclude assets whose asset, equipment type, or category is soft-deleted.
 
 ### Borrower
 

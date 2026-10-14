@@ -1,14 +1,12 @@
-from typing import ClassVar
-
 from rest_framework import serializers
 
-from .models import Category, EquipmentType
+from .models import Asset, Category, EquipmentType
 
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields: ClassVar = ["id", "name"]
+        fields = ("category_id", "name")
 
 
 class EquipmentTypeSerializer(serializers.ModelSerializer):
@@ -16,4 +14,20 @@ class EquipmentTypeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EquipmentType
-        fields: ClassVar = ["id", "name", "description", "category", "is_deleted"]
+        fields = ("type_id", "name", "description", "category", "is_deleted")
+
+
+class AssetSerializer(serializers.ModelSerializer):
+    equipment_type = EquipmentTypeSerializer(read_only=True)
+
+    class Meta:
+        model = Asset
+        fields = (
+            "asset_id",
+            "asset_identifier",
+            "name",
+            "acquisition_date",
+            "status",
+            "equipment_type",
+        )
+        read_only_fields = ("asset_id", "asset_identifier", "equipment_type", "status")

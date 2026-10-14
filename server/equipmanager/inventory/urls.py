@@ -1,11 +1,18 @@
 from django.urls import path
 
-from .views import EquipmentTypeList
+from . import views
 
 urlpatterns = [
     path(
         "equipment-types/",
-        EquipmentTypeList.as_view(),
+        views.EquipmentTypeList.as_view(),
         name="equipment-type-list",
     ),
+    path("assets/", views.asset_list, name="asset-list"),
+    path(
+        "assets/<int:asset_id>/",
+        views.AssetDetailAPIView.as_view(),
+        name="asset-detail",
+    ),
+    path("assets/lookup/", views.asset_list, name="asset-lookup"),
 ]
