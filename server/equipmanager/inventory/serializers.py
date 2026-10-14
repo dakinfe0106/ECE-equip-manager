@@ -30,3 +30,4 @@ class AssetSerializer(serializers.ModelSerializer):
             "status",
             "equipment_type",
         )
+        read_only_fields = ("asset_id", "asset_identifier", "equipment_type", "status")

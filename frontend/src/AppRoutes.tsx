@@ -5,8 +5,10 @@ import AssetsPage from './pages/AssetsPage'
 export default function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<App />} />
-      <Route path="/assets" element={<AssetsPage />} />
+      <Route element={<App />}>
+        <Route path="/" element={<AssetsPage />} />
+        <Route path="/assets" element={<AssetsPage />} />
+      </Route>
       <Route path="*" element={
         <main className="p-6">
           <h1>Page not found</h1>
