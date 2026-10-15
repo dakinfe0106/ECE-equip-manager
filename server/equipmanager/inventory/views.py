@@ -1,4 +1,3 @@
-
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.db.models.functions import Lower, Trim
@@ -24,6 +23,7 @@ from .serializers import (
 class AssetPagination(PageNumberPagination):
     page_size = 20
 
+DELETED_FILTER_VALUES = ("false", "true", "all")
 
 @ensure_csrf_cookie
 @api_view(["GET"])
@@ -37,22 +37,38 @@ def category_list(request):
 @ensure_csrf_cookie
 @api_view(["GET"])
 def equipment_type_list(request):
+    deleted = request.query_params.get("deleted", "false").lower()
+
+    if deleted not in DELETED_FILTER_VALUES:
+        raise ValidationError(
+            {"deleted": ['Must be one of: "false", "true", "all".']}
+        )
+
     equipment_types = EquipmentType.objects.filter(
-        is_deleted=False,
         category__is_deleted=False,
-    ).select_related("category").order_by(
-        "name", "type_id"
-    )
+    ).select_related("category")
+
+    if deleted != "all":
+        equipment_types = equipment_types.filter(
+            is_deleted=(deleted == "true")
+        )
+
     category_id = request.query_params.get("category_id")
     if category_id:
         try:
             category_id = int(category_id)
         except ValueError as exc:
             raise ValidationError(
-                {"category_id": "Must be a valid category ID."}
+                {"category_id": "Must be a valid integer."}
             ) from exc
+
         equipment_types = equipment_types.filter(category_id=category_id)
-    return Response(EquipmentTypeLookupSerializer(equipment_types, many=True).data)
+
+    equipment_types = equipment_types.order_by("type_id")
+
+    return Response(
+        EquipmentTypeLookupSerializer(equipment_types, many=True).data
+    )
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
@@ -133,8 +149,6 @@ class AssetDetailAPIView(generics.RetrieveUpdateAPIView):
             )
         return super().update(request, *args, **kwargs)
 
-
-DELETED_FILTER_VALUES = ("false", "true", "all")
 
 
 class CategoryList(generics.ListAPIView):
