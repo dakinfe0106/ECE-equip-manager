@@ -1,13 +1,37 @@
 
+from django.db import IntegrityError, transaction
 from django.db.models.functions import Lower, Trim
+from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import generics
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 
-from .models import Asset
-from .serializers import AssetSerializer
+from .models import Asset, Category
+from .serializers import AssetSerializer, CategorySerializer
+
+CATEGORY_NAME_CONSTRAINT = "inv_category_name_ci_uniq"  # name= on Category's UniqueConstraint
+
+
+@method_decorator(ensure_csrf_cookie, name="dispatch")
+class CategoryList(generics.ListCreateAPIView):
+    queryset = Category.objects.filter(is_deleted=False).order_by(Lower("name"))
+    serializer_class = CategorySerializer
+
+    def perform_create(self, serializer):
+        # Two concurrent requests can both pass the serializer check;
+        # the unique constraint is the final guard.
+        try:
+            with transaction.atomic():
+                serializer.save()
+        except IntegrityError as exc:
+            constraint = getattr(getattr(exc.__cause__, "diag", None), "constraint_name", None)
+            if constraint == CATEGORY_NAME_CONSTRAINT:
+                raise ValidationError(
+                    {"name": ["A category with this name already exists."]}
+                ) from exc
+            raise
 
 
 class AssetPagination(PageNumberPagination):

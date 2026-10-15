@@ -7,6 +7,7 @@ from django.db import IntegrityError, transaction
 from rest_framework.test import APIClient
 
 from .models import Asset, Category, EquipmentType
+from .serializers import CategorySerializer
 
 
 @pytest.fixture
@@ -270,3 +271,81 @@ def test_asset_identifier_cannot_be_changed_by_update(
     asset_record.refresh_from_db()
     assert asset_record.asset_identifier == "SHOP-001"
     assert asset_record.name == "Cordless drill"
+
+
+def test_category_create_saves_trimmed_name(authenticated_client):
+    response = authenticated_client.post(
+        "/api/categories/", {"name": "  Oscilloscopes  "}, format="json"
+    )
+
+    assert response.status_code == 201
+    assert response.data["name"] == "Oscilloscopes"
+    assert Category.objects.get().name == "Oscilloscopes"
+
+
+def test_category_create_rejects_duplicate_name_ignoring_case(authenticated_client):
+    Category.objects.create(name="Tools")
+
+    response = authenticated_client.post(
+        "/api/categories/", {"name": " tools "}, format="json"
+    )
+
+    assert response.status_code == 400
+    assert response.data["name"] == ["A category with this name already exists."]
+    assert Category.objects.count() == 1
+
+
+def test_category_create_rejects_name_of_soft_deleted_category(authenticated_client):
+    Category.objects.create(name="Tools", is_deleted=True)
+
+    response = authenticated_client.post(
+        "/api/categories/", {"name": "Tools"}, format="json"
+    )
+
+    assert response.status_code == 400
+    assert Category.objects.count() == 1
+
+
+def test_category_create_rejects_blank_name(authenticated_client):
+    response = authenticated_client.post(
+        "/api/categories/", {"name": "   "}, format="json"
+    )
+
+    assert response.status_code == 400
+    assert "name" in response.data
+    assert not Category.objects.exists()
+
+
+def test_category_create_returns_400_when_constraint_catches_duplicate(
+    authenticated_client, monkeypatch
+):
+    # Simulate a concurrent request that passed the serializer check.
+    Category.objects.create(name="Tools")
+    monkeypatch.setattr(CategorySerializer, "validate_name", lambda self, value: value)
+
+    response = authenticated_client.post(
+        "/api/categories/", {"name": "TOOLS"}, format="json"
+    )
+
+    assert response.status_code == 400
+    assert response.data["name"] == ["A category with this name already exists."]
+
+
+def test_category_list_returns_active_categories_sorted_by_name(authenticated_client):
+    Category.objects.create(name="tools")
+    Category.objects.create(name="Meters")
+    Category.objects.create(name="Archived", is_deleted=True)
+
+    response = authenticated_client.get("/api/categories/")
+
+    assert response.status_code == 200
+    assert [category["name"] for category in response.data] == ["Meters", "tools"]
+
+
+def test_category_endpoints_require_authentication(db):
+    client = APIClient()
+
+    assert client.get("/api/categories/").status_code == 403
+    assert client.post(
+        "/api/categories/", {"name": "Tools"}, format="json"
+    ).status_code == 403
