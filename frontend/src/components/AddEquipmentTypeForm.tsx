@@ -1,5 +1,23 @@
 import React, { useState, useEffect } from 'react';
 
+// Use environment variable for API URL, fallback to localhost for development
+const API_BASE_URL = 'http://localhost:8000';
+
+const getCookie = (name: string): string | null => {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+};
+
 // Updated to match the team's database schema (category_id instead of id)
 type Category = {
   category_id: number;
@@ -28,7 +46,7 @@ export default function AddEquipmentTypeForm({ onSuccess }: AddEquipmentTypeForm
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/categories/', {
+        const response = await fetch(`${API_BASE_URL}/api/categories/`, {
           credentials: 'include',
         });
         if (!response.ok) throw new Error('Failed to fetch categories');
@@ -49,10 +67,13 @@ export default function AddEquipmentTypeForm({ onSuccess }: AddEquipmentTypeForm
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('http://localhost:8000/api/equipment-types/', {
+      const csrftoken = getCookie('csrftoken');
+   
+      const response = await fetch(`${API_BASE_URL}/api/equipment-types/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRFToken': csrftoken || '',
         },
         credentials: 'include',
         body: JSON.stringify({ 
@@ -61,7 +82,6 @@ export default function AddEquipmentTypeForm({ onSuccess }: AddEquipmentTypeForm
           category_id: categoryId 
         }),
       });
-
       if (!response.ok) {
         const errorData = await response.json();
         // Extract the specific validation error message from our Django backend

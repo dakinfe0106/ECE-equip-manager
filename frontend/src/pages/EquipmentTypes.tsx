@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import AddEquipmentTypeForm from '../components/AddEquipmentTypeForm' 
 
+// Use environment variable for API URL, fallback to localhost for development
+   const API_BASE_URL = 'http://localhost:8000';
+
 type Category = {
   category_id: number
   name: string
@@ -26,12 +29,9 @@ function EquipmentTypes() {
   useEffect(() => {
     const fetchEquipmentTypes = async () => {
       try {
-        const response = await fetch(
-          'http://localhost:8000/api/equipment-types/',
-          {
-            credentials: 'include',
-          },
-        )
+        const response = await fetch(`${API_BASE_URL}/api/equipment-types/`, {
+          credentials: 'include',
+        })
 
         if (!response.ok) {
           throw new Error(`Request failed with status ${response.status}`)

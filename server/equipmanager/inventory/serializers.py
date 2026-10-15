@@ -19,7 +19,7 @@ class EquipmentTypeSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = EquipmentType
-        fields = ("type_id", "name", "description", "category", "is_deleted")
+        fields = ("type_id", "name", "description", "category", "category_id", "is_deleted")
         read_only_fields = ("type_id", "is_deleted")
 
     def validate(self, data):
