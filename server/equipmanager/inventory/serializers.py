@@ -51,6 +51,24 @@ class AssetSerializer(serializers.ModelSerializer):
         read_only_fields = ("asset_id", "asset_identifier", "equipment_type", "status")
 
 
+class CategorySummarySerializer(CategorySerializer):
+    """A category as shown on the Categories screen.
+
+    Adds the soft-delete flag and the number of active equipment types.
+    `equipment_type_count` comes from a queryset annotation (see CategoryList).
+    """
+
+    equipment_type_count = serializers.IntegerField(read_only=True)
+
+    class Meta(CategorySerializer.Meta):
+        fields = (
+            *CategorySerializer.Meta.fields,
+            "is_deleted",
+            "equipment_type_count",
+        )
+        read_only_fields = ("is_deleted",)
+
+
 class AssetCreateSerializer(serializers.ModelSerializer):
     equipment_type_id = serializers.PrimaryKeyRelatedField(
         source="equipment_type",
