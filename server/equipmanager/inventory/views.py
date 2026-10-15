@@ -1,4 +1,5 @@
 from typing import ClassVar
+
 from django.db.models.functions import Lower, Trim
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import generics
