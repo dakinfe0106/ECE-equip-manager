@@ -366,7 +366,7 @@ The configured frontend stack includes:
 - ESLint
 - Vitest
 
-Vitest is configured as the frontend test runner. Tailwind CSS is configured in `vite.config.ts` and imported in `src/index.css`; existing global CSS is in its base layer. React Router uses `BrowserRouter` with routes defined in `src/AppRoutes.tsx`. The root route shows the health-check page, and unknown paths show a fallback. Business pages are not implemented yet.
+Vitest is configured as the frontend test runner. Tailwind CSS is configured in `vite.config.ts` and imported in `src/index.css`; existing global CSS is in its base layer. React Router uses `BrowserRouter` with routes defined in `src/AppRoutes.tsx`. The root route shows the asset inventory, `/assets/new` shows the asset creation form, and unknown paths show a fallback.
 
 After pulling tooling changes, run `npm ci` from `frontend/`. No separate Tailwind or Router setup is needed per developer. Use Tailwind classes for component styling and React Router links for internal navigation. When deploying the frontend, configure the host to serve `index.html` for client-side routes while keeping `/api/` requests routed to Django.
 
@@ -466,7 +466,7 @@ All endpoints live under `/api/` and end with a trailing slash.
 | GET | `/api/equipment-types/?category_id=<id>` | Authenticated. Lists active equipment types for a category. |
 | GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search. |
 | POST | `/api/assets/` | Authenticated. Creates an asset with an active `equipment_type_id`; status starts as `Available`. |
-| PATCH | `/api/assets/<asset_id>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
+| PATCH | `/api/assets/<pk>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
 
 The general asset edit endpoint keeps `asset_identifier`, `equipment_type`, and `status` read-only. Status transitions must use their corresponding loan, maintenance, retirement, or reactivation workflow so related records and state changes remain consistent.
 

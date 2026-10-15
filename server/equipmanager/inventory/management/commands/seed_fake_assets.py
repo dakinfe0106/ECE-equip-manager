@@ -2,6 +2,7 @@ from datetime import date
 
 from django.core.management.base import BaseCommand
 
+from equipmanager.text import normalize_text
 from inventory.models import Asset, Category, EquipmentType
 
 
@@ -54,16 +55,18 @@ class Command(BaseCommand):
 
         created = 0
         for entry in asset_seed:
-            category, _ = Category.objects.get_or_create(name=entry["category"])
-            equipment_type, _ = EquipmentType.objects.get_or_create(
+            category, _ = Category.objects.get_or_create(
+                name=normalize_text(entry["category"])
+            )
+            asset_type, _ = EquipmentType.objects.get_or_create(
                 category=category,
-                name=entry["equipment_type"],
+                name=normalize_text(entry["equipment_type"]),
             )
             _, was_created = Asset.objects.get_or_create(
-                asset_identifier=entry["asset_identifier"],
+                asset_identifier=normalize_text(entry["asset_identifier"]),
                 defaults={
-                    "name": entry["name"],
-                    "equipment_type": equipment_type,
+                    "name": normalize_text(entry["name"]),
+                    "type": asset_type,
                     "acquisition_date": entry["acquisition_date"],
                     "status": entry["status"],
                 },

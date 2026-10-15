@@ -36,7 +36,7 @@ class EquipmentTypeLookupSerializer(EquipmentTypeSerializer):
 
 
 class AssetSerializer(serializers.ModelSerializer):
-    equipment_type = AssetEquipmentTypeSerializer(read_only=True)
+    equipment_type = AssetEquipmentTypeSerializer(source="type", read_only=True)
 
     class Meta:
         model = Asset
@@ -71,7 +71,7 @@ class CategorySummarySerializer(CategorySerializer):
 
 class AssetCreateSerializer(serializers.ModelSerializer):
     equipment_type_id = serializers.PrimaryKeyRelatedField(
-        source="equipment_type",
+        source="type",
         queryset=EquipmentType.objects.filter(
             is_deleted=False,
             category__is_deleted=False,
@@ -92,7 +92,7 @@ class AssetCreateSerializer(serializers.ModelSerializer):
         read_only_fields = ("asset_id", "status")
 
     def validate_asset_identifier(self, value):
-        if Asset.objects.filter(asset_identifier__iexact=value).exists():
+        if Asset.objects.filter(asset_identifier=value).exists():
             raise serializers.ValidationError(
                 "An asset with this Asset ID already exists."
             )

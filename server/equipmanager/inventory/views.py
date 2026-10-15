@@ -79,18 +79,24 @@ class AssetListCreateAPIView(generics.ListCreateAPIView):
         assets = (
             Asset.objects.filter(
                 is_deleted=False,
-                equipment_type__is_deleted=False,
-                equipment_type__category__is_deleted=False,
+                type__is_deleted=False,
+                type__category__is_deleted=False,
             )
-            .select_related("equipment_type__category")
+            .select_related("type__category")
             .order_by("asset_id")
         )
 
         asset_identifier = self.request.query_params.get("asset_identifier", "").strip()
         if asset_identifier:
-            assets = assets.annotate(
-                normalized_asset_identifier=Lower(Trim("asset_identifier"))
-            ).filter(normalized_asset_identifier__contains=asset_identifier.lower())
+            exact_match = assets.filter(asset_identifier=asset_identifier).first()
+            if exact_match is not None:
+                assets = assets.filter(asset_id=exact_match.asset_id)
+            else:
+                assets = assets.annotate(
+                    normalized_asset_identifier=Lower(Trim("asset_identifier"))
+                ).filter(
+                    normalized_asset_identifier__contains=asset_identifier.lower()
+                )
         return assets
 
     def get_serializer_class(self):
@@ -108,7 +114,7 @@ class AssetListCreateAPIView(generics.ListCreateAPIView):
             constraint_name = getattr(
                 getattr(exc.__cause__, "diag", None), "constraint_name", None
             )
-            if constraint_name != "inv_asset_ident_ci_uniq":
+            if constraint_name != "inventory_asset_identifier_unique":
                 raise
             raise ValidationError(
                 {"asset_identifier": "An asset with this Asset ID already exists."}
@@ -121,17 +127,16 @@ class AssetListCreateAPIView(generics.ListCreateAPIView):
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
 
-class AssetDetailAPIView(generics.RetrieveUpdateAPIView):
+class AssetDetail(generics.RetrieveUpdateAPIView):
     queryset = (
         Asset.objects.filter(
             is_deleted=False,
-            equipment_type__is_deleted=False,
-            equipment_type__category__is_deleted=False,
+            type__is_deleted=False,
+            type__category__is_deleted=False,
         )
-        .select_related("equipment_type__category")
+        .select_related("type__category")
     )
     serializer_class = AssetSerializer
-    lookup_field = "asset_id"
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()

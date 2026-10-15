@@ -118,7 +118,7 @@ _Proposed_ resource paths, derived from `database.md` tables:
 - Check uniqueness in the serializer against **all** rows, including soft-deleted ones, using the scope `database.md` defines for each field:
   - `Category.name` and `Certification.name`: `name__iexact` across the whole table.
   - `EquipmentType.name`: `name__iexact` within the same category only. The same type name may exist in another category.
-  - `Asset.asset_identifier`: unique across the whole table.
+  - `Asset.asset_identifier`: unique by exact normalized value across the whole table.
 - Keep the database constraint as the final guard. Two concurrent requests can both pass the serializer check, so any view that saves directly (including generic CRUD views) must wrap the save in `transaction.atomic()`, catch `IntegrityError` from that unique constraint, and raise a DRF `ValidationError` so the race returns `400`, not `500`.
 
 ## 4. Business logic and transactions
