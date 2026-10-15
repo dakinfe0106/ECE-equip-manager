@@ -90,9 +90,9 @@ function EquipmentTypes() {
       </div>
 
       {/* Main card */}
-      <div className="overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl bg-white shadow-sm">
         {/* Toolbar */}
-        <div className="flex items-center justify-between border-b border-slate-300 p-4">
+        <div className="flex items-center justify-between border-b border-[#e8edf3] p-4">
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium text-slate-700">Show:</span>
 
@@ -141,24 +141,23 @@ function EquipmentTypes() {
 
         {/* Table */}
         {!loading && !error && (
-          <div className="p-4">
-            <div className="overflow-hidden rounded-xl border border-slate-300">
+            <div className="overflow-hidden border-t border-[#e8edf3]">
               <table className="w-full border-collapse text-left">
                 <thead>
                   <tr className="bg-slate-100 text-sm text-slate-700">
-                    <th className="border-r border-slate-300 px-4 py-3 font-semibold">
+                    <th className="px-4 py-3 font-semibold">
                       ID
                     </th>
 
-                    <th className="border-r border-slate-300 px-4 py-3 font-semibold">
+                    <th className="px-4 py-3 font-semibold">
                       Equipment Type
                     </th>
 
-                    <th className="border-r border-slate-300 px-4 py-3 font-semibold">
+                    <th className="px-4 py-3 font-semibold">
                       Category
                     </th>
 
-                    <th className="border-r border-slate-300 px-4 py-3 font-semibold">
+                    <th className="px-4 py-3 font-semibold">
                       Is_deleted
                     </th>
 
@@ -172,27 +171,27 @@ function EquipmentTypes() {
                   {visibleEquipmentTypes.map((equipmentType) => (
                     <tr
                       key={equipmentType.type_id}
-                      className="border-t border-slate-300 hover:bg-slate-50"
+                      className="border-t border-[#edf0f4] hover:bg-slate-50"
                     >
                       {/* ID */}
-                      <td className="border-r border-slate-300 px-4 py-4 text-sm text-slate-700">
+                      <td className="px-4 py-4 text-sm text-slate-700">
                         {String(equipmentType.type_id).padStart(2, '0')}
                       </td>
 
                       {/* Equipment type */}
-                      <td className="border-r border-slate-300 px-4 py-4 text-sm font-medium text-slate-800">
+                      <td className="px-4 py-4 text-sm font-medium text-slate-800">
                         {equipmentType.name}
                       </td>
 
                       {/* Category */}
-                      <td className="border-r border-slate-300 px-4 py-4">
+                      <td className="px-4 py-4">
                         <span className="inline-flex rounded-full bg-sky-100 px-3 py-1 text-sm text-sky-700">
                           {equipmentType.category.name}
                         </span>
                       </td>
 
                       {/* Is_deleted */}
-                      <td className="border-r border-slate-300 px-4 py-4">
+                      <td className="px-4 py-4">
                         <span
                           className={`inline-flex min-w-16 justify-center rounded-full px-3 py-1 text-sm ${
                             equipmentType.is_deleted
@@ -260,7 +259,6 @@ function EquipmentTypes() {
                 </tbody>
               </table>
             </div>
-          </div>
         )}
       </div>
     </main>
