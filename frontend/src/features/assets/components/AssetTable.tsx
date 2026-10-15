@@ -1,6 +1,4 @@
-import { Fragment } from 'react'
 import type { AssetRecord } from '../api'
-import AssetDetails from './AssetDetails'
 
 const headerClassName =
   'h-10 bg-[#f7f9fc] px-[14px] text-left text-[9px] font-[650] tracking-[0.15px] text-[#758196]'
@@ -17,7 +15,6 @@ interface AssetTableProps {
   assets: AssetRecord[]
   errorMessage: string
   isLoading: boolean
-  onAssetUpdated: (asset: AssetRecord) => void
   onSelectAsset: (assetId: number | null) => void
   selectedAssetId: number | null
 }
@@ -27,7 +24,6 @@ export default function AssetTable({
   assets,
   errorMessage,
   isLoading,
-  onAssetUpdated,
   onSelectAsset,
   selectedAssetId,
 }: AssetTableProps) {
@@ -47,45 +43,41 @@ export default function AssetTable({
         </thead>
         <tbody>
           {assets.map((asset) => (
-            <Fragment key={asset.asset_id}>
-              <tr className="hover:bg-[#f8faff]">
-                <td className={`${cellClassName} pl-[19px] tabular-nums text-[#8a96a7]`}>
-                  {asset.asset_id.toString().padStart(2, '0')}
-                </td>
-                <td className={cellClassName}>
-                  <button
-                    className="py-[3px] text-[10px] font-[650] text-[#2871da] hover:text-[#174fa1] hover:underline focus-visible:outline-2 focus-visible:outline-[#347ee9] focus-visible:outline-offset-[3px]"
-                    type="button"
-                    aria-expanded={selectedAssetId === asset.asset_id}
-                    aria-controls={selectedAssetId === asset.asset_id ? 'asset-details' : undefined}
-                    aria-label={`View details for asset ${asset.asset_identifier}`}
-                    onClick={() => onSelectAsset(selectedAssetId === asset.asset_id ? null : asset.asset_id)}
-                  >
-                    {asset.asset_identifier}
-                  </button>
-                </td>
-                <td className={`${cellClassName} font-[570] text-[#39465a]`}>{asset.name}</td>
-                <td className={cellClassName}>{asset.equipment_type.category.name}</td>
-                <td className={cellClassName}>{asset.equipment_type.name}</td>
-                <td className={cellClassName}>
-                  <span className={`inline-flex min-w-[68px] items-center justify-center rounded-xl px-2 py-1 text-[9px] font-[650] ${statusClassNames[asset.status]}`}>
-                    {asset.status.replaceAll('_', ' ')}
-                  </span>
-                </td>
-                <td className={cellClassName}>{asset.acquisition_date ?? '—'}</td>
-              </tr>
-              {selectedAssetId === asset.asset_id && (
-                <tr>
-                  <td className="h-auto border-t border-[#edf0f4] bg-[#f8faff] px-[18px] pb-4 pt-3" colSpan={7}>
-                    <AssetDetails
-                      asset={asset}
-                      onAssetUpdated={onAssetUpdated}
-                      onClose={() => onSelectAsset(null)}
-                    />
-                  </td>
-                </tr>
-              )}
-            </Fragment>
+            <tr
+              key={asset.asset_id}
+              className={
+                selectedAssetId === asset.asset_id
+                  ? 'row-selected bg-[#f1f6ff]'
+                  : 'hover:bg-[#f8faff]'
+              }
+            >
+              <td className={`${cellClassName} pl-[19px] tabular-nums text-[#8a96a7]`}>
+                {asset.asset_id.toString().padStart(2, '0')}
+              </td>
+              <td className={cellClassName}>
+                <button
+                  className="py-[3px] text-[10px] font-[650] text-[#2871da] hover:text-[#174fa1] hover:underline focus-visible:outline-2 focus-visible:outline-[#347ee9] focus-visible:outline-offset-[3px]"
+                  type="button"
+                  aria-haspopup="dialog"
+                  aria-controls={selectedAssetId === asset.asset_id ? 'asset-details' : undefined}
+                  aria-label={`View details for asset ${asset.asset_identifier}`}
+                  onClick={() =>
+                    onSelectAsset(selectedAssetId === asset.asset_id ? null : asset.asset_id)
+                  }
+                >
+                  {asset.asset_identifier}
+                </button>
+              </td>
+              <td className={`${cellClassName} font-[570] text-[#39465a]`}>{asset.name}</td>
+              <td className={cellClassName}>{asset.equipment_type.category.name}</td>
+              <td className={cellClassName}>{asset.equipment_type.name}</td>
+              <td className={cellClassName}>
+                <span className={`inline-flex min-w-[68px] items-center justify-center rounded-xl px-2 py-1 text-[9px] font-[650] ${statusClassNames[asset.status]}`}>
+                  {asset.status.replaceAll('_', ' ')}
+                </span>
+              </td>
+              <td className={cellClassName}>{asset.acquisition_date ?? '—'}</td>
+            </tr>
           ))}
           {!isLoading && assets.length === 0 && (
             <tr>

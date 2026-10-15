@@ -10,6 +10,10 @@ export interface AssetRecord {
     type_id: number
     name: string
     description: string
+    required_certifications?: {
+      certification_id: number
+      name: string
+    }[]
     category: {
       category_id: number
       name: string
