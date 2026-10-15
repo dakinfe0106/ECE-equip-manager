@@ -73,7 +73,7 @@ export function fetchCategories(
   if (search.trim()) {
     params.set('search', search.trim())
   }
-  return getJson<Category[]>(`/categories/?${params}`, signal)
+  return getJson<Category[]>(`/categories/summary/?${params}`, signal)
 }
 
 export function fetchCategoryEquipmentTypes(

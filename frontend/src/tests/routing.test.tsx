@@ -25,4 +25,16 @@ describe('Application routes', () => {
     expect(html).not.toContain('Search by Asset ID')
     expect(html).not.toContain('Test Backend Connection')
   })
+
+  it('renders the asset creation form at /assets/new', () => {
+    const html = renderToString(
+      <MemoryRouter initialEntries={['/assets/new']}>
+        <AppRoutes />
+      </MemoryRouter>,
+    )
+
+    expect(html).toContain('Add New Asset')
+    expect(html).toContain('equipment_type_id')
+    expect(html).not.toContain('Page not found')
+  })
 })

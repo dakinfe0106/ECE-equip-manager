@@ -443,7 +443,7 @@ The response must include the header `Access-Control-Allow-Origin: http://localh
 
 **4. Automated checks.** `server/equipmanager/tests/test_health.py` verifies the response and CORS header through Django's test client. It runs with `python -m pytest` and in CI. The frontend's MSW tests exercise the API client with mocked HTTP responses; they do not verify connectivity to a running backend.
 
-Protected DRF endpoints require a logged-in Django session (see [Authentication](Architecture.md#9-authentication-and-authorization)) and return `403` for unauthenticated requests with the current configuration. The business apps currently have no routes; nonexistent endpoints return `404`. `/api/health/` is public and is the endpoint to use for connection checks.
+Protected DRF endpoints require a logged-in Django session (see [Authentication](Architecture.md#9-authentication-and-authorization)) and return `403` for unauthenticated requests with the current configuration. The inventory app provides category and equipment-type lookups and asset list, create, and update routes. Lending and maintenance business routes are not implemented yet. `/api/health/` is public and is the endpoint to use for connection checks.
 
 ---
 
@@ -460,10 +460,17 @@ All endpoints live under `/api/` and end with a trailing slash.
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/api/health/` | Public. Checks that the API is reachable: `{"status": "ok"}` |
+| GET | `/api/categories/` | Authenticated. Lists active equipment categories for the asset form. |
+| GET | `/api/categories/summary/` | Authenticated. Lists categories for the Categories page, ordered by `category_id`, with `is_deleted` and `equipment_type_count`. Supports `search` (name contains) and `deleted` (`false` by default, `true`, or `all`). |
+| GET | `/api/categories/<id>/equipment-types/` | Authenticated. Lists a category's active equipment types, ordered by `type_id`, for the Categories page popup. Returns `404` for an unknown category. |
+| GET | `/api/equipment-types/?category_id=<id>` | Authenticated. Lists active equipment types for a category. |
 | GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search. |
+| POST | `/api/assets/` | Authenticated. Creates an asset with an active `equipment_type_id`; status starts as `Available`. |
 | PATCH | `/api/assets/<asset_id>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
 
 The general asset edit endpoint keeps `asset_identifier`, `equipment_type`, and `status` read-only. Status transitions must use their corresponding loan, maintenance, retirement, or reactivation workflow so related records and state changes remain consistent.
+
+The asset creation form gets category and equipment-type choices from the API. For a local demo, populate the catalog with `python manage.py seed_fake_assets` after applying migrations. This creates synthetic demo records; it is not production inventory data.
 
 By default, API endpoints require an authenticated Django session (`IsAuthenticated` in `REST_FRAMEWORK` settings). A view that must be public has to opt out explicitly.
 

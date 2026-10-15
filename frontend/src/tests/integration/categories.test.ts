@@ -22,7 +22,7 @@ describe('fetchCategories', () => {
   it('asks for active categories by default and returns the list', async () => {
     let requestUrl: URL | undefined
     server.use(
-      http.get(`${apiBaseUrl}/categories/`, ({ request }) => {
+      http.get(`${apiBaseUrl}/categories/summary/`, ({ request }) => {
         requestUrl = new URL(request.url)
         return HttpResponse.json([tools])
       }),
@@ -38,7 +38,7 @@ describe('fetchCategories', () => {
   it('sends the Show filter and a trimmed search term', async () => {
     let requestUrl: URL | undefined
     server.use(
-      http.get(`${apiBaseUrl}/categories/`, ({ request }) => {
+      http.get(`${apiBaseUrl}/categories/summary/`, ({ request }) => {
         requestUrl = new URL(request.url)
         return HttpResponse.json([])
       }),
@@ -52,7 +52,7 @@ describe('fetchCategories', () => {
 
   it('rejects with the status code when the server refuses the request', async () => {
     server.use(
-      http.get(`${apiBaseUrl}/categories/`, () => new HttpResponse(null, { status: 403 })),
+      http.get(`${apiBaseUrl}/categories/summary/`, () => new HttpResponse(null, { status: 403 })),
     )
 
     const failure = await fetchCategories().catch((error: unknown) => error)
