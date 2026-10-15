@@ -1,4 +1,4 @@
-# ECE Equipment Management System
+# ECE Equipment Management System.
 
 The ECE Equipment Management System helps the ECE Shop manage equipment lending and related workflows.
 
