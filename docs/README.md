@@ -461,6 +461,8 @@ All endpoints live under `/api/` and end with a trailing slash.
 |---|---|---|
 | GET | `/api/health/` | Public. Checks that the API is reachable: `{"status": "ok"}` |
 | GET | `/api/categories/` | Authenticated. Lists active equipment categories for the asset form. |
+| GET | `/api/categories/summary/` | Authenticated. Lists categories for the Categories page, ordered by `category_id`, with `is_deleted` and `equipment_type_count`. Supports `search` (name contains) and `deleted` (`false` by default, `true`, or `all`). |
+| GET | `/api/categories/<id>/equipment-types/` | Authenticated. Lists a category's active equipment types, ordered by `type_id`, for the Categories page popup. Returns `404` for an unknown category. |
 | GET | `/api/equipment-types/?category_id=<id>` | Authenticated. Lists active equipment types for a category. |
 | GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search. |
 | POST | `/api/assets/` | Authenticated. Creates an asset with an active `equipment_type_id`; status starts as `Available`. |

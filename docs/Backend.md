@@ -16,7 +16,7 @@ If this guide conflicts with `database.md` or `Architecture.md`, raise the confl
 
 ## 1. Current state
 
-- `inventory` provides authenticated category and equipment-type lookups, paginated asset listing/search, asset creation, and asset detail/update endpoints. Asset status remains server-controlled; newly created assets start as `Available`.
+- `inventory` provides authenticated category and equipment-type lookups, paginated asset listing/search, asset creation, asset detail/update endpoints, and a category summary list and per-category equipment-type list for the Categories page. Asset status remains server-controlled; newly created assets start as `Available`.
 - The `lending` and `maintenance` apps are mounted under `/api/` but do not yet expose business endpoints.
 - `users.User(AbstractUser)` is the custom `AUTH_USER_MODEL`; it has no extra role fields.
 - DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Pagination is configured for the asset list; filtering is implemented for Asset ID search.

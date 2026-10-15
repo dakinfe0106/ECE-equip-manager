@@ -7,6 +7,7 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ("category_id", "name")
+        read_only_fields = ("category_id",)
 
 
 class EquipmentTypeSerializer(serializers.ModelSerializer):
@@ -14,7 +15,17 @@ class EquipmentTypeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EquipmentType
+        fields = ("type_id", "name", "description", "category", "is_deleted")
+        read_only_fields = ("type_id", "is_deleted")
+
+
+class AssetEquipmentTypeSerializer(serializers.ModelSerializer):
+    category = CategorySerializer(read_only=True)
+
+    class Meta:
+        model = EquipmentType
         fields = ("type_id", "name", "description", "category")
+        read_only_fields = ("type_id",)
 
 
 class EquipmentTypeLookupSerializer(EquipmentTypeSerializer):
@@ -25,7 +36,7 @@ class EquipmentTypeLookupSerializer(EquipmentTypeSerializer):
 
 
 class AssetSerializer(serializers.ModelSerializer):
-    equipment_type = EquipmentTypeSerializer(source="type", read_only=True)
+    equipment_type = AssetEquipmentTypeSerializer(source="type", read_only=True)
 
     class Meta:
         model = Asset
@@ -38,6 +49,24 @@ class AssetSerializer(serializers.ModelSerializer):
             "equipment_type",
         )
         read_only_fields = ("asset_id", "asset_identifier", "equipment_type", "status")
+
+
+class CategorySummarySerializer(CategorySerializer):
+    """A category as shown on the Categories screen.
+
+    Adds the soft-delete flag and the number of active equipment types.
+    `equipment_type_count` comes from a queryset annotation (see CategoryList).
+    """
+
+    equipment_type_count = serializers.IntegerField(read_only=True)
+
+    class Meta(CategorySerializer.Meta):
+        fields = (
+            *CategorySerializer.Meta.fields,
+            "is_deleted",
+            "equipment_type_count",
+        )
+        read_only_fields = ("is_deleted",)
 
 
 class AssetCreateSerializer(serializers.ModelSerializer):

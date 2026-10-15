@@ -1,5 +1,5 @@
-
 from django.db import IntegrityError, transaction
+from django.db.models import Count, Q
 from django.db.models.functions import Lower, Trim
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -14,13 +14,16 @@ from .serializers import (
     AssetCreateSerializer,
     AssetSerializer,
     CategorySerializer,
+    CategorySummarySerializer,
     EquipmentTypeLookupSerializer,
+    EquipmentTypeSerializer,
 )
 
 
 class AssetPagination(PageNumberPagination):
     page_size = 20
 
+DELETED_FILTER_VALUES = ("false", "true", "all")
 
 @ensure_csrf_cookie
 @api_view(["GET"])
@@ -34,22 +37,38 @@ def category_list(request):
 @ensure_csrf_cookie
 @api_view(["GET"])
 def equipment_type_list(request):
+    deleted = request.query_params.get("deleted", "false").lower()
+
+    if deleted not in DELETED_FILTER_VALUES:
+        raise ValidationError(
+            {"deleted": ['Must be one of: "false", "true", "all".']}
+        )
+
     equipment_types = EquipmentType.objects.filter(
-        is_deleted=False,
         category__is_deleted=False,
-    ).select_related("category").order_by(
-        "name", "type_id"
-    )
+    ).select_related("category")
+
+    if deleted != "all":
+        equipment_types = equipment_types.filter(
+            is_deleted=(deleted == "true")
+        )
+
     category_id = request.query_params.get("category_id")
     if category_id:
         try:
             category_id = int(category_id)
         except ValueError as exc:
             raise ValidationError(
-                {"category_id": "Must be a valid category ID."}
+                {"category_id": "Must be a valid integer."}
             ) from exc
+
         equipment_types = equipment_types.filter(category_id=category_id)
-    return Response(EquipmentTypeLookupSerializer(equipment_types, many=True).data)
+
+    equipment_types = equipment_types.order_by("type_id")
+
+    return Response(
+        EquipmentTypeLookupSerializer(equipment_types, many=True).data
+    )
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
@@ -134,3 +153,54 @@ class AssetDetail(generics.RetrieveUpdateAPIView):
                 {"asset_identifier": "Asset ID cannot be changed after creation."}
             )
         return super().update(request, *args, **kwargs)
+
+
+
+class CategoryList(generics.ListAPIView):
+    """List categories for the Categories screen, sorted by ID (lowest first).
+
+    Query parameters:
+    - deleted: "false" (default) lists active categories, "true" lists soft-deleted
+      categories, "all" lists both.
+    - search: case-insensitive match on part of the name.
+    """
+
+    serializer_class = CategorySummarySerializer
+
+    def get_queryset(self):
+        queryset = Category.objects.annotate(
+            equipment_type_count=Count(
+                "equipment_types",
+                filter=Q(equipment_types__is_deleted=False),
+            ),
+        )
+
+        deleted = self.request.query_params.get("deleted", "false").lower()
+        if deleted not in DELETED_FILTER_VALUES:
+            raise ValidationError(
+                {"deleted": ['Must be one of: "false", "true", "all".']}
+            )
+        if deleted != "all":
+            queryset = queryset.filter(is_deleted=(deleted == "true"))
+
+        search = self.request.query_params.get("search", "").strip()
+        if search:
+            queryset = queryset.filter(name__icontains=search)
+
+        return queryset.order_by("category_id")
+
+
+class CategoryEquipmentTypeList(generics.ListAPIView):
+    """Active equipment types that belong to one category, sorted by ID (lowest first)."""
+
+    serializer_class = EquipmentTypeSerializer
+
+    def get_queryset(self):
+        category = generics.get_object_or_404(
+            Category, category_id=self.kwargs["pk"]
+        )
+        return (
+            category.equipment_types.filter(is_deleted=False)
+            .select_related("category")
+            .order_by("type_id")
+        )
