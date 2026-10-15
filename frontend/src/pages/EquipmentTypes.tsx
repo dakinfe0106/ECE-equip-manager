@@ -29,7 +29,7 @@ function EquipmentTypes() {
     const fetchEquipmentTypes = async () => {
       try {
         const response = await fetch(
-          `${apiBaseUrl}/equipment-types/`,
+          `${apiBaseUrl}/equipment-types/?deleted=all`,
           {
             credentials: 'include',
           },
