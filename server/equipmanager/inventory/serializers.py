@@ -17,6 +17,13 @@ class EquipmentTypeSerializer(serializers.ModelSerializer):
         fields = ("type_id", "name", "description", "category")
 
 
+class EquipmentTypeLookupSerializer(EquipmentTypeSerializer):
+    category_id = serializers.IntegerField(read_only=True)
+
+    class Meta(EquipmentTypeSerializer.Meta):
+        fields = (*EquipmentTypeSerializer.Meta.fields, "category_id")
+
+
 class AssetSerializer(serializers.ModelSerializer):
     equipment_type = EquipmentTypeSerializer(read_only=True)
 
@@ -31,3 +38,40 @@ class AssetSerializer(serializers.ModelSerializer):
             "equipment_type",
         )
         read_only_fields = ("asset_id", "asset_identifier", "equipment_type", "status")
+
+
+class AssetCreateSerializer(serializers.ModelSerializer):
+    equipment_type_id = serializers.PrimaryKeyRelatedField(
+        source="equipment_type",
+        queryset=EquipmentType.objects.filter(
+            is_deleted=False,
+            category__is_deleted=False,
+        ),
+    )
+    status = serializers.ChoiceField(choices=Asset.Status.choices, read_only=True)
+
+    class Meta:
+        model = Asset
+        fields = (
+            "asset_id",
+            "asset_identifier",
+            "name",
+            "equipment_type_id",
+            "acquisition_date",
+            "status",
+        )
+        read_only_fields = ("asset_id", "status")
+
+    def validate_asset_identifier(self, value):
+        if Asset.objects.filter(asset_identifier__iexact=value).exists():
+            raise serializers.ValidationError(
+                "An asset with this Asset ID already exists."
+            )
+        return value
+
+    def validate(self, attrs):
+        if "status" in self.initial_data:
+            raise serializers.ValidationError(
+                {"status": "New assets start as Available."}
+            )
+        return attrs
