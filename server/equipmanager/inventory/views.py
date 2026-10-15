@@ -117,7 +117,7 @@ class CategoryEquipmentTypeList(generics.ListAPIView):
 
     def get_queryset(self):
         category = generics.get_object_or_404(
-            Category, category_id=self.kwargs["category_id"]
+            Category, category_id=self.kwargs["pk"]
         )
         return (
             category.equipment_types.filter(is_deleted=False)

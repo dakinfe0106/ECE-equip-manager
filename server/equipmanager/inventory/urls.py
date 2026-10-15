@@ -12,7 +12,7 @@ urlpatterns = [
     path("assets/lookup/", views.asset_list, name="asset-lookup"),
     path("categories/", views.CategoryList.as_view(), name="category-list"),
     path(
-        "categories/<int:category_id>/equipment-types/",
+        "categories/<int:pk>/equipment-types/",
         views.CategoryEquipmentTypeList.as_view(),
         name="category-equipment-type-list",
     ),
