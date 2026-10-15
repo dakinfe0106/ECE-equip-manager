@@ -1,18 +1,4 @@
 from typing import ClassVar
-
-from .models import EquipmentType
-from .serializers import EquipmentTypeSerializer
-
-
-class EquipmentTypeList(generics.ListAPIView):
-    serializer_class = EquipmentTypeSerializer
-
-    def get_queryset(self):
-        return EquipmentType.objects.filter(
-            is_deleted=False,
-            category__is_deleted=False,
-        ).select_related("category")
-
 from django.db.models.functions import Lower, Trim
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import generics
@@ -77,3 +63,21 @@ class AssetDetailAPIView(generics.RetrieveUpdateAPIView):
                 {"asset_identifier": "Asset ID cannot be changed after creation."}
             )
         return super().update(request, *args, **kwargs)
+
+
+# EQUIPMENT TYPE VIEWS
+class CategoryList(generics.ListAPIView):
+    queryset = Category.objects.filter(is_deleted=False)
+    serializer_class = CategorySerializer
+    permission_classes: ClassVar = [AllowAny]
+
+
+class EquipmentTypeList(generics.ListCreateAPIView):
+    serializer_class = EquipmentTypeSerializer
+    permission_classes: ClassVar = [AllowAny]
+
+    def get_queryset(self):
+        return EquipmentType.objects.filter(
+            is_deleted=False,
+            category__is_deleted=False,
+        ).select_related("category")
