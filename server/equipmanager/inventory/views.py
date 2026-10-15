@@ -1,3 +1,4 @@
+from typing import ClassVar
 
 from django.db.models.functions import Lower, Trim
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -5,14 +6,14 @@ from rest_framework import generics
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import AllowAny
 
-from .models import Asset
-from .serializers import AssetSerializer
+from .models import Asset, Category, EquipmentType
+from .serializers import AssetSerializer, CategorySerializer, EquipmentTypeSerializer
 
 
 class AssetPagination(PageNumberPagination):
     page_size = 20
-
 
 @ensure_csrf_cookie
 @api_view(["GET"])
@@ -26,18 +27,15 @@ def asset_list(request):
         .select_related("equipment_type__category")
         .order_by("asset_id")
     )
-
     asset_identifier = request.query_params.get("asset_identifier", "").strip()
     if asset_identifier:
         assets = assets.annotate(
             normalized_asset_identifier=Lower(Trim("asset_identifier"))
         ).filter(normalized_asset_identifier__contains=asset_identifier.lower())
-
     paginator = AssetPagination()
     page = paginator.paginate_queryset(assets, request)
     serializer = AssetSerializer(page, many=True)
     return paginator.get_paginated_response(serializer.data)
-
 
 class AssetDetailAPIView(generics.RetrieveUpdateAPIView):
     queryset = (
@@ -66,3 +64,21 @@ class AssetDetailAPIView(generics.RetrieveUpdateAPIView):
                 {"asset_identifier": "Asset ID cannot be changed after creation."}
             )
         return super().update(request, *args, **kwargs)
+
+
+# EQUIPMENT TYPE VIEWS
+class CategoryList(generics.ListAPIView):
+    queryset = Category.objects.filter(is_deleted=False)
+    serializer_class = CategorySerializer
+    permission_classes: ClassVar = [AllowAny]
+
+
+class EquipmentTypeList(generics.ListCreateAPIView):
+    serializer_class = EquipmentTypeSerializer
+    permission_classes: ClassVar = [AllowAny]
+
+    def get_queryset(self):
+        return EquipmentType.objects.filter(
+            is_deleted=False,
+            category__is_deleted=False,
+        ).select_related("category")

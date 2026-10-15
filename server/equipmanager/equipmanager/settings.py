@@ -85,7 +85,12 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_URLS_REGEX = r'^/api/.*$'
-CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+
+# Clean, single definition for CSRF
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
 
 ROOT_URLCONF = 'equipmanager.urls'
 

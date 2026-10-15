@@ -1,3 +1,4 @@
+import { NavLink } from 'react-router'
 export default function Sidebar() {
   return (
     <aside className="sidebar">
@@ -23,20 +24,31 @@ export default function Sidebar() {
           </svg>
           Categories
         </span>
-        <span className="sidebar-link sidebar-link-disabled" aria-disabled="true">
-          <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m10 2.7 6.8 3.7v7.2L10 17.3l-6.8-3.7V6.4z" />
-            <path d="m3.4 6.6 6.6 3.7 6.6-3.7M10 10.3v6.8" />
-          </svg>
-          Equipment Types
-        </span>
-        <a className="sidebar-link sidebar-link-active" href="/" aria-current="page">
+        <NavLink
+  to="/equipment-types"
+  className={({ isActive }) =>
+    `sidebar-link${isActive ? ' sidebar-link-active' : ''}`
+  }
+>
+  <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
+    <path d="m10 2.7 6.8 3.7v7.2L10 17.3l-6.8-3.7V6.4z" />
+    <path d="m3.4 6.6 6.6 3.7 6.6-3.7M10 10.3v6.8" />
+  </svg>
+  Equipment Types
+</NavLink>
+        <NavLink
+  to="/"
+  end
+  className={({ isActive }) =>
+    `sidebar-link${isActive ? ' sidebar-link-active' : ''}`
+  }
+>
           <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
             <path d="M3 6.5h14v9A1.5 1.5 0 0 1 15.5 17h-11A1.5 1.5 0 0 1 3 15.5z" />
             <path d="M2.5 6.5 4 3h12l1.5 3.5M7 6.5v2h6v-2" />
           </svg>
           Assets
-        </a>
+        </NavLink>
         <span className="sidebar-link sidebar-link-disabled" aria-disabled="true">
           <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
             <path d="M3 6h12m0 0-2.5-2.5M15 6l-2.5 2.5M17 14H5m0 0 2.5-2.5M5 14l2.5 2.5" />
