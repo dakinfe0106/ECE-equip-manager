@@ -1,4 +1,4 @@
-import { apiBaseUrl } from '../../api'
+import { apiBaseUrl, getCsrfToken } from '../../api'
 
 export interface AssetRecord {
   asset_id: number
@@ -50,16 +50,6 @@ export async function fetchAssets(page = 1, assetIdentifier = ''): Promise<Pagin
 }
 
 export type AssetUpdate = Pick<AssetRecord, 'name' | 'acquisition_date'>
-
-function getCsrfToken(): string | undefined {
-  if (typeof document === 'undefined') {
-    return undefined
-  }
-  return document.cookie
-    .split('; ')
-    .find((cookie) => cookie.startsWith('csrftoken='))
-    ?.slice('csrftoken='.length)
-}
 
 export async function updateAsset(
   assetId: number,
