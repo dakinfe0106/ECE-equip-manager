@@ -379,3 +379,192 @@ def test_asset_identifier_cannot_be_changed_by_update(
     asset_record.refresh_from_db()
     assert asset_record.asset_identifier == "SHOP-001"
     assert asset_record.name == "Cordless drill"
+
+
+def test_category_list_returns_only_active_categories(authenticated_client, inventory_type):
+    deleted_category = Category.objects.create(name="Retired category", is_deleted=True)
+
+    response = authenticated_client.get("/api/categories/")
+
+    assert response.status_code == 200
+    assert response.data == [
+        {"category_id": inventory_type.category.category_id, "name": "Tools"}
+    ]
+    assert deleted_category.category_id not in [item["category_id"] for item in response.data]
+
+
+def test_equipment_type_list_filters_by_category_and_hides_deleted_records(
+    authenticated_client, inventory_type
+):
+    another_category = Category.objects.create(name="Electronics")
+    another_type = EquipmentType.objects.create(
+        category=another_category,
+        name="Computer",
+    )
+    EquipmentType.objects.create(
+        category=inventory_type.category,
+        name="Old type",
+        is_deleted=True,
+    )
+
+    response = authenticated_client.get(
+        "/api/equipment-types/",
+        {"category_id": inventory_type.category.category_id},
+    )
+
+    assert response.status_code == 200
+    assert [item["type_id"] for item in response.data] == [inventory_type.type_id]
+    assert response.data[0]["category_id"] == inventory_type.category.category_id
+    assert another_type.type_id not in [item["type_id"] for item in response.data]
+
+
+def test_equipment_type_list_rejects_a_non_numeric_category_id(authenticated_client):
+    response = authenticated_client.get(
+        "/api/equipment-types/",
+        {"category_id": "not-a-number"},
+    )
+
+    assert response.status_code == 400
+    assert "category_id" in response.data
+
+
+def test_asset_create_trims_fields_and_defaults_status_to_available(
+    authenticated_client, inventory_type
+):
+    response = authenticated_client.post(
+        "/api/assets/",
+        {
+            "asset_identifier": "  SHOP-NEW-001  ",
+            "name": "  Digital multimeter  ",
+            "equipment_type_id": inventory_type.type_id,
+            "acquisition_date": "2025-06-10",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["asset_identifier"] == "SHOP-NEW-001"
+    assert response.data["name"] == "Digital multimeter"
+    assert response.data["status"] == Asset.Status.AVAILABLE
+    assert response.data["equipment_type"]["type_id"] == inventory_type.type_id
+    created_asset = Asset.objects.get(asset_id=response.data["asset_id"])
+    assert created_asset.acquisition_date == date(2025, 6, 10)
+
+
+def test_asset_create_rejects_duplicate_identifier_even_if_deleted(
+    authenticated_client, asset_record
+):
+    asset_record.is_deleted = True
+    asset_record.save(update_fields=["is_deleted"])
+
+    response = authenticated_client.post(
+        "/api/assets/",
+        {
+            "asset_identifier": " SHOP-001 ",
+            "name": "Duplicate drill",
+            "equipment_type_id": asset_record.type_id,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "asset_identifier" in response.data
+
+
+def test_asset_create_allows_case_variant_identifier(
+    authenticated_client, asset_record
+):
+    response = authenticated_client.post(
+        "/api/assets/",
+        {
+            "asset_identifier": "shop-001",
+            "name": "Case variant drill",
+            "equipment_type_id": asset_record.type_id,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["asset_identifier"] == "shop-001"
+
+
+def test_asset_create_rejects_inactive_equipment_type(
+    authenticated_client, inventory_type
+):
+    inventory_type.is_deleted = True
+    inventory_type.save(update_fields=["is_deleted"])
+
+    response = authenticated_client.post(
+        "/api/assets/",
+        {
+            "asset_identifier": "SHOP-NEW-002",
+            "name": "Digital multimeter",
+            "equipment_type_id": inventory_type.type_id,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "equipment_type_id" in response.data
+
+
+def test_asset_create_does_not_allow_client_to_set_status(
+    authenticated_client, inventory_type
+):
+    response = authenticated_client.post(
+        "/api/assets/",
+        {
+            "asset_identifier": "SHOP-NEW-003",
+            "name": "Digital multimeter",
+            "equipment_type_id": inventory_type.type_id,
+            "status": Asset.Status.RETIRED,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "status" in response.data
+
+
+def test_asset_create_requires_authentication(inventory_type):
+    response = APIClient().post(
+        "/api/assets/",
+        {
+            "asset_identifier": "SHOP-NEW-004",
+            "name": "Digital multimeter",
+            "equipment_type_id": inventory_type.type_id,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 403
+
+
+def test_asset_create_accepts_valid_csrf_session(
+    db, inventory_type
+):
+    get_user_model().objects.create_user(
+        username="shop-tech",
+        password="test-password",
+    )
+    client = APIClient(enforce_csrf_checks=True)
+    assert client.login(username="shop-tech", password="test-password")
+    categories_response = client.get(
+        "/api/categories/",
+        HTTP_ORIGIN="http://localhost:5173",
+    )
+    csrf_token = categories_response.cookies["csrftoken"].value
+
+    response = client.post(
+        "/api/assets/",
+        {
+            "asset_identifier": "SHOP-CSRF-001",
+            "name": "CSRF protected asset",
+            "equipment_type_id": inventory_type.type_id,
+        },
+        format="json",
+        HTTP_ORIGIN="http://localhost:5173",
+        HTTP_X_CSRFTOKEN=csrf_token,
+    )
+
+    assert response.status_code == 201

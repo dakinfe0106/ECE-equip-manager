@@ -1,7 +1,20 @@
 
 from django.contrib import admin
 
-from .models import Asset
+from .models import Asset, Category, EquipmentType
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ("name", "is_deleted")
+    search_fields = ("name",)
+
+
+@admin.register(EquipmentType)
+class EquipmentTypeAdmin(admin.ModelAdmin):
+    list_display = ("name", "category", "is_deleted")
+    search_fields = ("name", "category__name")
+    list_filter = ("category", "is_deleted")
 
 
 @admin.register(Asset)
