@@ -18,7 +18,7 @@ class EquipmentTypeSerializer(serializers.ModelSerializer):
 
 
 class AssetSerializer(serializers.ModelSerializer):
-    equipment_type = EquipmentTypeSerializer(read_only=True)
+    equipment_type = EquipmentTypeSerializer(source="type", read_only=True)
 
     class Meta:
         model = Asset

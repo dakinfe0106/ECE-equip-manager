@@ -1,8 +1,8 @@
 
 from django.db.models.functions import Lower, Trim
+from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import generics
-from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 
@@ -14,42 +14,46 @@ class AssetPagination(PageNumberPagination):
     page_size = 20
 
 
-@ensure_csrf_cookie
-@api_view(["GET"])
-def asset_list(request):
-    assets = (
-        Asset.objects.filter(
-            is_deleted=False,
-            equipment_type__is_deleted=False,
-            equipment_type__category__is_deleted=False,
+@method_decorator(ensure_csrf_cookie, name="dispatch")
+class AssetList(generics.ListAPIView):
+    serializer_class = AssetSerializer
+    pagination_class = AssetPagination
+
+    def get_queryset(self):
+        assets = (
+            Asset.objects.filter(
+                is_deleted=False,
+                type__is_deleted=False,
+                type__category__is_deleted=False,
+            )
+            .select_related("type__category")
+            .order_by("asset_id")
         )
-        .select_related("equipment_type__category")
-        .order_by("asset_id")
-    )
 
-    asset_identifier = request.query_params.get("asset_identifier", "").strip()
-    if asset_identifier:
-        assets = assets.annotate(
-            normalized_asset_identifier=Lower(Trim("asset_identifier"))
-        ).filter(normalized_asset_identifier__contains=asset_identifier.lower())
+        asset_identifier = self.request.query_params.get("asset_identifier", "").strip()
+        if asset_identifier:
+            exact_match = assets.filter(asset_identifier=asset_identifier).first()
+            if exact_match is not None:
+                assets = assets.filter(asset_id=exact_match.asset_id)
+            else:
+                assets = assets.annotate(
+                    normalized_asset_identifier=Lower(Trim("asset_identifier"))
+                ).filter(
+                    normalized_asset_identifier__contains=asset_identifier.lower()
+                )
+        return assets
 
-    paginator = AssetPagination()
-    page = paginator.paginate_queryset(assets, request)
-    serializer = AssetSerializer(page, many=True)
-    return paginator.get_paginated_response(serializer.data)
 
-
-class AssetDetailAPIView(generics.RetrieveUpdateAPIView):
+class AssetDetail(generics.RetrieveUpdateAPIView):
     queryset = (
         Asset.objects.filter(
             is_deleted=False,
-            equipment_type__is_deleted=False,
-            equipment_type__category__is_deleted=False,
+            type__is_deleted=False,
+            type__category__is_deleted=False,
         )
-        .select_related("equipment_type__category")
+        .select_related("type__category")
     )
     serializer_class = AssetSerializer
-    lookup_field = "asset_id"
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()

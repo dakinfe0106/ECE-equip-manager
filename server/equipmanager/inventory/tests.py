@@ -22,7 +22,7 @@ def inventory_type(db):
 @pytest.fixture
 def asset_record(inventory_type):
     return Asset.objects.create(
-        equipment_type=inventory_type,
+        type=inventory_type,
         asset_identifier="SHOP-001",
         name="Cordless drill",
         acquisition_date=date(2024, 3, 15),
@@ -59,11 +59,11 @@ def test_asset_list_returns_assets_with_type_and_category_details(
             "acquisition_date": "2024-03-15",
             "status": "Available",
             "equipment_type": {
-                "type_id": asset_record.equipment_type.type_id,
+                "type_id": asset_record.type.type_id,
                 "name": "Power tools",
                 "description": "Portable power tools",
                 "category": {
-                    "category_id": asset_record.equipment_type.category.category_id,
+                    "category_id": asset_record.type.category.category_id,
                     "name": "Tools",
                 },
             },
@@ -75,7 +75,7 @@ def test_asset_list_search_matches_identifier_substring_case_insensitively(
     authenticated_client, asset_record, inventory_type
 ):
     second_asset = Asset.objects.create(
-        equipment_type=inventory_type,
+        type=inventory_type,
         asset_identifier="SHOP-010",
         name="Circular saw",
     )
@@ -96,7 +96,7 @@ def test_full_asset_identifier_matches_one_result(
     authenticated_client, asset_record, inventory_type
 ):
     Asset.objects.create(
-        equipment_type=inventory_type,
+        type=inventory_type,
         asset_identifier="SHOP-010",
         name="Circular saw",
     )
@@ -116,8 +116,8 @@ def test_asset_list_hides_soft_deleted_inventory(
 ):
     records = {
         "asset": asset_record,
-        "equipment_type": asset_record.equipment_type,
-        "category": asset_record.equipment_type.category,
+        "equipment_type": asset_record.type,
+        "category": asset_record.type.category,
     }
     record = records[deleted_record]
     record.is_deleted = True
@@ -158,7 +158,7 @@ def test_asset_list_paginates_twenty_records_per_page(
     Asset.objects.bulk_create(
         [
             Asset(
-                equipment_type=inventory_type,
+                type=inventory_type,
                 asset_identifier=f"SHOP-{index:03d}",
                 name=f"Equipment {index}",
             )
@@ -180,17 +180,126 @@ def test_asset_list_paginates_twenty_records_per_page(
     assert second_page.data["previous"] is not None
 
 
-def test_asset_identifier_is_case_insensitive_unique_including_soft_deleted(
+def test_asset_identifier_is_case_sensitive_unique_including_soft_deleted(
     db, asset_record
 ):
     asset_record.is_deleted = True
     asset_record.save(update_fields=["is_deleted"])
 
+    lowercase_identifier = Asset.objects.create(
+        type=asset_record.type,
+        asset_identifier="shop-001",
+        name="Lowercase identifier asset",
+    )
+    assert lowercase_identifier.asset_identifier == "shop-001"
+
     with pytest.raises(IntegrityError), transaction.atomic():
         Asset.objects.create(
-            equipment_type=asset_record.equipment_type,
-            asset_identifier=" shop-001 ",
+            type=asset_record.type,
+            asset_identifier=" SHOP-001 ",
             name="Duplicate drill",
+        )
+
+
+def test_asset_search_prefers_exact_case_before_case_insensitive_substring(
+    authenticated_client, asset_record, inventory_type
+):
+    lowercase_asset = Asset.objects.create(
+        type=inventory_type,
+        asset_identifier="shop-001",
+        name="Lowercase identifier asset",
+    )
+
+    exact_response = authenticated_client.get(
+        "/api/assets/",
+        {"asset_identifier": "SHOP-001"},
+    )
+    fallback_response = authenticated_client.get(
+        "/api/assets/",
+        {"asset_identifier": "SHOP-00"},
+    )
+
+    assert exact_response.data["count"] == 1
+    assert exact_response.data["results"][0]["asset_identifier"] == "SHOP-001"
+    assert fallback_response.data["count"] == 2
+    assert {
+        asset["asset_identifier"] for asset in fallback_response.data["results"]
+    } == {asset_record.asset_identifier, lowercase_asset.asset_identifier}
+
+
+def test_model_save_normalizes_inventory_text(db):
+    category = Category.objects.create(name="  Lab Gear  ")
+    equipment_type = EquipmentType.objects.create(
+        category=category,
+        name="  Measurement Equipment  ",
+        description="  Precision tools  ",
+    )
+    asset = Asset.objects.create(
+        type=equipment_type,
+        asset_identifier="  LAB-001  ",
+        name="  Multimeter  ",
+    )
+
+    assert category.name == "Lab Gear"
+    assert equipment_type.name == "Measurement Equipment"
+    assert equipment_type.description == "Precision tools"
+    assert asset.asset_identifier == "LAB-001"
+    assert asset.name == "Multimeter"
+
+
+def test_database_constraints_reject_untrimmed_inventory_strings(
+    inventory_type,
+):
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Category.objects.bulk_create([Category(name="  New category  ")])
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        EquipmentType.objects.bulk_create(
+            [EquipmentType(category=inventory_type.category, name="  New type  ")]
+        )
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Asset.objects.bulk_create(
+            [
+                Asset(
+                    type=inventory_type,
+                    asset_identifier="  SHOP-002  ",
+                    name="New drill",
+                )
+            ]
+        )
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Asset.objects.bulk_create(
+            [
+                Asset(
+                    type=inventory_type,
+                    asset_identifier="SHOP-002",
+                    name="  New drill  ",
+                )
+            ]
+        )
+
+
+def test_database_constraints_reject_empty_required_inventory_strings(
+    inventory_type,
+):
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Category.objects.bulk_create([Category(name="")])
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        EquipmentType.objects.bulk_create(
+            [EquipmentType(category=inventory_type.category, name="")]
+        )
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Asset.objects.bulk_create(
+            [Asset(type=inventory_type, asset_identifier="", name="New drill")]
+        )
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Asset.objects.bulk_create(
+            [Asset(type=inventory_type, asset_identifier="SHOP-002", name="")]
         )
 
 
@@ -200,7 +309,7 @@ def test_asset_update_changes_permitted_fields_without_creating_a_duplicate(
     response = authenticated_client.patch(
         f"/api/assets/{asset_record.asset_id}/",
         {
-            "name": "Updated cordless drill",
+            "name": "  Updated cordless drill  ",
             "acquisition_date": "2024-04-02",
         },
         format="json",

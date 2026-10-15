@@ -8,4 +8,4 @@ from .models import Asset
 class AssetAdmin(admin.ModelAdmin):
     list_display = ('asset_identifier', 'name', 'status', 'acquisition_date')
     search_fields = ('asset_identifier', 'name')
-    list_filter = ('status', 'equipment_type__category')
+    list_filter = ('status', 'type__category')

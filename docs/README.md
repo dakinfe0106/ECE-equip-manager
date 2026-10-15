@@ -461,7 +461,7 @@ All endpoints live under `/api/` and end with a trailing slash.
 |---|---|---|
 | GET | `/api/health/` | Public. Checks that the API is reachable: `{"status": "ok"}` |
 | GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search. |
-| PATCH | `/api/assets/<asset_id>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
+| PATCH | `/api/assets/<pk>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
 
 The general asset edit endpoint keeps `asset_identifier`, `equipment_type`, and `status` read-only. Status transitions must use their corresponding loan, maintenance, retirement, or reactivation workflow so related records and state changes remain consistent.
 

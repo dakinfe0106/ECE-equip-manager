@@ -3,11 +3,11 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path("assets/", views.asset_list, name="asset-list"),
+    path("assets/", views.AssetList.as_view(), name="asset-list"),
     path(
-        "assets/<int:asset_id>/",
-        views.AssetDetailAPIView.as_view(),
+        "assets/<int:pk>/",
+        views.AssetDetail.as_view(),
         name="asset-detail",
     ),
-    path("assets/lookup/", views.asset_list, name="asset-lookup"),
+    path("assets/lookup/", views.AssetList.as_view(), name="asset-lookup"),
 ]
