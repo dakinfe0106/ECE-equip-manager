@@ -1,6 +1,7 @@
 import { Link, Route, Routes } from 'react-router'
 import App from './App'
 import EquipmentTypes from './pages/EquipmentTypes'
+import AddAssetForm from './features/assets/components/AddAssetForm'
 import AssetsPage from './pages/AssetsPage'
 
 export default function AppRoutes() {
@@ -11,14 +12,14 @@ export default function AppRoutes() {
         <Route path="/equipment-types" element={<EquipmentTypes />} />
       </Route>
 
+        <Route path="/assets/new" element={<AddAssetForm />} />
+      </Route>
       <Route
         path="*"
         element={
           <main className="p-6">
             <h1>Page not found</h1>
-            <Link className="underline" to="/">
-              Return home
-            </Link>
+            <Link className="underline" to="/">Return home</Link>
           </main>
         }
       />

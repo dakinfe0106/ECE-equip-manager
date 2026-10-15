@@ -10,6 +10,10 @@ export interface AssetRecord {
     type_id: number
     name: string
     description: string
+    required_certifications?: {
+      certification_id: number
+      name: string
+    }[]
     category: {
       category_id: number
       name: string
@@ -24,6 +28,26 @@ export interface PaginatedAssets {
   results: AssetRecord[]
 }
 
+export interface CategoryOption {
+  category_id: number
+  name: string
+}
+
+export interface EquipmentTypeOption {
+  type_id: number
+  name: string
+  description: string
+  category_id: number
+  category: CategoryOption
+}
+
+export interface AssetCreation {
+  asset_identifier: string
+  name: string
+  equipment_type_id: number
+  acquisition_date: string | null
+}
+
 export class AssetLookupError extends Error {
   readonly status: number
 
@@ -32,6 +56,71 @@ export class AssetLookupError extends Error {
     this.name = 'AssetLookupError'
     this.status = status
   }
+}
+
+async function responseError(response: Response, action: string): Promise<AssetLookupError> {
+  let message = `${action} failed (${response.status})`
+  try {
+    const body: unknown = await response.json()
+    if (typeof body === 'object' && body !== null) {
+      const values = Object.values(body)
+      const firstMessage = values.flatMap((value) =>
+        Array.isArray(value) ? value : [value],
+      ).find((value) => typeof value === 'string')
+      if (typeof firstMessage === 'string') {
+        message = firstMessage
+      }
+    }
+  } catch {
+    // Keep the HTTP failure message if the response has no JSON body.
+  }
+  return new AssetLookupError(response.status, message)
+}
+
+async function fetchJson<T>(url: string, action: string): Promise<T> {
+  const response = await fetch(url, { credentials: 'include' })
+  if (!response.ok) {
+    throw await responseError(response, action)
+  }
+  return response.json()
+}
+
+export function fetchCategories(): Promise<CategoryOption[]> {
+  return fetchJson(`${apiBaseUrl}/categories/`, 'Category lookup')
+}
+
+export function fetchEquipmentTypes(categoryId: number): Promise<EquipmentTypeOption[]> {
+  const params = new URLSearchParams({ category_id: categoryId.toString() })
+  return fetchJson(`${apiBaseUrl}/equipment-types/?${params}`, 'Equipment type lookup')
+}
+
+function getCsrfToken(): string | undefined {
+  if (typeof document === 'undefined') {
+    return undefined
+  }
+  return document.cookie
+    .split('; ')
+    .find((cookie) => cookie.startsWith('csrftoken='))
+    ?.slice('csrftoken='.length)
+}
+
+export async function createAsset(asset: AssetCreation): Promise<AssetRecord> {
+  const headers = new Headers({ 'Content-Type': 'application/json' })
+  const csrfToken = getCsrfToken()
+  if (csrfToken) {
+    headers.set('X-CSRFToken', decodeURIComponent(csrfToken))
+  }
+
+  const response = await fetch(`${apiBaseUrl}/assets/`, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify(asset),
+  })
+  if (!response.ok) {
+    throw await responseError(response, 'Asset creation')
+  }
+  return response.json()
 }
 
 export async function fetchAssets(page = 1, assetIdentifier = ''): Promise<PaginatedAssets> {
@@ -51,16 +140,6 @@ export async function fetchAssets(page = 1, assetIdentifier = ''): Promise<Pagin
 
 export type AssetUpdate = Pick<AssetRecord, 'name' | 'acquisition_date'>
 
-function getCsrfToken(): string | undefined {
-  if (typeof document === 'undefined') {
-    return undefined
-  }
-  return document.cookie
-    .split('; ')
-    .find((cookie) => cookie.startsWith('csrftoken='))
-    ?.slice('csrftoken='.length)
-}
-
 export async function updateAsset(
   assetId: number,
   changes: AssetUpdate,
@@ -78,22 +157,7 @@ export async function updateAsset(
     body: JSON.stringify(changes),
   })
   if (!response.ok) {
-    let message = `Asset update failed (${response.status})`
-    try {
-      const body: unknown = await response.json()
-      if (typeof body === 'object' && body !== null && 'detail' in body) {
-        message = String(body.detail)
-      } else if (
-        typeof body === 'object' &&
-        body !== null &&
-        'asset_identifier' in body
-      ) {
-        message = String(body.asset_identifier)
-      }
-    } catch {
-      // Keep the explicit HTTP failure message when the response has no JSON body.
-    }
-    throw new AssetLookupError(response.status, message)
+    throw await responseError(response, 'Asset update')
   }
   return response.json()
 }

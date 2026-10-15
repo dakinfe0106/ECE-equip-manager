@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import {
   AssetLookupError,
   updateAsset,
@@ -10,6 +10,13 @@ interface AssetDetailsProps {
   asset: AssetRecord
   onClose: () => void
   onAssetUpdated: (asset: AssetRecord) => void
+}
+
+const statusClassNames: Record<AssetRecord['status'], string> = {
+  Available: 'bg-[#def5e8] text-[#16864f]',
+  On_Loan: 'bg-[#fff0d6] text-[#ad6b00]',
+  Under_Maintenance: 'bg-[#fde2e2] text-[#bb4044]',
+  Retired: 'bg-[#e8ebf0] text-[#5b6574]',
 }
 
 function getErrorMessage(error: unknown): string {
@@ -24,6 +31,8 @@ export default function AssetDetails({
   onClose,
   onAssetUpdated,
 }: AssetDetailsProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const certifications = asset.equipment_type.required_certifications
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -32,6 +41,24 @@ export default function AssetDetails({
     name: asset.name,
     acquisition_date: asset.acquisition_date,
   })
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (dialog && !dialog.open && typeof dialog.showModal === 'function') {
+      dialog.showModal()
+    }
+    return () => {
+      if (dialog?.open) {
+        dialog.close()
+      }
+    }
+  }, [])
+
+  const closeOnBackdropClick = (event: MouseEvent<HTMLDialogElement>) => {
+    if (event.target === event.currentTarget) {
+      onClose()
+    }
+  }
 
   const startEditing = () => {
     setDraft({
@@ -62,12 +89,18 @@ export default function AssetDetails({
   }
 
   return (
-    <section
-      className="m-0 rounded-lg border border-[#e1e8f1] bg-[#fbfcfe] px-[18px] pb-[19px] pt-[17px]"
+    <dialog
+      ref={dialogRef}
+      className="m-auto max-h-[calc(100dvh-48px)] w-[min(520px,calc(100vw-32px))] overflow-y-auto rounded-[10px] border-0 bg-white px-6 pb-[18px] pt-[22px] shadow-[0_24px_60px_rgb(15_27_45_/_28%)] backdrop:bg-[rgb(20_33_54_/_45%)]"
       id="asset-details"
       aria-labelledby="details-title"
+      onCancel={(event) => {
+        event.preventDefault()
+        onClose()
+      }}
+      onClick={closeOnBackdropClick}
     >
-      <div className="flex items-start justify-between gap-3 border-b border-[#e8edf3] pb-[13px]">
+      <header className="flex items-start justify-between gap-3 border-b border-[#e8edf3] pb-4">
         <div>
           <p className="mb-[6px] text-[9px] font-bold tracking-[1px] text-[#8491a4]">
             EQUIPMENT RECORD
@@ -75,6 +108,16 @@ export default function AssetDetails({
           <h2 className="m-0 text-[15px] font-[650] text-[#26344a]" id="details-title">
             {asset.name}
           </h2>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="rounded-[5px] bg-[#f1f4f9] px-2 py-[3px] font-mono text-[11px] font-semibold text-[#26344a]">
+              {asset.asset_identifier}
+            </span>
+            <span
+              className={`rounded-xl px-2 py-1 text-[9px] font-[650] ${statusClassNames[asset.status]} status-${asset.status.toLowerCase().replaceAll('_', '-')}`}
+            >
+              {asset.status.replaceAll('_', ' ')}
+            </span>
+          </div>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           {!isEditing && (
@@ -90,11 +133,12 @@ export default function AssetDetails({
             className="rounded-[5px] border border-[#dce3ed] bg-white px-[10px] py-[6px] text-[10px] text-[#59677a] focus-visible:outline-2 focus-visible:outline-[#347ee9] focus-visible:outline-offset-[3px]"
             type="button"
             onClick={onClose}
+            aria-label="Close asset details"
           >
-            Close
+            ×
           </button>
         </div>
-      </div>
+      </header>
       {isEditing ? (
         <form className="pt-[15px]" onSubmit={handleSave} aria-busy={isSaving}>
           <div className="grid grid-cols-4 gap-[13px] max-[700px]:grid-cols-2 max-[390px]:grid-cols-1">
@@ -174,6 +218,29 @@ export default function AssetDetails({
               {asset.asset_identifier}
             </dd>
           </div>
+          {certifications !== undefined && (
+            <div className="col-span-full">
+              <dt className="mb-[5px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">
+                Required certifications
+              </dt>
+              <dd className="m-0 [overflow-wrap:anywhere] text-[11px] text-[#39465a]">
+                {certifications.length === 0 ? (
+                  'None required'
+                ) : (
+                  <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0">
+                    {certifications.map((certification) => (
+                      <li
+                        className="rounded-xl border border-[#d6e2f5] bg-[#f1f6ff] px-[9px] py-[3px] text-[10px] font-semibold text-[#174fa1]"
+                        key={certification.certification_id}
+                      >
+                        {certification.name}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </dd>
+            </div>
+          )}
           <div>
             <dt className="mb-[5px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">
               Category
@@ -221,6 +288,6 @@ export default function AssetDetails({
           {statusMessage}
         </p>
       )}
-    </section>
+    </dialog>
   )
 }

@@ -16,11 +16,12 @@ If this guide conflicts with `database.md` or `Architecture.md`, raise the confl
 
 ## 1. Current state
 
-- The four apps (`inventory`, `lending`, `maintenance`, `users`) are mounted under `/api/` and have empty `urls.py` and `views.py` files.
-- The only model is `users.User(AbstractUser)` with no extra fields. It is `AUTH_USER_MODEL`.
-- DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Pagination, filtering, and throttling are not configured.
+- `inventory` provides authenticated category and equipment-type lookups, paginated asset listing/search, asset creation, and asset detail/update endpoints. Asset status remains server-controlled; newly created assets start as `Available`.
+- The `lending` and `maintenance` apps are mounted under `/api/` but do not yet expose business endpoints.
+- `users.User(AbstractUser)` is the custom `AUTH_USER_MODEL`; it has no extra role fields.
+- DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Pagination is configured for the asset list; filtering is implemented for Asset ID search.
 - `/api/health/` is a plain Django view, so DRF authentication does not apply to it.
-- There are no login endpoints. React cannot use a session yet (see [section 6](#6-authentication-endpoints)).
+- There are no application login endpoints. A session must already exist for protected frontend requests (see [section 6](#6-authentication-endpoints)).
 
 ## 2. App layout
 
