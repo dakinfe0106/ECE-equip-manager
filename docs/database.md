@@ -6,93 +6,100 @@
 
 ## 1. Conventions
 
-- Primary keys: automatically generated integer IDs, non-null and unique.
-- All foreign keys: required (`null=False`) and `on_delete=PROTECT`, unless specifically noted.
+- Primary keys: use the name shown in each table (for example `category_id`), declared as `models.AutoField(primary_key=True)` (`int`). Join tables use a composite primary key of their two foreign keys. SystemUser uses the `id` of `users.User` (see [SystemUser](#systemuser)).
+- Foreign keys: required (`null=False`) and `on_delete=PROTECT`, unless specifically noted. Django names the column `<field>_id` (for example, `category = ForeignKey(Category, ...)` creates the column `category_id` referencing `Category.category_id`).
 - Names: `varchar(255)`; UNB IDs and asset identifiers: `varchar(100)`; descriptions: `text`; status/role/choice values: bounded `varchar` sized for the longest choice.
-- All required strings must be nonempty after trimming whitespace. Normalize identifying names/IDs on input. `NULL` is only allowed where explicitly marked **Yes**.
+- String normalization:
+  - Every entry point (API, Django admin, services, and imports) trims leading and trailing whitespace before saving.
+  - Required strings must be nonempty after trimming. A database check constraint rejects empty or untrimmed values as the final guard.
+  - Optional strings (`EquipmentType.description`, `Borrower.last_name`) are trimmed on input and may be empty.
+  - Values keep the case they were entered in. Where a column is unique ignoring case, a unique constraint on `Lower(<column>)` enforces it.
+  - Application validation produces user-facing errors; constraints are the final guard. See [Backend.md](Backend.md#models) for the implementation pattern.
+- `NULL` is only allowed where explicitly marked **Yes**.
 - `is_deleted` defaults to `False`; soft-deleted records remain in storage and should be excluded from normal active lists and new operations.
 - Dates use `date`, not timestamps, as in the supplied model. No automatic expiry for certifications.
-- Keep primary/foreign-key column names shown in the diagram. Django attributes can omit the `_id` suffix (e.g. `asset = ForeignKey(...)` maps to `asset_id`).
 
 ## 2. Tables
 
-`PK` = primary key; `FK` = foreign key. All columns are non-nullable unless marked **Yes**. Defaults shown explicitly.
+`PK` = primary key; `FK` = foreign key. All columns are non-nullable unless marked **Yes**. Defaults shown explicitly. "Trimmed, nonempty" means the string normalization rule in section 1, including its check constraint.
 
 ### Category
 
-| Column      | Type         | Nullable | Constraints/default                  |
-| ----------- | ------------ | -------- | ------------------------------------ |
-| category_id | int          | No       | PK                                   |
-| name        | varchar(255) | No       | Unique ignoring case, after trimming |
-| is_deleted  | boolean      | No       | Default `False`                      |
+| Column      | Type         | Nullable | Constraints/default                                              |
+| ----------- | ------------ | -------- | ---------------------------------------------------------------- |
+| category_id | int          | No       | PK                                                               |
+| name        | varchar(255) | No       | Trimmed, nonempty; unique ignoring case, including soft-deleted |
+| is_deleted  | boolean      | No       | Default `False`                                                  |
 
 ### EquipmentType
 
-| Column      | Type         | Nullable | Constraints/default                                  |
-| ----------- | ------------ | -------- | ---------------------------------------------------- |
-| type_id     | int          | No       | PK                                                   |
-| category_id | int          | No       | FK → Category.category_id (`PROTECT`)                |
-| name        | varchar(255) | No       | Unique within category ignoring case, after trimming |
-| description | text         | No       | Default empty string `""`                            |
-| is_deleted  | boolean      | No       | Default `False`                                      |
+| Column      | Type         | Nullable | Constraints/default                                                              |
+| ----------- | ------------ | -------- | -------------------------------------------------------------------------------- |
+| type_id     | int          | No       | PK                                                                               |
+| category_id | int          | No       | FK → Category.category_id (`PROTECT`)                                                     |
+| name        | varchar(255) | No       | Trimmed, nonempty; unique within category ignoring case, including soft-deleted |
+| description | text         | No       | Default empty string `""`; trimmed                                               |
+| is_deleted  | boolean      | No       | Default `False`                                                                  |
 
 ### Asset
 
-| Column           | Type         | Nullable | Constraints/default                            |
-| ---------------- | ------------ | -------- | ---------------------------------------------- |
-| asset_id         | int          | No       | PK                                             |
-| type_id          | int          | No       | FK → EquipmentType.type_id (`PROTECT`)         |
-| asset_identifier | varchar(100) | No       | Globally unique, including soft-deleted assets |
-| name             | varchar(255) | No       | Required                                       |
-| acquisition_date | date         | **Yes**  | Optional for imported/older assets             |
-| status           | varchar(20)  | No       | Default `Available`; choices below             |
-| is_deleted       | boolean      | No       | Default `False`                                |
+| Column           | Type         | Nullable | Constraints/default                                         |
+| ---------------- | ------------ | -------- | ----------------------------------------------------------- |
+| asset_id         | int          | No       | PK                                                          |
+| type_id          | int          | No       | FK → EquipmentType.type_id (`PROTECT`)                           |
+| asset_identifier | varchar(100) | No       | Trimmed, nonempty; globally unique, including soft-deleted |
+| name             | varchar(255) | No       | Trimmed, nonempty                                           |
+| acquisition_date | date         | **Yes**  | Optional for imported/older assets                          |
+| status           | varchar(20)  | No       | Default `Available`; choices below                          |
+| is_deleted       | boolean      | No       | Default `False`                                             |
 
 **Asset statuses:** `Available`, `On_Loan`, `Under_Maintenance`, `Retired`.
 
+Asset ID search trims surrounding whitespace and matches identifiers by case-insensitive substring; a full identifier returns its matching asset. Asset results are paginated at 20 per page. Results exclude assets whose asset, equipment type, or category is soft-deleted.
+
 ### Borrower
 
-| Column                | Type         | Nullable | Constraints/default                        |
-| --------------------- | ------------ | -------- | ------------------------------------------ |
-| borrower_id           | int          | No       | PK                                         |
-| first_name            | varchar(255) | No       | Required                                   |
-| last_name             | varchar(255) | No       | Default empty string `""` (optional input) |
-| unb_id                | varchar(100) | No       | Unique within Borrower                     |
-| negligent_damage_flag | boolean      | No       | Default `False`                            |
-| is_deleted            | boolean      | No       | Default `False`                            |
+| Column                | Type         | Nullable | Constraints/default                                  |
+| --------------------- | ------------ | -------- | ---------------------------------------------------- |
+| borrower_id           | int          | No       | PK                                                   |
+| first_name            | varchar(255) | No       | Trimmed, nonempty                                    |
+| last_name             | varchar(255) | No       | Default empty string `""` (optional input); trimmed  |
+| unb_id                | varchar(100) | No       | Trimmed, nonempty; unique within Borrower            |
+| negligent_damage_flag | boolean      | No       | Default `False`                                      |
+| is_deleted            | boolean      | No       | Default `False`                                      |
 
 ### Certification
 
-| Column           | Type         | Nullable | Constraints/default                  |
-| ---------------- | ------------ | -------- | ------------------------------------ |
-| certification_id | int          | No       | PK                                   |
-| name             | varchar(255) | No       | Unique ignoring case, after trimming |
+| Column | Type         | Nullable | Constraints/default                     |
+| ------ | ------------ | -------- | --------------------------------------- |
+| certification_id | int          | No       | PK                                      |
+| name   | varchar(255) | No       | Trimmed, nonempty; unique ignoring case |
 
 ### BorrowerCertification
 
-| Column           | Type | Nullable | Constraints/default                             |
-| ---------------- | ---- | -------- | ----------------------------------------------- |
-| borrower_id      | int  | No       | FK → Borrower.borrower_id (`PROTECT`)           |
-| certification_id | int  | No       | FK → Certification.certification_id (`PROTECT`) |
+| Column           | Type   | Nullable | Constraints/default                |
+| ---------------- | ------ | -------- | ---------------------------------- |
+| borrower_id      | int    | No       | FK → Borrower.borrower_id (`PROTECT`)       |
+| certification_id | int    | No       | FK → Certification.certification_id (`PROTECT`)  |
 
-**Key:** composite primary key `(borrower_id, certification_id)` in the logical schema, or a Django-generated `id` plus a unique constraint on `(borrower, certification)` if using Django's normal model conventions. Use exactly one approach in the actual migrations; the pair must be unique.
+**Key:** composite primary key `(borrower_id, certification_id)`.
 
 ### TypeCertification
 
-| Column           | Type | Nullable | Constraints/default                             |
-| ---------------- | ---- | -------- | ----------------------------------------------- |
-| type_id          | int  | No       | FK → EquipmentType.type_id (`PROTECT`)          |
-| certification_id | int  | No       | FK → Certification.certification_id (`PROTECT`) |
+| Column           | Type   | Nullable | Constraints/default                |
+| ---------------- | ------ | -------- | ---------------------------------- |
+| type_id          | int    | No       | FK → EquipmentType.type_id (`PROTECT`)  |
+| certification_id | int    | No       | FK → Certification.certification_id (`PROTECT`)  |
 
-**Key:** composite primary key `(type_id, certification_id)` logically, or Django-generated `id` plus a unique pair constraint. Certification requirements are defined **per equipment type**, not per individual asset.
+**Key:** composite primary key `(type_id, certification_id)`. Certification requirements are defined **per equipment type**, not per individual asset.
 
 ### Loan
 
 | Column               | Type        | Nullable | Constraints/default                                     |
 | -------------------- | ----------- | -------- | ------------------------------------------------------- |
 | loan_id              | int         | No       | PK                                                      |
-| asset_id             | int         | No       | FK → Asset.asset_id (`PROTECT`)                         |
-| borrower_id          | int         | No       | FK → Borrower.borrower_id (`PROTECT`)                   |
+| asset_id             | int         | No       | FK → Asset.asset_id (`PROTECT`)                               |
+| borrower_id          | int         | No       | FK → Borrower.borrower_id (`PROTECT`)                            |
 | checkout_date        | date        | No       | Required                                                |
 | expected_return_date | date        | No       | Required; ≥ checkout_date                               |
 | actual_return_date   | date        | **Yes**  | `NULL` while active; if populated, ≥ checkout_date      |
@@ -102,15 +109,15 @@
 
 ### MaintenanceRecord
 
-| Column           | Type        | Nullable | Constraints/default                             |
-| ---------------- | ----------- | -------- | ----------------------------------------------- |
-| maintenance_id   | int         | No       | PK                                              |
-| asset_id         | int         | No       | FK → Asset.asset_id (`PROTECT`)                 |
-| technician_id    | int         | No       | FK → SystemUser.user_id (`PROTECT`)             |
-| maintenance_type | varchar(30) | No       | Choices below                                   |
-| priority         | varchar(10) | No       | Choices below                                   |
-| start_date       | date        | No       | Required                                        |
-| end_date         | date        | **Yes**  | `NULL` while active; if populated, ≥ start_date |
+| Column           | Type        | Nullable | Constraints/default                                                         |
+| ---------------- | ----------- | -------- | --------------------------------------------------------------------------- |
+| maintenance_id   | int         | No       | PK                                                                          |
+| asset_id         | int         | No       | FK → Asset.asset_id (`PROTECT`)                                                   |
+| technician_id    | bigint      | No       | FK → SystemUser, implemented as `settings.AUTH_USER_MODEL` (`PROTECT`)      |
+| maintenance_type | varchar(30) | No       | Choices below                                                               |
+| priority         | varchar(10) | No       | Choices below                                                               |
+| start_date       | date        | No       | Required                                                                    |
+| end_date         | date        | **Yes**  | `NULL` while active; if populated, ≥ start_date                             |
 
 **Maintenance types:** `Inspection`, `Preventative-care`, `Repair`, `Calibration`, `Cleaning`, `Software Service`.
 **Priorities:** `Low`, `Medium`, `High`, `Urgent`.
@@ -119,13 +126,15 @@
 
 ### SystemUser
 
-| Column     | Type         | Nullable | Constraints/default                      |
-| ---------- | ------------ | -------- | ---------------------------------------- |
-| user_id    | int          | No       | PK                                       |
-| name       | varchar(255) | No       | Required                                 |
-| unb_id     | varchar(100) | No       | Unique within SystemUser                 |
-| role       | varchar(20)  | No       | `TECHNICIAN`, `FACULTY`, `ADMINISTRATOR` |
-| is_deleted | boolean      | No       | Default `False`                          |
+SystemUser is the logical record for people who sign in to the application. It is implemented on the custom user model `users.User` (`settings.AUTH_USER_MODEL`), whose primary key is `id`. Reference it through `settings.AUTH_USER_MODEL` or `get_user_model()`; do not create a second model for authentication. Whether the columns below become fields on `users.User` or a one-to-one profile, and how they map to Django's built-in user fields, is a [pending decision](Backend.md#9-pending-decisions).
+
+| Column     | Type         | Nullable | Constraints/default                        |
+| ---------- | ------------ | -------- | ------------------------------------------ |
+| id         | bigint       | No       | PK                                         |
+| name       | varchar(255) | No       | Trimmed, nonempty                          |
+| unb_id     | varchar(100) | No       | Trimmed, nonempty; unique within SystemUser |
+| role       | varchar(20)  | No       | `TECHNICIAN`, `FACULTY`, `ADMINISTRATOR`   |
+| is_deleted | boolean      | No       | Default `False`                            |
 
 `Borrower.unb_id` and `SystemUser.unb_id` are **independently** unique; the same person may appear in both tables. User authentication and permission enforcement should use Django's authentication/authorization facilities; these role labels alone do not grant access.
 
@@ -157,7 +166,7 @@
 
 ### Naming, deletion, and restoration
 
-1. Trim whitespace from category, type, certification, and identifying fields; uniqueness for category/type names is case-insensitive. Name reservations continue across soft deletion.
+1. Trim whitespace from all string input as described in section 1. Uniqueness for category, equipment type, and certification names is case-insensitive. Name and identifier reservations continue across soft deletion.
 2. Soft-delete `Category`, `EquipmentType`, `Asset`, `Borrower`, and `SystemUser`; do not cascade soft-deletion through related tables.
 3. Prevent deletion of a category with active dependent equipment types, an equipment type with active dependent assets, or an asset with an open loan or maintenance record. Deactivated/soft-deleted records are unavailable for new operations, but existing transaction history stays accessible to authorized users.
 4. Restore an existing record by clearing `is_deleted`, not by inserting a duplicate. `Certification` and join-table associations are not part of the general soft-delete workflow; changes to them must be deliberate and preserve transaction-related semantics.
@@ -176,8 +185,9 @@ Three roles are approved: **Technician**, **Faculty**, **Administrator**. Only a
 
 ## 6. Implementation and migrations
 
-- Implement the model fields and constraints above, including check constraints on date ordering and loan return completeness; use Django `TextChoices` for enumerated fields. For normalized name uniqueness, normalize on write and create appropriate case-insensitive unique constraints/indexes in PostgreSQL.
-- Standard Django auto-generated primary keys for junction models plus pairwise `UniqueConstraint` are the recommended ORM implementation.
+- Implement the model fields and constraints above, including check constraints on date ordering and loan return completeness; use Django `TextChoices` for enumerated fields, storing the values exactly as listed above.
+- Declare each primary key with the name shown in section 2, for example `category_id = models.AutoField(primary_key=True)`. Join models use `models.CompositePrimaryKey` on their two foreign keys.
+- For required strings, add a `CheckConstraint` that rejects empty or untrimmed values. For case-insensitive names, add a `UniqueConstraint` on `Lower('name')` (with `category` for `EquipmentType`). Unique constraints on soft-deletable tables have no condition, so deleted rows keep their names reserved.
 - PostgreSQL conditional `UniqueConstraint` protects active loan and maintenance records. Database constraints do not replace application validation or transactional state transitions.
 - Inspect existing models, migrations, and data before adding constraints; reconcile duplicate names, duplicate IDs, open transactions, and invalid dates before applying them. Never rewrite already-shared migration history casually.
 - Migration changes require accompanying updates to this file and tests for uniqueness, invalid states, restoration, and concurrent checkout/maintenance actions.

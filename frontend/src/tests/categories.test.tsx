@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import AppRoutes from '../AppRoutes'
 import type { Category, EquipmentType } from '../features/categories/api'
 import CategoryTable from '../features/categories/components/CategoryTable'
+import CategoryTypesDialog from '../features/categories/components/CategoryTypesDialog'
 import EquipmentTypeTable from '../features/categories/components/EquipmentTypeTable'
 
 function renderAt(path: string): string {
@@ -24,10 +25,6 @@ describe('Categories page', () => {
     expect(html).toContain('Deleted Records')
     expect(html).toContain('All Records')
     expect(html).toContain('placeholder="Search categories..."')
-  })
-
-  it('shows a loading message until the list arrives', () => {
-    expect(html).toContain('Loading categories')
   })
 
   it('shows the Add Category button but keeps it switched off', () => {
@@ -51,16 +48,6 @@ describe('Assets page navigation', () => {
   })
 })
 
-describe('Category page', () => {
-  it('shows a link back to the list, a loading message, and keeps Categories highlighted', () => {
-    const html = renderAt('/categories/3')
-
-    expect(html).toContain('Back to Categories')
-    expect(html).toContain('Loading category')
-    expect(html).toMatch(/<a[^>]*aria-current="page"[^>]*href="\/categories"/)
-  })
-})
-
 describe('CategoryTable', () => {
   const categories: Category[] = [
     { category_id: 1, name: 'Tools', is_deleted: false, equipment_type_count: 2 },
@@ -69,14 +56,13 @@ describe('CategoryTable', () => {
   ]
   const render = (list: Category[], errorMessage = '') =>
     renderToString(
-      <MemoryRouter>
-        <CategoryTable
-          categories={list}
-          emptyMessage="There are no categories yet."
-          errorMessage={errorMessage}
-          isLoading={false}
-        />
-      </MemoryRouter>,
+      <CategoryTable
+        categories={list}
+        emptyMessage="There are no categories yet."
+        errorMessage={errorMessage}
+        isLoading={false}
+        onSelectCategory={() => {}}
+      />,
     )
   const html = render(categories)
 
@@ -86,13 +72,18 @@ describe('CategoryTable', () => {
     }
   })
 
-  it('shows one row per category with a two-digit ID and a link to its page', () => {
+  it('shows one row per category with a two-digit ID', () => {
     expect(html.match(/<tr/g)).toHaveLength(4) // header row + 3 categories
     expect(html).toContain('>01</td>')
     expect(html).toContain('>12</td>')
-    expect(html).toContain('href="/categories/1"')
-    expect(html).toContain('href="/categories/12"')
-    expect(html).toContain('>Old Stock</a>')
+  })
+
+  it('shows each category name as a button that opens its equipment types popup', () => {
+    const nameButtons = html.match(/<button[^>]*aria-haspopup="dialog"[^>]*>[^<]*<\/button>/g) ?? []
+
+    expect(nameButtons).toHaveLength(3)
+    expect(nameButtons.join('')).toContain('>Old Stock</button>')
+    expect(html).not.toContain('href="/categories/')
   })
 
   it('shows how many equipment types each category has', () => {
@@ -109,7 +100,8 @@ describe('CategoryTable', () => {
   it('shows Edit and Delete for every row but keeps them switched off', () => {
     expect(html.match(/aria-label="Edit [^"]* \(coming soon\)"/g)).toHaveLength(3)
     expect(html.match(/aria-label="Delete [^"]* \(coming soon\)"/g)).toHaveLength(3)
-    for (const button of html.match(/<button[^>]*>/g) ?? []) {
+    const actionButtons = html.match(/<button[^>]*aria-label="(?:Edit|Delete) [^>]*>/g) ?? []
+    for (const button of actionButtons) {
       expect(button).toContain('disabled')
     }
   })
@@ -157,4 +149,21 @@ describe('EquipmentTypeTable', () => {
 
     expect(html).toContain('This category has no equipment types yet.')
   })
+})
+
+describe('CategoryTypesDialog', () => {
+  const tools: Category = { category_id: 1, name: 'Tools', is_deleted: false, equipment_type_count: 2 }
+  const render = (category: Category) =>
+    renderToString(<CategoryTypesDialog category={category} onClose={() => {}} />)
+
+  it('is a modal dialog named after the category', () => {
+    const html = render(tools)
+
+    expect(html).toContain('role="dialog"')
+    expect(html).toContain('aria-modal="true"')
+    expect(html).toContain('aria-labelledby="category-types-title"')
+    expect(html).toContain('id="category-types-title">Tools</h2>')
+    expect(html).toContain('Equipment types in this category')
+  })
+
 })

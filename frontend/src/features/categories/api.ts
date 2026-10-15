@@ -76,10 +76,6 @@ export function fetchCategories(
   return getJson<Category[]>(`/categories/?${params}`, signal)
 }
 
-export function fetchCategory(id: string, signal?: AbortSignal): Promise<Category> {
-  return getJson<Category>(`/categories/${encodeURIComponent(id)}/`, signal)
-}
-
 export function fetchCategoryEquipmentTypes(
   id: string,
   signal?: AbortSignal,

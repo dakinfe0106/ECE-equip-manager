@@ -2,7 +2,6 @@ import { Link, Route, Routes } from 'react-router'
 import App from './App'
 import AssetsPage from './pages/AssetsPage'
 import CategoriesPage from './pages/CategoriesPage'
-import CategoryDetailPage from './pages/CategoryDetailPage'
 
 export default function AppRoutes() {
   return (
@@ -10,7 +9,6 @@ export default function AppRoutes() {
       <Route element={<App />}>
         <Route path="/" element={<AssetsPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
-        <Route path="/categories/:id" element={<CategoryDetailPage />} />
       </Route>
       <Route path="*" element={
         <main className="p-6">

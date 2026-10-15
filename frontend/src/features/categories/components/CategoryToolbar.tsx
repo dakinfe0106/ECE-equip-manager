@@ -25,7 +25,7 @@ export default function CategoryToolbar({
       <label className="flex h-9 flex-[0_0_auto] items-center gap-[9px] text-[11px] leading-none text-[#707d90] max-[390px]:w-full max-[390px]:justify-between">
         <span>Show:</span>
         <select
-          className="h-9 min-w-[148px] rounded-[5px] border border-[#dce3ed] bg-white px-[10px] text-[11px]! leading-none text-[#455267] outline-none focus:border-[#4a88ec] focus:shadow-[0_0_0_3px_rgb(49_118_225_/_11%)]"
+          className="h-9 min-w-[148px] rounded-[5px] border border-[#dce3ed] bg-white px-[10px] text-[11px] leading-none text-[#455267] outline-none focus:border-[#4a88ec] focus:shadow-[0_0_0_3px_rgb(49_118_225_/_11%)]"
           value={show}
           onChange={(event) => onShowChange(event.target.value as DeletedFilter)}
         >
@@ -58,7 +58,7 @@ export default function CategoryToolbar({
           id="category-search"
           name="search"
           type="search"
-          className="h-9 w-full rounded-l-[6px] border border-r-0 border-[#dce3ed] bg-white py-0 pl-[34px] pr-[35px] text-[11px]! text-[#354257] outline-none placeholder:text-[#9aa5b4] focus:z-[1] focus:border-[#4a88ec] focus:shadow-[0_0_0_3px_rgb(49_118_225_/_11%)]"
+          className="h-9 w-full rounded-l-[6px] border border-r-0 border-[#dce3ed] bg-white py-0 pl-[34px] pr-[35px] text-[11px] text-[#354257] outline-none placeholder:text-[#9aa5b4] focus:z-[1] focus:border-[#4a88ec] focus:shadow-[0_0_0_3px_rgb(49_118_225_/_11%)]"
           value={searchText}
           maxLength={255}
           placeholder="Search categories..."
@@ -66,7 +66,7 @@ export default function CategoryToolbar({
         />
         {searchText && (
           <button
-            className="absolute right-[79px] z-[2] grid h-[25px] w-[25px] place-items-center border-0 bg-transparent text-[17px]! text-[#8793a4] focus-visible:outline-2 focus-visible:outline-[#347ee9] focus-visible:outline-offset-[3px]"
+            className="absolute right-[79px] z-[2] grid h-[25px] w-[25px] place-items-center border-0 bg-transparent text-[17px] text-[#8793a4] focus-visible:outline-2 focus-visible:outline-[#347ee9] focus-visible:outline-offset-[3px]"
             type="button"
             aria-label="Clear search"
             onClick={onClear}
@@ -75,7 +75,7 @@ export default function CategoryToolbar({
           </button>
         )}
         <button
-          className="h-9 shrink-0 rounded-r-[6px] border border-[#276fdd] bg-[#2875e4] px-[14px] text-[11px]! font-semibold! text-white transition-colors hover:enabled:bg-[#1c64cc] focus-visible:outline-2 focus-visible:outline-[#347ee9] focus-visible:outline-offset-[3px] disabled:cursor-wait disabled:opacity-[0.72]"
+          className="h-9 shrink-0 rounded-r-[6px] border border-[#276fdd] bg-[#2875e4] px-[14px] text-[11px] font-semibold text-white transition-colors hover:enabled:bg-[#1c64cc] focus-visible:outline-2 focus-visible:outline-[#347ee9] focus-visible:outline-offset-[3px] disabled:cursor-wait disabled:opacity-[0.72]"
           type="submit"
           disabled={isLoading}
         >

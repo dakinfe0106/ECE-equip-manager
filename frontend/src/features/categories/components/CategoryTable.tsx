@@ -1,4 +1,3 @@
-import { Link } from 'react-router'
 import type { Category } from '../api'
 import { PencilIcon, TrashIcon } from './icons'
 import StatusBadge from './StatusBadge'
@@ -13,6 +12,7 @@ interface CategoryTableProps {
   emptyMessage: string
   isLoading: boolean
   errorMessage: string
+  onSelectCategory: (category: Category) => void
 }
 
 function describeTypeCount(count: number): string {
@@ -27,6 +27,7 @@ export default function CategoryTable({
   emptyMessage,
   isLoading,
   errorMessage,
+  onSelectCategory,
 }: CategoryTableProps) {
   return (
     <div className="min-h-0 flex-1 overflow-auto border-t border-[#e8edf3]">
@@ -46,12 +47,14 @@ export default function CategoryTable({
                 {category.category_id.toString().padStart(2, '0')}
               </td>
               <td className={cellClassName}>
-                <Link
-                  className="py-[3px] text-[10px] font-[650] text-[#2871da] hover:text-[#174fa1] hover:underline focus-visible:outline-2 focus-visible:outline-[#347ee9] focus-visible:outline-offset-[3px]"
-                  to={`/categories/${category.category_id}`}
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  className="cursor-pointer py-[3px] text-[10px] font-[650] text-[#2871da] hover:text-[#174fa1] hover:underline focus-visible:outline-2 focus-visible:outline-[#347ee9] focus-visible:outline-offset-[3px]"
+                  onClick={() => onSelectCategory(category)}
                 >
                   {category.name}
-                </Link>
+                </button>
                 <span className="ml-2 text-[9px] text-[#8a96a7]">
                   {describeTypeCount(category.equipment_type_count)}
                 </span>

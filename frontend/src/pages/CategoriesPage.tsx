@@ -1,9 +1,11 @@
 import { useCallback, useState, type FormEvent } from 'react'
 import CategoryTable from '../features/categories/components/CategoryTable'
 import CategoryToolbar from '../features/categories/components/CategoryToolbar'
+import CategoryTypesDialog from '../features/categories/components/CategoryTypesDialog'
 import {
   describeCategoryError,
   fetchCategories,
+  type Category,
   type DeletedFilter,
 } from '../features/categories/api'
 import { useApiData } from '../features/categories/hooks/useApiData'
@@ -18,6 +20,7 @@ export default function CategoriesPage() {
   const [show, setShow] = useState<DeletedFilter>('false')
   const [searchText, setSearchText] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
 
   const load = useCallback(
     (signal: AbortSignal) => fetchCategories({ deleted: show, search: appliedSearch }, signal),
@@ -52,7 +55,7 @@ export default function CategoriesPage() {
         </div>
         {/* Shown as in the mockup but not connected: adding categories is another user story. */}
         <button
-          className="inline-flex min-h-9 cursor-not-allowed items-center justify-center gap-[7px] rounded-[6px] border border-[#276fdd] bg-[#2875e4] px-3 text-[11px]! font-semibold! text-white opacity-70"
+          className="inline-flex min-h-9 cursor-not-allowed items-center justify-center gap-[7px] rounded-[6px] border border-[#276fdd] bg-[#2875e4] px-3 text-[11px] font-semibold text-white opacity-70"
           type="button"
           disabled
           title="Coming soon"
@@ -100,8 +103,16 @@ export default function CategoriesPage() {
           emptyMessage={emptyMessage(appliedSearch, show)}
           errorMessage={errorMessage}
           isLoading={loading}
+          onSelectCategory={setSelectedCategory}
         />
       </section>
+
+      {selectedCategory && (
+        <CategoryTypesDialog
+          category={selectedCategory}
+          onClose={() => setSelectedCategory(null)}
+        />
+      )}
     </section>
   )
 }

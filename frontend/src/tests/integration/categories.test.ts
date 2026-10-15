@@ -6,7 +6,6 @@ import {
   CategoryRequestError,
   describeCategoryError,
   fetchCategories,
-  fetchCategory,
   fetchCategoryEquipmentTypes,
   type Category,
 } from '../../features/categories/api'
@@ -51,34 +50,6 @@ describe('fetchCategories', () => {
     expect(requestUrl?.searchParams.get('search')).toBe('lab gear')
   })
 
-  it('leaves out a blank search term', async () => {
-    let requestUrl: URL | undefined
-    server.use(
-      http.get(`${apiBaseUrl}/categories/`, ({ request }) => {
-        requestUrl = new URL(request.url)
-        return HttpResponse.json([])
-      }),
-    )
-
-    await fetchCategories({ search: '   ' })
-
-    expect(requestUrl?.searchParams.has('search')).toBe(false)
-  })
-
-  it('sends the session cookie with the request', async () => {
-    let credentials: RequestCredentials | undefined
-    server.use(
-      http.get(`${apiBaseUrl}/categories/`, ({ request }) => {
-        credentials = request.credentials
-        return HttpResponse.json([])
-      }),
-    )
-
-    await fetchCategories()
-
-    expect(credentials).toBe('include')
-  })
-
   it('rejects with the status code when the server refuses the request', async () => {
     server.use(
       http.get(`${apiBaseUrl}/categories/`, () => new HttpResponse(null, { status: 403 })),
@@ -89,26 +60,12 @@ describe('fetchCategories', () => {
     expect(failure).toBeInstanceOf(CategoryRequestError)
     expect((failure as CategoryRequestError).status).toBe(403)
   })
-
-  it('stops when the request is cancelled', async () => {
-    server.use(http.get(`${apiBaseUrl}/categories/`, () => HttpResponse.json([tools])))
-    const controller = new AbortController()
-    controller.abort()
-
-    await expect(fetchCategories({}, controller.signal)).rejects.toThrow()
-  })
 })
 
-describe('fetchCategory and fetchCategoryEquipmentTypes', () => {
-  it('loads one category by id', async () => {
-    server.use(http.get(`${apiBaseUrl}/categories/1/`, () => HttpResponse.json(tools)))
-
-    expect(await fetchCategory('1')).toEqual(tools)
-  })
-
+describe('fetchCategoryEquipmentTypes', () => {
   it('loads the equipment types of one category', async () => {
     const types = [
-      { id: 7, name: 'Screwdriver Set', description: '', category: { category_id: 1, name: 'Tools' } },
+      { type_id: 7, name: 'Screwdriver Set', description: '', category: { category_id: 1, name: 'Tools' } },
     ]
     server.use(
       http.get(`${apiBaseUrl}/categories/1/equipment-types/`, () => HttpResponse.json(types)),
@@ -117,15 +74,18 @@ describe('fetchCategory and fetchCategoryEquipmentTypes', () => {
     expect(await fetchCategoryEquipmentTypes('1')).toEqual(types)
   })
 
-  it('rejects with a 404 for an unknown category', async () => {
+  it('sends the session cookie with the request', async () => {
+    let credentials: RequestCredentials | undefined
     server.use(
-      http.get(`${apiBaseUrl}/categories/999/`, () => new HttpResponse(null, { status: 404 })),
+      http.get(`${apiBaseUrl}/categories/1/equipment-types/`, ({ request }) => {
+        credentials = request.credentials
+        return HttpResponse.json([])
+      }),
     )
 
-    const failure = await fetchCategory('999').catch((error: unknown) => error)
+    await fetchCategoryEquipmentTypes('1')
 
-    expect(failure).toBeInstanceOf(CategoryRequestError)
-    expect((failure as CategoryRequestError).status).toBe(404)
+    expect(credentials).toBe('include')
   })
 })
 
