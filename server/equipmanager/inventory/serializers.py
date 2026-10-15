@@ -8,6 +8,12 @@ class CategorySerializer(serializers.ModelSerializer):
         model = Category
         fields = ("category_id", "name")
 
+    def validate_name(self, value):
+        # Soft-deleted categories keep their names reserved, so check every row.
+        if Category.objects.filter(name__iexact=value).exists():
+            raise serializers.ValidationError("A category with this name already exists.")
+        return value
+
 
 class EquipmentTypeSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)

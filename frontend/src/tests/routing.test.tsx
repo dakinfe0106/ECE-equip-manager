@@ -18,6 +18,14 @@ describe('Application routes', () => {
     expect(html).not.toContain('Page not found')
   })
 
+  it('renders the Categories page and marks its sidebar link active', () => {
+    const html = renderToString(<MemoryRouter initialEntries={['/categories']}><AppRoutes /></MemoryRouter>)
+    expect(html).toContain('Add Category')
+    expect(html).toContain('Loading categories')
+    expect(html).toMatch(/<a[^>]*aria-current="page"[^>]*href="\/categories"/)
+    expect(html).not.toContain('Search Asset IDs')
+  })
+
   it('renders a fallback with a home link for unknown paths', () => {
     const html = renderToString(<MemoryRouter initialEntries={['/missing']}><AppRoutes /></MemoryRouter>)
     expect(html).toContain('Page not found')
