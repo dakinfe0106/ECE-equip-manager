@@ -9,8 +9,9 @@ export default function AppRoutes() {
     <Routes>
       <Route element={<App />}>
         <Route path="/" element={<AssetsPage />} />
-        <Route path="/categories" element={<CategoriesPage />} />
+        <Route path="/assets" element={<AssetsPage />} />
         <Route path="/assets/new" element={<AddAssetForm />} />
+        <Route path="/categories" element={<CategoriesPage />} />
       </Route>
       <Route
         path="*"
