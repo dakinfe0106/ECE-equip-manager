@@ -1,6 +1,6 @@
 # Frontend Development Standards
 
-This document outlines the setup, conventions, and standards for the React frontend of the ECE Equipment Management System (EMS). 
+This document outlines the setup, conventions, and standards for the React frontend of the ECE Equipment Management System (EMS).
 
 Our goal is to keep the frontend simple, consistent, and easy for all team members to contribute to, while maintaining high code quality.
 

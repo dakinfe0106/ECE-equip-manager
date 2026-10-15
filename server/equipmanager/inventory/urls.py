@@ -3,13 +3,17 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path("assets/", views.asset_list, name="asset-list"),
+    # Asset URLs
+    path("assets/", views.AssetListCreateAPIView.as_view(), name="asset-list"),
     path("assets/<int:asset_id>/", views.AssetDetailAPIView.as_view(), name="asset-detail"),
-    path("assets/lookup/", views.asset_list, name="asset-lookup"),
+    path("assets/lookup/", views.AssetListCreateAPIView.as_view(), name="asset-lookup"), # FIXED THIS LINE
     
     # Equipment Type URLs
     path("equipment-types/", views.EquipmentTypeList.as_view(), name="equipment-type-list"),
+    path("equipment-types/lookup/", views.equipment_type_list, name="equipment-type-lookup"),
     
-    # Category URL for the dropdown 
-    path("categories/", views.CategoryList.as_view(), name="category-list"),
+    # Category URLs
+    path("categories/", views.category_list, name="category-list"),
+    path("categories/summary/", views.CategoryList.as_view(), name="category-summary-list"),
+    path("categories/<int:pk>/equipment-types/", views.CategoryEquipmentTypeList.as_view(), name="category-equipment-type-list"),
 ]

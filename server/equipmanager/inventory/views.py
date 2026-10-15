@@ -1,41 +1,82 @@
 from typing import ClassVar
 
+from django.db import IntegrityError, transaction
+from django.db.models import Count, Q
 from django.db.models.functions import Lower, Trim
+from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
-from rest_framework import generics
+from rest_framework import generics, status
 from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
 
 from .models import Asset, Category, EquipmentType
-from .serializers import AssetSerializer, CategorySerializer, EquipmentTypeSerializer
+from .serializers import (
+    AssetCreateSerializer,
+    AssetSerializer,
+    CategorySerializer,
+    CategorySummarySerializer,
+    EquipmentTypeLookupSerializer,
+    EquipmentTypeSerializer,
+)
 
 
 class AssetPagination(PageNumberPagination):
     page_size = 20
 
-@ensure_csrf_cookie
-@api_view(["GET"])
-def asset_list(request):
-    assets = (
-        Asset.objects.filter(
-            is_deleted=False,
-            equipment_type__is_deleted=False,
-            equipment_type__category__is_deleted=False,
+
+# --- ASSET VIEWS ---
+@method_decorator(ensure_csrf_cookie, name="dispatch")
+class AssetListCreateAPIView(generics.ListCreateAPIView):
+    pagination_class = AssetPagination
+
+    def get_queryset(self):
+        assets = (
+            Asset.objects.filter(
+                is_deleted=False,
+                equipment_type__is_deleted=False,
+                equipment_type__category__is_deleted=False,
+            )
+            .select_related("equipment_type__category")
+            .order_by("asset_id")
         )
-        .select_related("equipment_type__category")
-        .order_by("asset_id")
-    )
-    asset_identifier = request.query_params.get("asset_identifier", "").strip()
-    if asset_identifier:
-        assets = assets.annotate(
-            normalized_asset_identifier=Lower(Trim("asset_identifier"))
-        ).filter(normalized_asset_identifier__contains=asset_identifier.lower())
-    paginator = AssetPagination()
-    page = paginator.paginate_queryset(assets, request)
-    serializer = AssetSerializer(page, many=True)
-    return paginator.get_paginated_response(serializer.data)
+
+        asset_identifier = self.request.query_params.get("asset_identifier", "").strip()
+        if asset_identifier:
+            assets = assets.annotate(
+                normalized_asset_identifier=Lower(Trim("asset_identifier"))
+            ).filter(normalized_asset_identifier__contains=asset_identifier.lower())
+        return assets
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return AssetCreateSerializer
+        return AssetSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            with transaction.atomic():
+                asset = serializer.save()
+        except IntegrityError as exc:
+            constraint_name = getattr(
+                getattr(exc.__cause__, "diag", None), "constraint_name", None
+            )
+            if constraint_name != "inv_asset_ident_ci_uniq":
+                raise
+            raise ValidationError(
+                {"asset_identifier": "An asset with this Asset ID already exists."}
+            ) from exc
+
+        response_serializer = AssetSerializer(
+            asset,
+            context=self.get_serializer_context(),
+        )
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
 
 class AssetDetailAPIView(generics.RetrieveUpdateAPIView):
     queryset = (
@@ -66,13 +107,37 @@ class AssetDetailAPIView(generics.RetrieveUpdateAPIView):
         return super().update(request, *args, **kwargs)
 
 
-# EQUIPMENT TYPE VIEWS
-class CategoryList(generics.ListAPIView):
-    queryset = Category.objects.filter(is_deleted=False)
-    serializer_class = CategorySerializer
-    permission_classes: ClassVar = [AllowAny]
+# --- EQUIPMENT TYPE & CATEGORY VIEWS ---
+
+# Simple category list for dropdowns
+@ensure_csrf_cookie
+@api_view(["GET"])
+def category_list(request):
+    categories = Category.objects.filter(is_deleted=False).order_by("name", "category_id")
+    return Response(CategorySerializer(categories, many=True).data)
 
 
+# Simple equipment type lookup
+@ensure_csrf_cookie
+@api_view(["GET"])
+def equipment_type_list(request):
+    equipment_types = EquipmentType.objects.filter(
+        is_deleted=False,
+        category__is_deleted=False,
+    ).select_related("category").order_by("name", "type_id")
+    
+    category_id = request.query_params.get("category_id")
+    if category_id:
+        try:
+            category_id = int(category_id)
+        except ValueError as exc:
+            raise ValidationError({"category_id": "Must be a valid category ID."}) from exc
+        equipment_types = equipment_types.filter(category_id=category_id)
+        
+    return Response(EquipmentTypeLookupSerializer(equipment_types, many=True).data)
+
+
+# Class-based view for POSTing new Equipment Types (YOUR FEATURE)
 class EquipmentTypeList(generics.ListCreateAPIView):
     serializer_class = EquipmentTypeSerializer
     permission_classes: ClassVar = [AllowAny]
@@ -81,4 +146,45 @@ class EquipmentTypeList(generics.ListCreateAPIView):
         return EquipmentType.objects.filter(
             is_deleted=False,
             category__is_deleted=False,
-        ).select_related("category")
+        ).select_related("category").order_by("name", "type_id")
+
+
+# Category Summary views (FROM MAIN)
+DELETED_FILTER_VALUES = ("false", "true", "all")
+
+class CategoryList(generics.ListAPIView):
+    """List categories for the Categories screen, sorted by ID (lowest first)."""
+    serializer_class = CategorySummarySerializer
+    
+    def get_queryset(self):
+        queryset = Category.objects.annotate(
+            equipment_type_count=Count(
+                "equipment_types",
+                filter=Q(equipment_types__is_deleted=False),
+            ),
+        )
+
+        deleted = self.request.query_params.get("deleted", "false").lower()
+        if deleted not in DELETED_FILTER_VALUES:
+            raise ValidationError({"deleted": ['Must be one of: "false", "true", "all".']})
+        if deleted != "all":
+            queryset = queryset.filter(is_deleted=(deleted == "true"))
+
+        search = self.request.query_params.get("search", "").strip()
+        if search:
+            queryset = queryset.filter(name__icontains=search)
+
+        return queryset.order_by("category_id")
+
+
+class CategoryEquipmentTypeList(generics.ListAPIView):
+    """Active equipment types that belong to one category, sorted by ID (lowest first)."""
+    serializer_class = EquipmentTypeSerializer
+
+    def get_queryset(self):
+        category = generics.get_object_or_404(Category, category_id=self.kwargs["pk"])
+        return (
+            category.equipment_types.filter(is_deleted=False)
+            .select_related("category")
+            .order_by("type_id")
+        )
