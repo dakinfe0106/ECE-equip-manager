@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { apiBaseUrl } from '../api'
 
 type Category = {
   category_id: number
@@ -25,11 +26,11 @@ function EquipmentTypes() {
     const fetchEquipmentTypes = async () => {
       try {
         const response = await fetch(
-          'http://localhost:8000/api/equipment-types/',
-          {
-            credentials: 'include',
-          },
-        )
+  `${apiBaseUrl}/equipment-types/`,
+  {
+    credentials: 'include',
+  },
+)
 
         if (!response.ok) {
           throw new Error(`Request failed with status ${response.status}`)
