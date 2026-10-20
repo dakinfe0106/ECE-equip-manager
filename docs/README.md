@@ -366,7 +366,7 @@ The configured frontend stack includes:
 - ESLint
 - Vitest
 
-Vitest is configured as the frontend test runner. Tailwind CSS is configured in `vite.config.ts` and imported in `src/index.css`; existing global CSS is in its base layer. React Router uses `BrowserRouter` with routes defined in `src/AppRoutes.tsx`. The root route shows the health-check page, and unknown paths show a fallback. Business pages are not implemented yet.
+Vitest is configured as the frontend test runner. Tailwind CSS is configured in `vite.config.ts` and imported in `src/index.css`; existing global CSS is in its base layer. React Router uses `BrowserRouter` with routes defined in `src/AppRoutes.tsx`. The root route shows the Assets page, and unknown paths show a fallback. Frontend code conventions are in [Frontend-Standards.md](Frontend-Standards.md).
 
 After pulling tooling changes, run `npm ci` from `frontend/`. No separate Tailwind or Router setup is needed per developer. Use Tailwind classes for component styling and React Router links for internal navigation. When deploying the frontend, configure the host to serve `index.html` for client-side routes while keeping `/api/` requests routed to Django.
 
@@ -411,7 +411,7 @@ cd frontend
 npm run dev
 ```
 
-Open `http://localhost:5173` and click **Test Backend Connection**. It should show `{"status":"ok"}`.
+Open `http://localhost:5173`. The Assets page should list records, or show a sign-in message if you are not logged in (see [Trying a Protected Endpoint](#trying-a-protected-endpoint)). Either one means the frontend reached Django.
 
 ## Verify the Frontend Is Connected to the Backend
 
@@ -419,7 +419,7 @@ The frontend and backend run on different origins (`localhost:5173` and `localho
 
 1. Django is running and serving `/api/`.
 2. Django's CORS settings allow the frontend's origin, so the browser accepts the response.
-3. The frontend calls the right URL (`VITE_API_URL` plus `/health/`, defaulting to `http://localhost:8000/api/health/`).
+3. The frontend calls the right URL (`VITE_API_URL`, defaulting to `http://localhost:8000/api`).
 
 Check them in this order:
 
@@ -439,7 +439,7 @@ curl -i -H "Origin: http://localhost:5173" http://localhost:8000/api/health/
 
 The response must include the header `Access-Control-Allow-Origin: http://localhost:5173`. If that header is missing, add the origin to `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env` and restart `runserver`.
 
-**3. The browser gets the response.** Open `http://localhost:5173`, open the browser developer tools (**Network** tab), and click **Test Backend Connection**. The `health/` request should have status `200`, and the page should show `{"status":"ok"}`. A `blocked by CORS policy` message in the **Console** tab means step 2 is failing.
+**3. The browser gets the response.** Open `http://localhost:5173` with the browser developer tools on the **Network** tab. The `assets/` request should have status `200`, or `403` if you are not logged in. Both mean the browser reached Django. A `blocked by CORS policy` message in the **Console** tab means step 2 is failing.
 
 **4. Automated checks.** `server/equipmanager/tests/test_health.py` verifies the response and CORS header through Django's test client. It runs with `python -m pytest` and in CI. The frontend's MSW tests exercise the API client with mocked HTTP responses; they do not verify connectivity to a running backend.
 
@@ -784,4 +784,5 @@ Both test runners must discover tests and pass. An empty suite fails CI, includi
 | [Backend.md](Backend.md) | Backend code conventions and pending decisions |
 | [database.md](database.md) | Database schema, constraints, business rules, and permission policy |
 | [Frontend-Standards.md](Frontend-Standards.md) | Frontend code conventions |
+| [UI-Design.md](UI-Design.md) | Approved UI design: pages and routes, design tokens, shared components, and design vs. data model differences. The prototype source is in [design/prototype/](design/prototype/) |
 | [Quality.md](Quality.md) | Splitting feature work, merge gates, Definition of Done, and PO acceptance |

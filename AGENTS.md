@@ -18,6 +18,7 @@ Project documents:
 - [docs/Backend.md](docs/Backend.md): backend code conventions (models, services, soft deletion, authentication, permissions, testing) and pending decisions.
 - [docs/database.md](docs/database.md): tables, constraints, business rules, and the permission policy.
 - [docs/Frontend-Standards.md](docs/Frontend-Standards.md): frontend code conventions.
+- [docs/UI-Design.md](docs/UI-Design.md): the approved UI design, page and route map, design tokens, and where the design differs from the data model.
 - [.github/workflows/ci.yml](.github/workflows/ci.yml): checks executed in CI.
 
 Before planning, read the documents for the kind of change, plus the relevant source files, tests, and dependency/configuration files:
@@ -25,7 +26,7 @@ Before planning, read the documents for the kind of change, plus the relevant so
 | Change | Read |
 | --- | --- |
 | Any change | This file and [docs/Quality.md](docs/Quality.md) |
-| Frontend | [docs/Frontend-Standards.md](docs/Frontend-Standards.md); [docs/Architecture.md](docs/Architecture.md) sections 5 and 8 |
+| Frontend | [docs/Frontend-Standards.md](docs/Frontend-Standards.md); [docs/UI-Design.md](docs/UI-Design.md) and the matching screen in [docs/design/prototype/](docs/design/prototype/); [docs/Architecture.md](docs/Architecture.md) sections 5 and 8 |
 | Backend or API | [docs/Backend.md](docs/Backend.md); [docs/Architecture.md](docs/Architecture.md) sections 7 to 10 |
 | Models, migrations, queries, or business rules | [docs/database.md](docs/database.md), plus the backend row |
 | Setup, commands, dependencies, Git, or CI | [docs/README.md](docs/README.md) and [ci.yml](.github/workflows/ci.yml) |
