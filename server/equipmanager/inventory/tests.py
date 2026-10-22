@@ -41,6 +41,114 @@ def authenticated_client(db):
     return client
 
 
+def test_dashboard_returns_zero_counts_for_authenticated_session(db):
+    user = get_user_model().objects.create_user(username="dashboard-tech")
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(user)
+
+    response = client.get("/api/dashboard/")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "total_assets": 0,
+        "available_assets": 0,
+        "on_loan_assets": 0,
+        "under_maintenance_assets": 0,
+    }
+
+
+def test_dashboard_requires_authentication():
+    assert APIClient().get("/api/dashboard/").status_code == 403
+
+
+def test_dashboard_counts_mixed_statuses(authenticated_client, inventory_type):
+    statuses = (
+        [Asset.Status.AVAILABLE] * 21
+        + [Asset.Status.ON_LOAN] * 2
+        + [Asset.Status.UNDER_MAINTENANCE] * 3
+        + [Asset.Status.RETIRED] * 4
+    )
+    Asset.objects.bulk_create([
+        Asset(
+            equipment_type=inventory_type,
+            asset_identifier=f"DASH-{index}",
+            name=f"Dashboard asset {index}",
+            status=asset_status,
+        )
+        for index, asset_status in enumerate(statuses)
+    ])
+
+    response = authenticated_client.get("/api/dashboard/")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "total_assets": 26,
+        "available_assets": 21,
+        "on_loan_assets": 2,
+        "under_maintenance_assets": 3,
+    }
+
+
+@pytest.mark.parametrize("excluded_record", ["retired", "asset", "equipment_type", "category"])
+@pytest.mark.parametrize("asset_status", [
+    Asset.Status.AVAILABLE,
+    Asset.Status.ON_LOAN,
+    Asset.Status.UNDER_MAINTENANCE,
+])
+def test_dashboard_excludes_ineligible_inventory(
+    authenticated_client, asset_record, excluded_record, asset_status
+):
+    asset_record.status = asset_status
+    asset_record.save(update_fields=["status"])
+    if excluded_record == "retired":
+        asset_record.status = Asset.Status.RETIRED
+        asset_record.save(update_fields=["status"])
+    else:
+        record = {
+            "asset": asset_record,
+            "equipment_type": asset_record.equipment_type,
+            "category": asset_record.equipment_type.category,
+        }[excluded_record]
+        record.is_deleted = True
+        record.save(update_fields=["is_deleted"])
+
+    response = authenticated_client.get("/api/dashboard/")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "total_assets": 0,
+        "available_assets": 0,
+        "on_loan_assets": 0,
+        "under_maintenance_assets": 0,
+    }
+
+
+def test_dashboard_reflects_persisted_status_changes(authenticated_client, asset_record):
+    for asset_status in Asset.Status.values:
+        asset_record.status = asset_status
+        asset_record.save(update_fields=["status"])
+
+        response = authenticated_client.get("/api/dashboard/")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "total_assets": int(asset_status != Asset.Status.RETIRED),
+            "available_assets": int(asset_status == Asset.Status.AVAILABLE),
+            "on_loan_assets": int(asset_status == Asset.Status.ON_LOAN),
+            "under_maintenance_assets": int(asset_status == Asset.Status.UNDER_MAINTENANCE),
+        }
+
+
+@pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
+def test_dashboard_rejects_write_methods(authenticated_client, asset_record, method):
+    response = getattr(authenticated_client, method)("/api/dashboard/", {}, format="json")
+
+    assert response.status_code == 405
+    asset_record.refresh_from_db()
+    assert asset_record.status == Asset.Status.AVAILABLE
+    assert Asset.objects.count() == 1
+
+
 def test_asset_list_returns_assets_with_type_and_category_details(
     authenticated_client, asset_record
 ):
