@@ -12,8 +12,7 @@ export default function Sidebar() {
       </a>
 
       <nav className="sidebar-nav" aria-label="Main navigation">
-        <span className="sidebar-section-label">WORKSPACE</span>
-        <span className="sidebar-link sidebar-link-disabled" aria-disabled="true">
+        <NavLink className={navLinkClass} to="/" end>
           <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
             <rect x="2.5" y="2.5" width="6" height="6" rx="1" />
             <rect x="11.5" y="2.5" width="6" height="6" rx="1" />
@@ -21,7 +20,7 @@ export default function Sidebar() {
             <rect x="11.5" y="11.5" width="6" height="6" rx="1" />
           </svg>
           Dashboard
-        </span>
+        </NavLink>
         <NavLink className={navLinkClass} to="/categories">
           <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
             <path d="M3 5.5h5l1.5 1.8H17v7.2a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5z" />
@@ -43,7 +42,7 @@ export default function Sidebar() {
           Equipment Types
         </NavLink>
         <NavLink
-          to="/"
+          to="/assets"
           end
           className={({ isActive }) =>
             `sidebar-link${isActive ? ' sidebar-link-active' : ''}`

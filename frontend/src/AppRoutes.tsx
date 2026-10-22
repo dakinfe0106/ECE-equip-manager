@@ -4,12 +4,13 @@ import EquipmentTypes from './pages/EquipmentTypes'
 import AddAssetForm from './features/assets/components/AddAssetForm'
 import AssetsPage from './pages/AssetsPage'
 import CategoriesPage from './pages/CategoriesPage'
+import DashboardPage from './pages/DashboardPage'
 
 export default function AppRoutes() {
   return (
     <Routes>
       <Route element={<App />}>
-        <Route path="/" element={<AssetsPage />} />
+        <Route path="/" element={<DashboardPage />} />
         <Route path="/equipment-types" element={<EquipmentTypes />} />
 
         <Route path="/assets" element={<AssetsPage />} />
