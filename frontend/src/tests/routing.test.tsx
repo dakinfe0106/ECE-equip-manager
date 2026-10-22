@@ -1,7 +1,7 @@
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
-import AppRoutes from '../AppRoutes'
+import AppRoutes from './authTestHelpers'
 
 describe('Application routes', () => {
   it('renders the Asset ID lookup page at the root', () => {

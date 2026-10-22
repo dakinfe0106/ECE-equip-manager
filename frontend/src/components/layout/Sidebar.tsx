@@ -1,15 +1,36 @@
-import { NavLink } from 'react-router'
+import { useState } from 'react'
+import { Link, NavLink } from 'react-router'
+import { useAuth } from '../../features/auth/useAuth'
+import { describeAuthError } from '../../features/auth/api'
 
 // NavLink adds aria-current="page" and tells us which link matches the current URL.
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   isActive ? 'sidebar-link sidebar-link-active' : 'sidebar-link'
 
 export default function Sidebar() {
+  const { user, logout } = useAuth()
+  const [isSigningOut, setIsSigningOut] = useState(false)
+  const [error, setError] = useState('')
+  const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.username || ''
+  const initials = displayName.trim().split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+
+  async function handleLogout() {
+    if (isSigningOut) return
+    setIsSigningOut(true)
+    setError('')
+    try {
+      await logout()
+    } catch (failure) {
+      setError(describeAuthError(failure))
+    } finally {
+      setIsSigningOut(false)
+    }
+  }
   return (
     <aside className="sidebar">
-      <a className="brand" href="/" aria-label="ECE Equipment Manager home">
+      <Link className="brand" to="/" aria-label="ECE Equipment Manager home">
         <span className="brand-name">ECE Equipment<br />Manager</span>
-      </a>
+      </Link>
 
       <nav className="sidebar-nav" aria-label="Main navigation">
         <span className="sidebar-section-label">WORKSPACE</span>
@@ -70,6 +91,21 @@ export default function Sidebar() {
           Settings
         </span>
       </nav>
+      <div className="shrink-0 px-[15px] py-3 max-[700px]:px-2">
+        <div className="flex min-h-[34px] items-center gap-[10px] max-[700px]:flex-col max-[700px]:gap-1">
+          <span aria-hidden="true" className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-[#263d59] text-[11px] font-semibold text-[#d5dfed]">
+            {initials}
+          </span>
+          <div className="min-w-0 flex-1 max-[700px]:hidden">
+            <p className="truncate text-[12px] leading-[17px] font-semibold text-white" title={displayName}>{displayName}</p>
+            <p className="truncate text-[11px] leading-[17px] text-[#8999ae]" title={user?.role_label}>{user?.role_label}</p>
+          </div>
+          <button type="button" onClick={() => { void handleLogout() }} disabled={isSigningOut} aria-label={isSigningOut ? 'Signing out…' : 'Sign out'} title="Sign out" className="shrink-0 cursor-pointer rounded-sm py-2 text-[9px] leading-4 text-[#a8b6c9] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-wait disabled:opacity-60">
+            {isSigningOut ? 'Signing out…' : 'Sign out'}
+          </button>
+        </div>
+        {error && <p role="alert" className="mt-2 break-words text-[10px] text-red-200">{error}</p>}
+      </div>
     </aside>
   )
 }

@@ -33,6 +33,7 @@ def asset_record(inventory_type):
 @pytest.fixture
 def authenticated_client(db):
     user = get_user_model().objects.create_user(
+        role='TECHNICIAN',
         username="shop-tech",
         password="test-password",
     )
@@ -236,6 +237,7 @@ def test_asset_status_cannot_be_changed_through_general_update(
 
 def test_asset_update_accepts_csrf_from_configured_frontend_origin(db, asset_record):
     get_user_model().objects.create_user(
+        role='TECHNICIAN',
         username="shop-tech",
         password="test-password",
     )
@@ -419,6 +421,7 @@ def test_asset_create_accepts_valid_csrf_session(
     db, inventory_type
 ):
     get_user_model().objects.create_user(
+        role='TECHNICIAN',
         username="shop-tech",
         password="test-password",
     )
@@ -449,6 +452,7 @@ def test_asset_create_accepts_valid_csrf_session(
 def api_client(db):
     """An API client logged in as a synthetic user."""
     user = get_user_model().objects.create_user(
+        role='TECHNICIAN',
         username="category-tech",
         password="not-a-real-password",
     )
