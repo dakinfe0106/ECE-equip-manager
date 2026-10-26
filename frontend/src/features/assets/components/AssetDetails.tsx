@@ -33,10 +33,18 @@ export default function AssetDetails({
 }: AssetDetailsProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const certifications = asset.equipment_type.required_certifications
+  
+  // UI States
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [statusMessage, setStatusMessage] = useState('')
+  
+  // Track if the user has modified the form without saving
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
+  // Note: Backend currently only allows updating 'name' and 'acquisition_date' 
+  // based on the AssetUpdate type in api.ts.
   const [draft, setDraft] = useState<AssetUpdate>({
     name: asset.name,
     acquisition_date: asset.acquisition_date,
@@ -54,9 +62,20 @@ export default function AssetDetails({
     }
   }, [])
 
+  // Intercept close attempts to warn about unsaved changes
+  const handleAttemptClose = () => {
+    if (isEditing && hasUnsavedChanges) {
+      const confirmClose = window.confirm(
+        'You have unsaved changes. Are you sure you want to discard them?'
+      )
+      if (!confirmClose) return // Stop closing if they click "Cancel" on the browser prompt
+    }
+    onClose()
+  }
+
   const closeOnBackdropClick = (event: MouseEvent<HTMLDialogElement>) => {
     if (event.target === event.currentTarget) {
-      onClose()
+      handleAttemptClose() // Use our new safe close function
     }
   }
 
@@ -67,6 +86,7 @@ export default function AssetDetails({
     })
     setErrorMessage('')
     setStatusMessage('')
+    setHasUnsavedChanges(false) // Reset unsaved changes flag when starting fresh
     setIsEditing(true)
   }
 
@@ -80,6 +100,7 @@ export default function AssetDetails({
       const updatedAsset = await updateAsset(asset.asset_id, draft)
       onAssetUpdated(updatedAsset)
       setIsEditing(false)
+      setHasUnsavedChanges(false) // Clear the flag after a successful save
       setStatusMessage(`Changes saved for ${updatedAsset.asset_identifier}.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
@@ -96,7 +117,7 @@ export default function AssetDetails({
       aria-labelledby="details-title"
       onCancel={(event) => {
         event.preventDefault()
-        onClose()
+        handleAttemptClose() // ISSUE #69: Safe close on Esc key
       }}
       onClick={closeOnBackdropClick}
     >
@@ -132,13 +153,14 @@ export default function AssetDetails({
           <button
             className="rounded-[5px] border border-[#dce3ed] bg-white px-[10px] py-[6px] text-[10px] text-[#59677a] focus-visible:outline-2 focus-visible:outline-[#347ee9] focus-visible:outline-offset-[3px]"
             type="button"
-            onClick={onClose}
+            onClick={handleAttemptClose} // ISSUE #69: Safe close on X button
             aria-label="Close asset details"
           >
             ×
           </button>
         </div>
       </header>
+
       {isEditing ? (
         <form className="pt-[15px]" onSubmit={handleSave} aria-busy={isSaving}>
           <div className="grid grid-cols-4 gap-[13px] max-[700px]:grid-cols-2 max-[390px]:grid-cols-1">
@@ -151,15 +173,16 @@ export default function AssetDetails({
               />
             </label>
             <label className="flex min-w-0 flex-col gap-[6px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">
-              <span>Name</span>
+              <span>Name *</span>
               <input
                 className="w-full min-w-0 rounded-[5px] border border-[#dce3ed] bg-white px-[9px] py-2 text-[11px] text-[#39465a] normal-case focus-visible:outline-2 focus-visible:outline-[#347ee9]"
                 required
                 maxLength={255}
                 value={draft.name}
-                onChange={(event) =>
+                onChange={(event) => {
                   setDraft((current) => ({ ...current, name: event.target.value }))
-                }
+                  setHasUnsavedChanges(true) // ISSUE #69: Mark as changed
+                }}
               />
             </label>
             <label className="flex min-w-0 flex-col gap-[6px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">
@@ -176,12 +199,13 @@ export default function AssetDetails({
                 className="w-full min-w-0 rounded-[5px] border border-[#dce3ed] bg-white px-[9px] py-2 text-[11px] text-[#39465a] normal-case focus-visible:outline-2 focus-visible:outline-[#347ee9]"
                 type="date"
                 value={draft.acquisition_date ?? ''}
-                onChange={(event) =>
+                onChange={(event) => {
                   setDraft((current) => ({
                     ...current,
                     acquisition_date: event.target.value || null,
                   }))
-                }
+                  setHasUnsavedChanges(true) // ISSUE #69: Mark as changed
+                }}
               />
             </label>
           </div>
@@ -195,7 +219,7 @@ export default function AssetDetails({
               className="rounded-[5px] border border-[#dce3ed] bg-white px-[10px] py-[6px] text-[10px] text-[#59677a] disabled:cursor-wait disabled:opacity-70"
               type="button"
               disabled={isSaving}
-              onClick={() => setIsEditing(false)}
+              onClick={handleAttemptClose} // ISSUE #69: Safe close on Cancel button
             >
               Cancel
             </button>
@@ -281,8 +305,27 @@ export default function AssetDetails({
               {asset.equipment_type.description || 'No description recorded'}
             </dd>
           </div>
+
+          {/* Placeholder buttons for history features */}
+          <div className="col-span-full mt-4 flex flex-wrap gap-3 border-t border-[#e8edf3] pt-4">
+            <button
+              type="button"
+              className="rounded-[5px] border border-[#dce3ed] bg-white px-3 py-2 text-[10px] font-[650] text-[#2672e8] hover:bg-[#f1f4f9]"
+              onClick={() => alert('Lending History feature coming in a future sprint!')}
+            >
+              View Lending History →
+            </button>
+            <button
+              type="button"
+              className="rounded-[5px] border border-[#dce3ed] bg-white px-3 py-2 text-[10px] font-[650] text-[#2672e8] hover:bg-[#f1f4f9]"
+              onClick={() => alert('Maintenance History feature coming in a future sprint!')}
+            >
+              View Maintenance History →
+            </button>
+          </div>
         </dl>
       )}
+      
       {statusMessage && (
         <p className="mt-3 text-[10px] text-[#087443]" role="status">
           {statusMessage}

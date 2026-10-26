@@ -40,6 +40,10 @@ describe('AssetDetails modal', () => {
     expect(html).toContain('On Loan')
     expect(html).toContain('Edit information')
     expect(html).toContain('Close asset details')
+    
+    // --- ADDED FOR ISSUE #67 ---
+    expect(html).toContain('View Lending History')
+    expect(html).toContain('View Maintenance History')
   })
 
   it('says when the acquisition date is missing', () => {
