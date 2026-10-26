@@ -416,7 +416,7 @@ POST /api/equipment/
 
 ```json
 {
-  "serial_number": "OSC-001"
+  "asset_identifier": "OSC-001"
 }
 ```
 
