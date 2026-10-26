@@ -202,7 +202,7 @@ The frontend uses:
 - ESLint
 - Vitest
 
-Tailwind CSS is configured through `@tailwindcss/vite` and `frontend/src/index.css`. React Router uses declarative routing with `BrowserRouter` and `frontend/src/AppRoutes.tsx`. The initial `/` route shows the health-check page; unknown paths show a fallback page.
+Tailwind CSS is configured through `@tailwindcss/vite` and `frontend/src/index.css`. React Router uses declarative routing with `BrowserRouter` and `frontend/src/AppRoutes.tsx`. The `/` route shows the Assets page; unknown paths show a fallback page.
 
 Frontend code conventions are in [Frontend-Standards.md](Frontend-Standards.md).
 
@@ -231,20 +231,7 @@ Reusable UI components should be created when the same pattern appears repeatedl
 
 React Router manages frontend navigation. Add routes in `frontend/src/AppRoutes.tsx` and use `Link` or `NavLink` for internal navigation. The frontend host must serve `index.html` for client-side routes on direct requests; API requests must still reach Django.
 
-Future business routes may include (these are not implemented yet):
-
-```text
-/login
-/dashboard
-/equipment
-/equipment/:id
-/borrowers
-/loans
-/maintenance
-/analytics
-```
-
-The final route structure can evolve with the application.
+The planned pages and routes follow the approved UI design. See the route map in [UI-Design.md](UI-Design.md#2-pages-and-routes).
 
 ### Frontend checks
 
