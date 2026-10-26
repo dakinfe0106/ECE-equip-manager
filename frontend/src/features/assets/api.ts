@@ -21,6 +21,16 @@ export interface AssetRecord {
   }
 }
 
+export type AssetStatus = AssetRecord['status']
+
+// Display labels only; always send the API values back to the API.
+export const assetStatusLabels: Record<AssetStatus, string> = {
+  Available: 'Available',
+  On_Loan: 'On Loan',
+  Under_Maintenance: 'Under Maintenance',
+  Retired: 'Retired',
+}
+
 export interface PaginatedAssets {
   count: number
   next: string | null
