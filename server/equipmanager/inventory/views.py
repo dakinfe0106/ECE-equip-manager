@@ -4,10 +4,11 @@ from django.db.models.functions import Lower, Trim
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import generics, status
-from rest_framework.decorators import api_view
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
+
+from users.permissions import ModelPermissionsWithView
 
 from .models import Asset, Category, EquipmentType
 from .serializers import (
@@ -25,55 +26,57 @@ class AssetPagination(PageNumberPagination):
 
 DELETED_FILTER_VALUES = ("false", "true", "all")
 
-@ensure_csrf_cookie
-@api_view(["GET"])
-def category_list(request):
-    categories = Category.objects.filter(is_deleted=False).order_by(
+@method_decorator(ensure_csrf_cookie, name="dispatch")
+class CategoryLookupList(generics.ListAPIView):
+    queryset = Category.objects.filter(is_deleted=False).order_by(
         "name", "category_id"
     )
-    return Response(CategorySerializer(categories, many=True).data)
+    serializer_class = CategorySerializer
+    permission_classes = (ModelPermissionsWithView,)
 
 
-@ensure_csrf_cookie
-@api_view(["GET"])
-def equipment_type_list(request):
-    deleted = request.query_params.get("deleted", "false").lower()
+@method_decorator(ensure_csrf_cookie, name="dispatch")
+class EquipmentTypeLookupList(generics.ListAPIView):
+    queryset = EquipmentType.objects.all()
+    serializer_class = EquipmentTypeLookupSerializer
+    permission_classes = (ModelPermissionsWithView,)
 
-    if deleted not in DELETED_FILTER_VALUES:
-        raise ValidationError(
-            {"deleted": ['Must be one of: "false", "true", "all".']}
-        )
+    def get_queryset(self):
+        deleted = self.request.query_params.get("deleted", "false").lower()
 
-    equipment_types = EquipmentType.objects.filter(
-        category__is_deleted=False,
-    ).select_related("category")
-
-    if deleted != "all":
-        equipment_types = equipment_types.filter(
-            is_deleted=(deleted == "true")
-        )
-
-    category_id = request.query_params.get("category_id")
-    if category_id:
-        try:
-            category_id = int(category_id)
-        except ValueError as exc:
+        if deleted not in DELETED_FILTER_VALUES:
             raise ValidationError(
-                {"category_id": "Must be a valid integer."}
-            ) from exc
+                {"deleted": ['Must be one of: "false", "true", "all".']}
+            )
 
-        equipment_types = equipment_types.filter(category_id=category_id)
+        equipment_types = EquipmentType.objects.filter(
+            category__is_deleted=False,
+        )
 
-    equipment_types = equipment_types.order_by("type_id")
+        if deleted != "all":
+            equipment_types = equipment_types.filter(
+                is_deleted=(deleted == "true")
+            )
 
-    return Response(
-        EquipmentTypeLookupSerializer(equipment_types, many=True).data
-    )
+        category_id = self.request.query_params.get("category_id")
+        if category_id:
+            try:
+                category_id = int(category_id)
+            except ValueError as exc:
+                raise ValidationError(
+                    {"category_id": "Must be a valid integer."}
+                ) from exc
+
+            equipment_types = equipment_types.filter(category_id=category_id)
+
+        return equipment_types.select_related("category").order_by("type_id")
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
 class AssetListCreateAPIView(generics.ListCreateAPIView):
+    queryset = Asset.objects.all()
     pagination_class = AssetPagination
+    permission_classes = (ModelPermissionsWithView,)
 
     def get_queryset(self):
         assets = (
@@ -137,6 +140,7 @@ class AssetDetail(generics.RetrieveUpdateAPIView):
         .select_related("type__category")
     )
     serializer_class = AssetSerializer
+    permission_classes = (ModelPermissionsWithView,)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -166,6 +170,8 @@ class CategoryList(generics.ListAPIView):
     """
 
     serializer_class = CategorySummarySerializer
+    permission_classes = (ModelPermissionsWithView,)
+    queryset = Category.objects.all()
 
     def get_queryset(self):
         queryset = Category.objects.annotate(
@@ -194,6 +200,8 @@ class CategoryEquipmentTypeList(generics.ListAPIView):
     """Active equipment types that belong to one category, sorted by ID (lowest first)."""
 
     serializer_class = EquipmentTypeSerializer
+    permission_classes = (ModelPermissionsWithView,)
+    queryset = EquipmentType.objects.all()
 
     def get_queryset(self):
         category = generics.get_object_or_404(

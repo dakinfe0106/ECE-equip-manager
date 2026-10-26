@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiBaseUrl } from '../api'
+import { useAuth } from '../features/auth/context'
 
 type Category = {
   category_id: number
@@ -18,6 +19,10 @@ const headerClassName =
   'h-10 bg-[#f7f9fc] px-[14px] text-left text-[9px] font-[650] tracking-[0.15px] text-[#758196]'
 
 function EquipmentTypes() {
+  const { user } = useAuth()
+  const canAdd = user?.permissions.includes('inventory.add_equipmenttype') ?? false
+  const canChange = user?.permissions.includes('inventory.change_equipmenttype') ?? false
+  const canDelete = user?.permissions.includes('inventory.delete_equipmenttype') ?? false
   const [equipmentTypes, setEquipmentTypes] = useState<EquipmentType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -35,6 +40,10 @@ function EquipmentTypes() {
           },
         )
 
+        if (response.status === 403) {
+          setError('Your account does not have permission to view equipment types.')
+          return
+        }
         if (!response.ok) {
           throw new Error(`Request failed with status ${response.status}`)
         }
@@ -92,12 +101,12 @@ function EquipmentTypes() {
           Equipment Types
         </h1>
 
-        <button
+        {canAdd && <button
           type="button"
           className="rounded-md bg-blue-600 px-5 py-2.5 font-medium text-white hover:bg-blue-700"
         >
           + Add Equipment Type
-        </button>
+        </button>}
       </div>
 
       {/* Main card */}
@@ -172,9 +181,11 @@ function EquipmentTypes() {
                     Is_deleted
                   </th>
 
-                  <th className={`${headerClassName} text-center`}>
-                    Actions
-                  </th>
+                  {(canChange || canDelete) && (
+                    <th className={`${headerClassName} text-center`}>
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
 
@@ -212,9 +223,11 @@ function EquipmentTypes() {
                     </td>
 
                     {/* Actions */}
+                    {(canChange || canDelete) && (
                     <td className="px-4 py-4">
                       <div className="flex items-center justify-center gap-6">
                         {/* Edit */}
+                        {canChange && (
                         <button
                           type="button"
                           aria-label={`Edit ${equipmentType.name}`}
@@ -231,8 +244,10 @@ function EquipmentTypes() {
                             <path d="M13.5 3.5l3 3L7 16H4v-3L13.5 3.5z" />
                           </svg>
                         </button>
+                        )}
 
                         {/* Delete */}
+                        {canDelete && (
                         <button
                           type="button"
                           aria-label={`Delete ${equipmentType.name}`}
@@ -249,15 +264,17 @@ function EquipmentTypes() {
                             <path d="M6 6h8M8 6V4h4v2m-5 0 1 10h4l1-10" />
                           </svg>
                         </button>
+                        )}
                       </div>
                     </td>
+                    )}
                   </tr>
                 ))}
 
                 {visibleEquipmentTypes.length === 0 && (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={canChange || canDelete ? 5 : 4}
                       className="px-4 py-10 text-center text-sm text-slate-500"
                     >
                       No equipment types found.

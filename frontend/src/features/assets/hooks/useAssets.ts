@@ -5,7 +5,7 @@ const pageSize = 20
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof AssetLookupError && error.status === 403) {
-    return 'You are not authorized to view assets. Sign in with your EMS account and try again.'
+    return 'Your account does not have permission to view assets.'
   }
   return 'Could not connect to equipment records. Please try again.'
 }

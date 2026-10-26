@@ -55,7 +55,7 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
 export function describeCategoryError(error: unknown, what: string): string {
   if (error instanceof CategoryRequestError) {
     if (error.status === 403) {
-      return `You need to be signed in to view ${what}.`
+      return `Your account does not have permission to view ${what}.`
     }
     if (error.status === 404) {
       return `We couldn't find ${what}.`

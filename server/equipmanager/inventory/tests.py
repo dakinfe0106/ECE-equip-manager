@@ -3,6 +3,7 @@ from datetime import date
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.db import IntegrityError, transaction
 from django.urls import reverse
 from rest_framework.test import APIClient
@@ -36,6 +37,7 @@ def authenticated_client(db):
         username="shop-tech",
         password="test-password",
     )
+    user.groups.add(Group.objects.get(name="Technician"))
     client = APIClient()
     client.force_authenticate(user=user)
     return client
@@ -140,6 +142,45 @@ def test_asset_list_requires_authentication():
     )
 
     assert response.status_code == 403
+
+
+def test_authenticated_user_without_inventory_permissions_is_denied(db):
+    user = get_user_model().objects.create_user(
+        username="unassigned-user",
+        password="test-password",
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get("/api/assets/")
+
+    assert response.status_code == 403
+
+
+def test_faculty_can_view_inventory_but_cannot_create_assets(
+    db, inventory_type
+):
+    user = get_user_model().objects.create_user(
+        username="faculty-user",
+        password="test-password",
+    )
+    user.groups.add(Group.objects.get(name="Faculty"))
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    list_response = client.get("/api/assets/")
+    create_response = client.post(
+        "/api/assets/",
+        {
+            "asset_identifier": "FACULTY-CANNOT-CREATE",
+            "name": "Restricted asset",
+            "equipment_type_id": inventory_type.type_id,
+        },
+        format="json",
+    )
+
+    assert list_response.status_code == 200
+    assert create_response.status_code == 403
 
 
 def test_asset_list_allows_credentials_for_configured_frontend_origin():
@@ -348,6 +389,9 @@ def test_asset_update_accepts_csrf_from_configured_frontend_origin(db, asset_rec
         username="shop-tech",
         password="test-password",
     )
+    get_user_model().objects.get(username="shop-tech").groups.add(
+        Group.objects.get(name="Technician")
+    )
     client = APIClient(enforce_csrf_checks=True)
     assert client.login(username="shop-tech", password="test-password")
 
@@ -548,6 +592,9 @@ def test_asset_create_accepts_valid_csrf_session(
         username="shop-tech",
         password="test-password",
     )
+    get_user_model().objects.get(username="shop-tech").groups.add(
+        Group.objects.get(name="Technician")
+    )
     client = APIClient(enforce_csrf_checks=True)
     assert client.login(username="shop-tech", password="test-password")
     categories_response = client.get(
@@ -578,6 +625,7 @@ def api_client(db):
         username="category-tech",
         password="not-a-real-password",
     )
+    user.groups.add(Group.objects.get(name="Technician"))
     client = APIClient()
     client.force_login(user)
     return client

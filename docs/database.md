@@ -136,7 +136,7 @@ SystemUser is the logical record for people who sign in to the application. It i
 | role       | varchar(20)  | No       | `TECHNICIAN`, `FACULTY`, `ADMINISTRATOR`   |
 | is_deleted | boolean      | No       | Default `False`                            |
 
-`Borrower.unb_id` and `SystemUser.unb_id` are **independently** unique; the same person may appear in both tables. User authentication and permission enforcement should use Django's authentication/authorization facilities; these role labels alone do not grant access.
+`Borrower.unb_id` and `SystemUser.unb_id` are **independently** unique; the same person may appear in both tables. The approved Technician, Faculty, and Administrator access roles are represented by Django Groups; user authentication and permission enforcement use Django's authentication/authorization facilities, not role labels alone.
 
 ## 3. Relationships
 
@@ -181,7 +181,7 @@ SystemUser is the logical record for people who sign in to the application. It i
 
 ## 5. Permissions scope
 
-Three roles are approved: **Technician**, **Faculty**, **Administrator**. Only authorized personnel may access the web application; temporary staff access must be revocable. **Working implementation policy:** Technicians manage inventory, borrowers, loans, certifications, and maintenance; Faculty may view inventory and analytics; Administrators have these abilities plus user-access management. Apply checks server-side (Django permissions), not only in React. Revisit only if client feedback changes required actions.
+Three roles are approved: **Technician**, **Faculty**, **Administrator**. Only authorized personnel may access the web application; temporary staff access must be revocable. **Working policy:** Technicians manage inventory, borrowers, loans, certifications, and maintenance; Faculty may view inventory and analytics; Administrators have these abilities plus user-access management. The current implementation maps these roles to Django Groups and model permissions for available inventory endpoints; as additional business endpoints are added, grant each role only its policy-approved permissions. Apply checks server-side (Django permissions), not only in React. Revisit only if client feedback changes required actions.
 
 ## 6. Implementation and migrations
 

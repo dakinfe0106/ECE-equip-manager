@@ -488,11 +488,9 @@ Resource names use plural nouns and a trailing slash (see [API Conventions](Arch
 
 ## Trying a Protected Endpoint
 
-Once a protected endpoint exists, opening it without a logged-in session returns `403`. To try it in the browser:
+Protected endpoints return `403` without an authenticated session. To use the frontend sign-in page, create a local admin account once with `python manage.py createsuperuser`; the superuser can sign in with its username and password. For an ordinary account, assign it to one of the `Technician`, `Faculty`, or `Administrator` groups in Django admin after migrating.
 
-1. Create a local admin account once with `python manage.py createsuperuser`.
-2. Log in at `http://localhost:8000/admin/`.
-3. In the same browser, open your endpoint, for example `http://localhost:8000/api/equipment/`. Django REST Framework shows an interactive page where you can read data and send `POST` requests.
+To try a protected API endpoint in the browser, log in at `http://localhost:8000/admin/` and in the same browser open an endpoint such as `http://localhost:8000/api/assets/`. Django REST Framework shows an interactive page where you can read data and send requests allowed by your account permissions.
 
 Use the same host for both steps. Cookies for `localhost` and `127.0.0.1` are separate, so logging in on one does not log you in on the other.
 
@@ -501,17 +499,19 @@ In tests, log in with DRF's `APIClient` instead:
 ```python
 import pytest
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from rest_framework.test import APIClient
 
 
 @pytest.mark.django_db
-def test_equipment_list_requires_login():
+def test_asset_list_requires_login_and_permission():
     client = APIClient()
-    assert client.get('/api/equipment/').status_code == 403
+    assert client.get('/api/assets/').status_code == 403
 
     user = get_user_model().objects.create_user(username='tech', password='pw-for-tests')
+    user.groups.add(Group.objects.get(name='Technician'))
     client.force_login(user)
-    assert client.get('/api/equipment/').status_code == 200
+    assert client.get('/api/assets/').status_code == 200
 ```
 
 All four apps share the `/api/` prefix, so a path must be unique across every app, not just within its own `urls.py`. If two apps define the same path (for example, both define `users/`), Django uses whichever app is included first in `equipmanager/urls.py` and silently ignores the other. Name each path after a resource the app owns: `equipment/` in `inventory`, `loans/` in `lending`.

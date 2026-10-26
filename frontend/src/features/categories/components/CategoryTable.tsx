@@ -9,6 +9,8 @@ const cellClassName = 'h-12 border-t border-[#edf0f4] px-[14px] text-[10px]'
 
 interface CategoryTableProps {
   categories: Category[]
+  canChange: boolean
+  canDelete: boolean
   emptyMessage: string
   isLoading: boolean
   errorMessage: string
@@ -20,10 +22,10 @@ function describeTypeCount(count: number): string {
   return `${count} ${count === 1 ? 'type' : 'types'}`
 }
 
-// Edit and Delete are shown as in the design mockup but are not connected yet;
-// other user stories cover them.
 export default function CategoryTable({
   categories,
+  canChange,
+  canDelete,
   emptyMessage,
   isLoading,
   errorMessage,
@@ -37,7 +39,9 @@ export default function CategoryTable({
             <th className={`${headerClassName} pl-[19px]`} scope="col">ID</th>
             <th className={headerClassName} scope="col">Category Name</th>
             <th className={headerClassName} scope="col">is_deleted</th>
-            <th className={`${headerBaseClassName} text-center`} scope="col">Actions</th>
+            {(canChange || canDelete) && (
+              <th className={`${headerBaseClassName} text-center`} scope="col">Actions</th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -62,35 +66,41 @@ export default function CategoryTable({
               <td className={cellClassName}>
                 <StatusBadge isDeleted={category.is_deleted} />
               </td>
-              <td className={cellClassName}>
-                <div className="flex items-center justify-center gap-3">
-                  <button
-                    type="button"
-                    disabled
-                    title="Coming soon"
-                    aria-label={`Edit ${category.name} (coming soon)`}
-                    className="cursor-not-allowed rounded p-1 text-[#2875e4]"
-                  >
-                    <PencilIcon />
-                  </button>
-                  <button
-                    type="button"
-                    disabled
-                    title="Coming soon"
-                    aria-label={`Delete ${category.name} (coming soon)`}
-                    className="cursor-not-allowed rounded p-1 text-[#d84d58]"
-                  >
-                    <TrashIcon />
-                  </button>
-                </div>
-              </td>
+              {(canChange || canDelete) && (
+                <td className={cellClassName}>
+                  <div className="flex items-center justify-center gap-3">
+                    {canChange && (
+                      <button
+                        type="button"
+                        disabled
+                        title="Coming soon"
+                        aria-label={`Edit ${category.name} (coming soon)`}
+                        className="cursor-not-allowed rounded p-1 text-[#2875e4]"
+                      >
+                        <PencilIcon />
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        type="button"
+                        disabled
+                        title="Coming soon"
+                        aria-label={`Delete ${category.name} (coming soon)`}
+                        className="cursor-not-allowed rounded p-1 text-[#d84d58]"
+                      >
+                        <TrashIcon />
+                      </button>
+                    )}
+                  </div>
+                </td>
+              )}
             </tr>
           ))}
           {!isLoading && categories.length === 0 && (
             <tr>
               <td
                 className="h-[116px] border-t border-[#edf0f4] px-[14px] text-center text-[10px] text-[#8792a2] whitespace-normal"
-                colSpan={4}
+                colSpan={canChange || canDelete ? 4 : 3}
               >
                 {errorMessage ? 'The category list could not be loaded.' : emptyMessage}
               </td>

@@ -9,6 +9,7 @@ import {
   type DeletedFilter,
 } from '../features/categories/api'
 import { useApiData } from '../features/categories/hooks/useApiData'
+import { useAuth } from '../features/auth/context'
 
 function emptyMessage(search: string, show: DeletedFilter): string {
   if (search) return `No categories match "${search}".`
@@ -17,6 +18,10 @@ function emptyMessage(search: string, show: DeletedFilter): string {
 }
 
 export default function CategoriesPage() {
+  const { user } = useAuth()
+  const canAdd = user?.permissions.includes('inventory.add_category') ?? false
+  const canChange = user?.permissions.includes('inventory.change_category') ?? false
+  const canDelete = user?.permissions.includes('inventory.delete_category') ?? false
   const [show, setShow] = useState<DeletedFilter>('false')
   const [searchText, setSearchText] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
@@ -53,8 +58,7 @@ export default function CategoriesPage() {
             Categories
           </h1>
         </div>
-        {/* Shown as in the mockup but not connected: adding categories is another user story. */}
-        <button
+        {canAdd && <button
           className="inline-flex min-h-9 cursor-not-allowed items-center justify-center gap-[7px] rounded-[6px] border border-[#276fdd] bg-[#2875e4] px-3 text-[11px] font-semibold text-white opacity-70"
           type="button"
           disabled
@@ -64,7 +68,7 @@ export default function CategoriesPage() {
             <path d="M10 4v12M4 10h12" />
           </svg>
           Add Category
-        </button>
+        </button>}
       </div>
 
       <section
@@ -100,6 +104,8 @@ export default function CategoriesPage() {
 
         <CategoryTable
           categories={categories ?? []}
+          canChange={canChange}
+          canDelete={canDelete}
           emptyMessage={emptyMessage(appliedSearch, show)}
           errorMessage={errorMessage}
           isLoading={loading}

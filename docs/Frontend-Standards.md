@@ -72,7 +72,7 @@ To ensure your Pull Request passes the GitHub Actions CI pipeline, you must run 
 **2. State Management**
 
 - Use React's built-in `useState` for local component state.
-- Use `useContext` for sharing simple global state (like current user authentication status).
+- Use `useContext` for simple global state. The shared auth context tracks the Django session and effective permissions; Django still enforces every protected API operation.
 - *Do not* introduce external state management libraries (like Redux or Zustand) unless explicitly agreed upon by the team for a complex, justified use case. The Django backend remains the single source of truth for all EMS data.
 
 **3. Styling (Tailwind CSS)**

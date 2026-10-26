@@ -18,10 +18,10 @@ If this guide conflicts with `database.md` or `Architecture.md`, raise the confl
 
 - `inventory` provides authenticated category and equipment-type lookups, paginated asset listing/search, asset creation, asset detail/update endpoints, and a category summary list and per-category equipment-type list for the Categories page. Asset status remains server-controlled; newly created assets start as `Available`.
 - The `lending` and `maintenance` apps are mounted under `/api/` but do not yet expose business endpoints.
-- `users.User(AbstractUser)` is the custom `AUTH_USER_MODEL`; it has no extra role fields.
-- DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Pagination is configured for the asset list; filtering is implemented for Asset ID search.
+- `users.User(AbstractUser)` is the custom `AUTH_USER_MODEL`; it has no extra role fields. Session login, logout, current-user, and CSRF endpoints are implemented in `users`.
+- DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Inventory endpoints also require Django model permissions, including `view_` permissions for reads. Pagination is configured for the asset list; filtering is implemented for Asset ID search.
 - `/api/health/` is a plain Django view, so DRF authentication does not apply to it.
-- There are no application login endpoints. A session must already exist for protected frontend requests (see [section 6](#6-authentication-endpoints)).
+- The frontend uses the session endpoints and effective permission list to protect routes and hide unavailable actions. Django remains the authorization authority.
 
 ## 2. App layout
 
@@ -218,47 +218,33 @@ Loans and maintenance records are history. They have no `DELETE` endpoint.
 
 ## 6. Authentication endpoints
 
-_Proposed_ endpoints in the `users` app. None exist yet.
+Authentication endpoints in the `users` app:
 
 | Method | Path | Behavior |
 | --- | --- | --- |
 | `GET` | `/api/auth/csrf/` | Public. Sets the `csrftoken` cookie and returns the token. |
 | `POST` | `/api/auth/login/` | Public, CSRF-protected. Body `{username, password}`. Returns `200` with the current user or `400` for invalid credentials. |
-| `POST` | `/api/auth/logout/` | Ends the session. Returns `204`. |
-| `GET` | `/api/auth/me/` | Returns the current user, or `403` when not logged in. |
+| `POST` | `/api/auth/logout/` | Authenticated and CSRF-protected. Ends the session and returns `204`. |
+| `GET` | `/api/auth/me/` | Authenticated. Returns the user ID, username, and effective Django permissions; anonymous requests return `403`. |
 
 Notes for the implementation:
 
-- Use `django.contrib.auth.authenticate()` and `login()`. Do not write password handling.
+- Use `django.contrib.auth.authenticate()`, `login()`, and `logout()`. Do not write password handling.
 - DRF skips CSRF checks for anonymous requests, and `APIView.as_view()` returns a CSRF-exempt view. Putting `@csrf_protect` on the class, on `post()`, or around `as_view()` in `urls.py` does **not** work. Use `@method_decorator(csrf_protect, name='dispatch')` on the login view class, and test it with `APIClient(enforce_csrf_checks=True)`.
 - `login()` rotates the CSRF token. The frontend must fetch a new token after logging in.
 - Inactive users (`is_active = False`) cannot log in. Use this to revoke access for temporary staff.
 - A soft-deleted user must not be able to log in either. Django's login only checks `is_active`, so soft-deleting a user must also set `is_active = False` (and restoring sets it back) in the same transaction. Whether `is_active` should replace `is_deleted` for users is a [pending decision](#9-pending-decisions).
-- The login feature must also update the shared settings and the frontend. Coordinate this with the team because it touches `settings.py`:
-  - `CORS_ALLOW_CREDENTIALS = True`.
-  - `CSRF_TRUSTED_ORIGINS`, read from an environment variable and added to `.env.example`.
-  - Frontend requests use `credentials: 'include'` and send the `X-CSRFToken` header on `POST`, `PATCH`, and `DELETE`.
+- The backend enables credentialed CORS for the configured frontend origin. Frontend session requests use `credentials: 'include'` and send `X-CSRFToken` on unsafe methods.
 
 ## 7. Permissions
 
 - Every view keeps authentication on. A public view must set `permission_classes = [AllowAny]` and explain why in a comment.
-- _Proposed:_ represent the roles in `database.md` (Technician, Faculty, Administrator) as Django **Groups** with model permissions, created by a data migration. Check permissions, not role names, as [Architecture.md section 9](Architecture.md#9-authentication-and-authorization) requires.
-  - Do **not** use plain `DjangoModelPermissions`. It lets every authenticated user make `GET` requests, so Faculty could read borrowers, loans, maintenance records, and users, which `database.md` section 5 does not allow (Faculty may only view inventory and analytics).
-  - CRUD views use a shared subclass that also requires the `view_` permission for reads. Writes need the matching `add_`, `change_`, or `delete_` permission.
+- A data migration creates Django Groups named `Technician`, `Faculty`, and `Administrator`, with inventory permissions based on [database.md section 5](database.md#5-permissions-scope). The Administrator group also receives user model permissions for account management.
+- Check permissions, not role names, as [Architecture.md section 9](Architecture.md#9-authentication-and-authorization) requires. Assign users to the relevant group; an Administrator who needs the Django admin site must also have Django's `is_staff` flag. The custom user admin allows administrators to assign only the approved groups and prevents them from granting staff, superuser, or direct user permissions.
+- Do **not** use plain `DjangoModelPermissions`. It lets every authenticated user make `GET` requests, so Faculty could read borrowers, loans, maintenance records, and users, which `database.md` section 5 does not allow (Faculty may only view inventory and analytics).
+- Inventory CRUD and lookup views use `users.permissions.ModelPermissionsWithView`, which also requires the `view_` permission for reads. Writes need the matching `add_`, `change_`, or `delete_` permission.
 
-    ```python
-    from rest_framework.permissions import DjangoModelPermissions
-
-
-    class ModelPermissionsWithView(DjangoModelPermissions):
-        perms_map = {
-            **DjangoModelPermissions.perms_map,
-            'GET': ['%(app_label)s.view_%(model_name)s'],
-            'HEAD': ['%(app_label)s.view_%(model_name)s'],
-        }
-    ```
-  - Actions that are not CRUD use custom permissions, for example `lending.return_loan`, declared in the model's `Meta.permissions`.
-- This depends on the open question of whether `SystemUser` becomes fields on `users.User`. See [pending decisions](#9-pending-decisions).
+- Actions that are not CRUD use custom permissions, for example `lending.return_loan`, declared in the model's `Meta.permissions`.
 
 ## 8. Testing
 
@@ -289,7 +275,6 @@ Each endpoint needs tests for:
 | Decision | Options | Blocks |
 | --- | --- | --- |
 | `SystemUser` fields on `users.User` | Add `role`/`unb_id` to `users.User`, or a profile with a one-to-one link. Either way, SystemUser is implemented on `users.User` and foreign keys use `settings.AUTH_USER_MODEL` | Permissions, user management |
-| Roles and permissions | Groups with model permissions (proposed), or a `role` field with custom checks | Every protected endpoint |
 | `TIME_ZONE` | Currently `UTC`. `America/Moncton` matches the Shop. Under UTC the date rolls over at 8 p.m. local time in AST and 9 p.m. in ADT, so loans would show as overdue a day early. Changing `TIME_ZONE` only helps if code uses `timezone.localdate()` (see [section 4](#4-business-logic-and-transactions)) | Overdue rules, analytics |
 | User soft deletion vs `is_active` | Keep both flags and set `is_active = False` whenever `is_deleted = True` (current guidance), or use `is_active` as the users' only soft-delete flag and update `database.md` | User management, login |
 | Restoring a child of a soft-deleted parent | Reject the restore until the parent is restored (current guidance), or restore the parent automatically | Restore endpoints |

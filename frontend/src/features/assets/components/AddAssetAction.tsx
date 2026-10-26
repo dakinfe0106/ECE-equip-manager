@@ -1,6 +1,12 @@
 import { Link } from 'react-router'
+import { useAuth } from '../../auth/context'
 
 export default function AddAssetAction() {
+  const { user } = useAuth()
+  if (!user?.permissions.includes('inventory.add_asset')) {
+    return null
+  }
+
   return (
       <Link
         className="inline-flex min-h-9 items-center justify-center gap-[7px] rounded-[6px] border border-[#276fdd] bg-[#2875e4] px-3 text-[11px] font-semibold text-white transition-colors hover:bg-[#1c64cc] focus-visible:outline-2 focus-visible:outline-[#347ee9] focus-visible:outline-offset-[3px]"
