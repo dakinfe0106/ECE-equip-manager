@@ -1,6 +1,7 @@
 import { renderToString } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import type { AssetRecord } from '../features/assets/api'
+import AssetArchiveToggle from '../features/assets/components/AssetArchiveToggle'
 import AssetSearchToolbar from '../features/assets/components/AssetSearchToolbar'
 import AssetTable from '../features/assets/components/AssetTable'
 import AssetViewBy from '../features/assets/components/AssetViewBy'
@@ -94,9 +95,16 @@ describe('Assets page controls', () => {
       />,
     )
 
-    expect(html).toContain('Search Asset IDs...')
+    expect(html).toContain('Search asset ID or name...')
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*title="Filtering is not available yet"/)
     expect(html).toContain('Filters')
+  })
+
+  it('shows Include Archived as a disabled checkbox', () => {
+    const html = renderToString(<AssetArchiveToggle />)
+
+    expect(html).toContain('Include Archived')
+    expect(html).toMatch(/<input[^>]*type="checkbox"[^>]*disabled=""/)
   })
 
   it('shows View by with List selected and disabled', () => {

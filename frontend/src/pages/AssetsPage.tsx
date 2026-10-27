@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import PageIntro from '../components/ui/PageIntro'
 import Panel from '../components/ui/Panel'
+import AssetArchiveToggle from '../features/assets/components/AssetArchiveToggle'
 import AssetPagination from '../features/assets/components/AssetPagination'
 import AssetSearchToolbar from '../features/assets/components/AssetSearchToolbar'
 import AssetTable from '../features/assets/components/AssetTable'
@@ -61,6 +62,7 @@ export default function AssetsPage() {
       />
 
       <Panel className="flex min-h-0 flex-1 flex-col overflow-hidden" label="Asset search results">
+        <AssetArchiveToggle />
         <AssetSearchToolbar
           assetIdentifier={assetIdentifier}
           isLoading={isLoading}

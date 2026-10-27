@@ -8,14 +8,23 @@ export default function AssetViewBy() {
       >
         View by
       </label>
-      <select
-        id="asset-view-by"
-        className="min-h-9 w-[145px] rounded-r-[7px] border-0 bg-white px-[10px] text-[11px] font-[650] text-body outline-none disabled:cursor-not-allowed disabled:opacity-60 max-[520px]:w-full"
-        defaultValue="List"
-        disabled
-      >
-        <option value="List">List</option>
-      </select>
+      <span className="relative inline-flex max-[520px]:flex-1">
+        <select
+          id="asset-view-by"
+          className="min-h-9 w-[145px] appearance-none rounded-r-[7px] border-0 bg-white pr-8 pl-[11px] text-[11px] font-[650] text-body outline-none disabled:cursor-not-allowed disabled:opacity-60 max-[520px]:w-full"
+          defaultValue="List"
+          disabled
+        >
+          <option value="List">List</option>
+        </select>
+        <svg
+          className="pointer-events-none absolute top-1/2 right-[10px] h-4 w-4 -translate-y-1/2 fill-none stroke-subtle stroke-[1.8] [stroke-linecap:round] [stroke-linejoin:round]"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </span>
     </div>
   )
 }

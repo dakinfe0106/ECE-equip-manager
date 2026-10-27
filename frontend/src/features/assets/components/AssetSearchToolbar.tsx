@@ -24,7 +24,7 @@ export default function AssetSearchToolbar({
         noValidate
       >
         <label className="sr-only" htmlFor="asset-identifier">
-          Asset ID
+          Search assets
         </label>
         <svg className="h-4 w-4 shrink-0 fill-none stroke-current stroke-[1.8] [stroke-linecap:round]" viewBox="0 0 24 24" aria-hidden="true">
           <circle cx="11" cy="11" r="7" />
@@ -37,7 +37,7 @@ export default function AssetSearchToolbar({
           className="w-full border-0 bg-transparent py-[9px] text-[11px] text-body outline-none placeholder:text-subtle [&::-webkit-search-cancel-button]:hidden"
           value={assetIdentifier}
           maxLength={100}
-          placeholder="Search Asset IDs..."
+          placeholder="Search asset ID or name..."
           disabled={isLoading}
           onChange={(event) => onAssetIdentifierChange(event.target.value)}
         />
@@ -45,7 +45,7 @@ export default function AssetSearchToolbar({
           <button
             className="grid h-5 w-5 shrink-0 place-items-center text-[16px] leading-none text-subtle hover:text-body focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-wait"
             type="button"
-            aria-label="Clear Asset ID"
+            aria-label="Clear search"
             disabled={isLoading}
             onClick={onClear}
           >

@@ -147,5 +147,5 @@ Until the team decides, build what database.md supports and leave the extra desi
 | No Categories or Equipment Types pages; they are created inline from the asset form | Category and type names must be managed, archived, and restored | Keep the existing pages for now |
 | Add Asset form has no Asset ID field | `asset_identifier` is required and unique | Keep the Asset ID field in the form |
 | Category and equipment type can be changed on an existing asset | The asset edit API accepts `name` and `acquisition_date` only | Show category and type read-only in the details modal |
-| Asset search matches ID or name | The API searches `asset_identifier` only | Search by Asset ID only |
-| Assets page has View by (category, type), a Filters popover (category, type, status), and Include Archived | The asset list has no such filters and returns active assets only | View by groups assets in the frontend. Show Filters as a disabled button. Leave out Include Archived |
+| Asset search matches ID or name | The API searches `asset_identifier` only | The placeholder says ID or name, but only the Asset ID is searched |
+| Assets page has View by (category, type), a Filters popover (category, type, status), and Include Archived | The asset list has no such filters and returns active assets only | View by groups assets in the frontend. Show Filters and Include Archived disabled |
