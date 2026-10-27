@@ -126,7 +126,7 @@ Asset ID search trims surrounding whitespace and matches identifiers by case-ins
 
 ### SystemUser
 
-SystemUser is the logical record for people who sign in to the application. It is implemented on the custom user model `users.User` (`settings.AUTH_USER_MODEL`), whose primary key is `id`. Reference it through `settings.AUTH_USER_MODEL` or `get_user_model()`; do not create a second model for authentication. Whether the columns below become fields on `users.User` or a one-to-one profile, and how they map to Django's built-in user fields, is a [pending decision](Backend.md#9-pending-decisions).
+SystemUser is the logical record for people who sign in to the application. It is implemented on the custom user model `users.User` (`settings.AUTH_USER_MODEL`), whose primary key is `id`. Reference it through `settings.AUTH_USER_MODEL` or `get_user_model()`; do not create a second model for authentication. The required `role` is implemented directly on `users.User` as a `varchar(20)` with the three choices below and a database check constraint (`users_user_role_valid`). Migration `users.0002` assigns `ADMINISTRATOR` to every existing account, as confirmed for the current dataset; it does not change Django staff/superuser flags. New accounts must explicitly select a role; there is no ongoing default. The remaining name, UNB ID, and deletion fields and their mapping are still [pending decisions](Backend.md#9-pending-decisions).
 
 | Column     | Type         | Nullable | Constraints/default                        |
 | ---------- | ------------ | -------- | ------------------------------------------ |

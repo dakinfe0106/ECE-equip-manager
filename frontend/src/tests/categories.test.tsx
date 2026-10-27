@@ -1,7 +1,7 @@
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
-import AppRoutes from '../AppRoutes'
+import AppRoutes from './authTestHelpers'
 import type { Category, EquipmentType } from '../features/categories/api'
 import CategoryTable from '../features/categories/components/CategoryTable'
 import CategoryTypesDialog from '../features/categories/components/CategoryTypesDialog'
