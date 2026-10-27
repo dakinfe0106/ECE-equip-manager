@@ -18,10 +18,10 @@ If this guide conflicts with `database.md` or `Architecture.md`, raise the confl
 
 - `inventory` provides authenticated category and equipment-type lookups, paginated asset listing/search, asset creation, asset detail/update endpoints, and a category summary list and per-category equipment-type list for the Categories page. Asset status remains server-controlled; newly created assets start as `Available`.
 - The `lending` and `maintenance` apps are mounted under `/api/` but do not yet expose business endpoints.
-- `users.User(AbstractUser)` is the custom `AUTH_USER_MODEL`; it has no extra role fields.
+- `users.User(AbstractUser)` is the custom `AUTH_USER_MODEL`; its required `role` stores `TECHNICIAN`, `FACULTY`, or `ADMINISTRATOR`. Django admin creation/edit forms expose the role, and `createsuperuser` prompts for it through `REQUIRED_FIELDS`. Existing accounts receive `ADMINISTRATOR` in migration `users.0002`; new accounts have no default role. Role assignment does not grant staff/superuser flags or Django permissions.
 - DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Pagination is configured for the asset list; filtering is implemented for Asset ID search.
 - `/api/health/` is a plain Django view, so DRF authentication does not apply to it.
-- There are no application login endpoints. A session must already exist for protected frontend requests (see [section 6](#6-authentication-endpoints)).
+- The `users` app provides CSRF, login, logout, and current-user endpoints for application-managed sessions (see [section 6](#6-authentication-endpoints)).
 
 ## 2. App layout
 
@@ -48,7 +48,7 @@ Cross-app imports are allowed where ownership requires them. For example, `lendi
 - Join models use `pk = models.CompositePrimaryKey('borrower_id', 'certification_id')`. Django admin cannot register models with a composite primary key, so manage these links through the parent records.
 - Reference users through `settings.AUTH_USER_MODEL`, for example the maintenance technician foreign key.
 - Trim strings at every entry point before saving:
-  - API: DRF `CharField` trims by default. Never set `trim_whitespace=False`.
+  - API: DRF `CharField` trims by default. The exception is a password field: use `trim_whitespace=False` to preserve the exact credential. Login usernames are trimmed.
   - Django admin: form fields strip whitespace by default.
   - Services and imports: call `normalize_text()` from `equipmanager/text.py`. Add this shared helper (not a business app) with the first model that has string fields:
 
@@ -218,23 +218,32 @@ Loans and maintenance records are history. They have no `DELETE` endpoint.
 
 ## 6. Authentication endpoints
 
-_Proposed_ endpoints in the `users` app. None exist yet.
+Implemented in `users/views.py`, `users/serializers.py`, and `users/urls.py`. Responses are not cacheable.
 
 | Method | Path | Behavior |
 | --- | --- | --- |
 | `GET` | `/api/auth/csrf/` | Public. Sets the `csrftoken` cookie and returns the token. |
 | `POST` | `/api/auth/login/` | Public, CSRF-protected. Body `{username, password}`. Returns `200` with the current user or `400` for invalid credentials. |
-| `POST` | `/api/auth/logout/` | Ends the session. Returns `204`. |
+| `POST` | `/api/auth/logout/` | Public, CSRF-protected, idempotent. Ends the session. Returns `204`, including when already signed out. |
 | `GET` | `/api/auth/me/` | Returns the current user, or `403` when not logged in. |
 
 Notes for the implementation:
+
+- Login and current-user responses contain `id`, `username`, `first_name`, `last_name`, `role`, and `role_label`. Both role fields are read-only: `role` is the stored uppercase value and `role_label` comes from Django choices. The CSRF response is `{csrfToken}`.
+- Missing/blank login fields return DRF field errors with `400`. Unknown users, wrong passwords, and inactive accounts receive the same `400` response: `{"non_field_errors": ["Incorrect username or password."]}`. Password whitespace is significant. Missing/invalid CSRF tokens and untrusted origins receive `403`.
 
 - Use `django.contrib.auth.authenticate()` and `login()`. Do not write password handling.
 - DRF skips CSRF checks for anonymous requests, and `APIView.as_view()` returns a CSRF-exempt view. Putting `@csrf_protect` on the class, on `post()`, or around `as_view()` in `urls.py` does **not** work. Use `@method_decorator(csrf_protect, name='dispatch')` on the login view class, and test it with `APIClient(enforce_csrf_checks=True)`.
 - `login()` rotates the CSRF token. The frontend must fetch a new token after logging in.
 - Inactive users (`is_active = False`) cannot log in. Use this to revoke access for temporary staff.
-- A soft-deleted user must not be able to log in either. Django's login only checks `is_active`, so soft-deleting a user must also set `is_active = False` (and restoring sets it back) in the same transaction. Whether `is_active` should replace `is_deleted` for users is a [pending decision](#9-pending-decisions).
-- The cross-origin settings are already in `settings.py`: `CORS_ALLOW_CREDENTIALS = True`, and `CSRF_TRUSTED_ORIGINS` equals `CORS_ALLOWED_ORIGINS` (from `.env`). The frontend API clients already send `credentials: 'include'`, and the asset client (`frontend/src/features/assets/api.ts`) sends `X-CSRFToken` on `POST` and `PATCH`. Coordinate any change to these settings with the team.
+- The current model has no `is_deleted` field. Revocation uses `is_active`; Django also rejects inactive users on subsequent session-authenticated requests. Future user soft deletion must block login and active sessions; whether to introduce `is_deleted` remains a [pending decision](#9-pending-decisions).
+- Session configuration and frontend behavior:
+  - `CORS_ALLOW_CREDENTIALS = True`.
+  - `CSRF_TRUSTED_ORIGINS` is a comma-separated environment variable documented in `.env.example`; when omitted it defaults to `CORS_ALLOWED_ORIGINS`.
+  - Frontend requests use `credentials: 'include'` and send the `X-CSRFToken` header on `POST`, `PATCH`, and `DELETE`.
+  - Login/logout obtain a CSRF token immediately before submission. Login fetches a refreshed token after Django rotates it. Existing asset writes use the current CSRF cookie.
+  - `AuthProvider` checks `/auth/me/` at startup. A business request with `403` triggers a background session recheck without replaying the operation. A valid session retains the page's permission/CSRF error; an anonymous session returns to login.
+  - `users/tests.py` uses `APIClient(enforce_csrf_checks=True)` for authentication, inactive accounts, token rotation, origins, and revocation coverage.
 
 ## 7. Permissions
 
@@ -255,7 +264,7 @@ Notes for the implementation:
         }
     ```
   - Actions that are not CRUD use custom permissions, for example `lending.return_loan`, declared in the model's `Meta.permissions`.
-- This depends on the open question of whether `SystemUser` becomes fields on `users.User`. See [pending decisions](#9-pending-decisions).
+- Role storage is implemented on `users.User`; mapping that role to Django permissions remains a [pending decision](#9-pending-decisions). Existing business endpoints currently require authentication only; role-specific authorization is not yet implemented.
 
 ## 8. Testing
 
@@ -285,7 +294,7 @@ Each endpoint needs tests for:
 
 | Decision | Options | Blocks |
 | --- | --- | --- |
-| `SystemUser` fields on `users.User` | Add `role`/`unb_id` to `users.User`, or a profile with a one-to-one link. Either way, SystemUser is implemented on `users.User` and foreign keys use `settings.AUTH_USER_MODEL` | Permissions, user management |
+| Remaining `SystemUser` fields | `role` is implemented directly on `users.User`. Decide the mapping of `name`/`unb_id` and remaining fields to `users.User` or a profile with a one-to-one link. Either way, SystemUser is implemented on `users.User` and foreign keys use `settings.AUTH_USER_MODEL` | Permissions, user management |
 | Roles and permissions | Groups with model permissions (proposed), or a `role` field with custom checks | Every protected endpoint |
 | `TIME_ZONE` | Currently `UTC`. `America/Moncton` matches the Shop. Under UTC the date rolls over at 8 p.m. local time in AST and 9 p.m. in ADT, so loans would show as overdue a day early. Changing `TIME_ZONE` only helps if code uses `timezone.localdate()` (see [section 4](#4-business-logic-and-transactions)) | Overdue rules, analytics |
 | User soft deletion vs `is_active` | Keep both flags and set `is_active = False` whenever `is_deleted = True` (current guidance), or use `is_active` as the users' only soft-delete flag and update `database.md` | User management, login |

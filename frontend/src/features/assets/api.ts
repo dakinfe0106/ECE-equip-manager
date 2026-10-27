@@ -1,4 +1,5 @@
 import { apiBaseUrl } from '../../api'
+import { sessionFetch } from '../auth/sessionFetch'
 
 export interface AssetRecord {
   asset_id: number
@@ -88,7 +89,7 @@ async function responseError(response: Response, action: string): Promise<AssetL
 }
 
 async function fetchJson<T>(url: string, action: string): Promise<T> {
-  const response = await fetch(url, { credentials: 'include' })
+  const response = await sessionFetch(url, { credentials: 'include' })
   if (!response.ok) {
     throw await responseError(response, action)
   }
@@ -121,7 +122,7 @@ export async function createAsset(asset: AssetCreation): Promise<AssetRecord> {
     headers.set('X-CSRFToken', decodeURIComponent(csrfToken))
   }
 
-  const response = await fetch(`${apiBaseUrl}/assets/`, {
+  const response = await sessionFetch(`${apiBaseUrl}/assets/`, {
     method: 'POST',
     headers,
     credentials: 'include',
@@ -139,7 +140,7 @@ export async function fetchAssets(page = 1, assetIdentifier = ''): Promise<Pagin
   if (trimmedIdentifier) {
     params.set('asset_identifier', trimmedIdentifier)
   }
-  const response = await fetch(`${apiBaseUrl}/assets/?${params}`, {
+  const response = await sessionFetch(`${apiBaseUrl}/assets/?${params}`, {
     credentials: 'include',
   })
   if (!response.ok) {
@@ -160,7 +161,7 @@ export async function updateAsset(
     headers.set('X-CSRFToken', decodeURIComponent(csrfToken))
   }
 
-  const response = await fetch(`${apiBaseUrl}/assets/${assetId}/`, {
+  const response = await sessionFetch(`${apiBaseUrl}/assets/${assetId}/`, {
     method: 'PATCH',
     headers,
     credentials: 'include',

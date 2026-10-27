@@ -1,8 +1,24 @@
+from typing import ClassVar
+
 from django.contrib.auth.models import AbstractUser
+from django.db import models
 
 
-# Custom user model, set as AUTH_USER_MODEL in settings.
-# Starting with our own model (even an empty one) means fields such as roles
-# can be added later without migrating away from Django's built-in User.
 class User(AbstractUser):
-    pass
+    class Role(models.TextChoices):
+        TECHNICIAN = 'TECHNICIAN', 'Technician'
+        FACULTY = 'FACULTY', 'Faculty'
+        ADMINISTRATOR = 'ADMINISTRATOR', 'Administrator'
+
+    role = models.CharField(max_length=20, choices=Role.choices)
+
+    # The createsuperuser command must also ask for an explicit application role.
+    REQUIRED_FIELDS: ClassVar[list[str]] = [*AbstractUser.REQUIRED_FIELDS, 'role']
+
+    class Meta(AbstractUser.Meta):
+        constraints = (
+            models.CheckConstraint(
+                condition=models.Q(role__in=['TECHNICIAN', 'FACULTY', 'ADMINISTRATOR']),
+                name='users_user_role_valid',
+            ),
+        )
