@@ -90,9 +90,9 @@ describe('fetchCategoryEquipmentTypes', () => {
 })
 
 describe('describeCategoryError', () => {
-  it('explains that a permission is required after a 403', () => {
+  it('explains permission or session failure after a 403', () => {
     expect(describeCategoryError(new CategoryRequestError(403), 'categories')).toBe(
-      'Your account does not have permission to view categories.',
+      'You do not have permission to view categories, or your session has expired.',
     )
   })
 

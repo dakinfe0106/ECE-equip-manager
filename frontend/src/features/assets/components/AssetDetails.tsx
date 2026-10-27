@@ -5,7 +5,8 @@ import {
   type AssetRecord,
   type AssetUpdate,
 } from '../api'
-import { useAuth } from '../../auth/context'
+import { hasPermission } from '../../auth/api'
+import { useAuth } from '../../auth/useAuth'
 
 interface AssetDetailsProps {
   asset: AssetRecord
@@ -33,7 +34,7 @@ export default function AssetDetails({
   onAssetUpdated,
 }: AssetDetailsProps) {
   const { user } = useAuth()
-  const canEdit = user?.permissions.includes('inventory.change_asset') ?? false
+  const canEdit = hasPermission(user, 'inventory.change_asset')
   const dialogRef = useRef<HTMLDialogElement>(null)
   const certifications = asset.equipment_type.required_certifications
   const [isEditing, setIsEditing] = useState(false)

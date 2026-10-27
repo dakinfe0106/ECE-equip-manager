@@ -1,20 +1,44 @@
 from typing import ClassVar
 
-from rest_framework.permissions import DjangoModelPermissions
+from rest_framework.permissions import BasePermission
 
 
-class ModelPermissionsWithView(DjangoModelPermissions):
-    perms_map: ClassVar[dict[str, list[str]]] = {
-        **DjangoModelPermissions.perms_map,
-        "GET": ["%(app_label)s.view_%(model_name)s"],
-        "HEAD": ["%(app_label)s.view_%(model_name)s"],
+class InventoryRolePermissions(BasePermission):
+    method_actions: ClassVar[dict[str, str]] = {
+        "GET": "view",
+        "HEAD": "view",
+        "OPTIONS": "view",
+        "POST": "add",
+        "PUT": "change",
+        "PATCH": "change",
+        "DELETE": "delete",
     }
+    read_roles: ClassVar[frozenset[str]] = frozenset(
+        {"TECHNICIAN", "FACULTY", "ADMINISTRATOR"}
+    )
+    write_roles: ClassVar[frozenset[str]] = frozenset(
+        {"TECHNICIAN", "ADMINISTRATOR"}
+    )
 
-    def _queryset(self, view):
+    def has_permission(self, request, view):
+        user = request.user
+        if not user or not user.is_authenticated:
+            return False
+        if user.is_superuser:
+            return True
+
+        action = self.method_actions.get(request.method)
         queryset = getattr(view, "queryset", None)
         if queryset is None:
             queryset = view.get_queryset()
-        assert queryset is not None, (
-            f"{view.__class__.__name__} must define a queryset"
-        )
-        return queryset
+        if action is None or queryset is None:
+            return False
+
+        model = queryset.model
+        if model._meta.app_label != "inventory":
+            return False
+
+        role = getattr(user, "role", None)
+        if action == "view":
+            return role in self.read_roles
+        return role in self.write_roles

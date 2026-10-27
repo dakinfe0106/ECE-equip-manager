@@ -1,4 +1,5 @@
 import { apiBaseUrl } from '../../api'
+import { sessionFetch } from '../auth/sessionFetch'
 
 export interface Category {
   category_id: number
@@ -41,7 +42,7 @@ export class CategoryRequestError extends Error {
 
 // Business endpoints need the Django session cookie, so requests include credentials.
 async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await sessionFetch(`${apiBaseUrl}${path}`, {
     credentials: 'include',
     signal,
   })
@@ -55,7 +56,7 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
 export function describeCategoryError(error: unknown, what: string): string {
   if (error instanceof CategoryRequestError) {
     if (error.status === 403) {
-      return `Your account does not have permission to view ${what}.`
+      return `You do not have permission to view ${what}, or your session has expired.`
     }
     if (error.status === 404) {
       return `We couldn't find ${what}.`

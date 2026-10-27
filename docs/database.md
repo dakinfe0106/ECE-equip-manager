@@ -126,7 +126,7 @@ Asset ID search trims surrounding whitespace and matches identifiers by case-ins
 
 ### SystemUser
 
-SystemUser is the logical record for people who sign in to the application. It is implemented on the custom user model `users.User` (`settings.AUTH_USER_MODEL`), whose primary key is `id`. Reference it through `settings.AUTH_USER_MODEL` or `get_user_model()`; do not create a second model for authentication. Whether the columns below become fields on `users.User` or a one-to-one profile, and how they map to Django's built-in user fields, is a [pending decision](Backend.md#9-pending-decisions).
+SystemUser is the logical record for people who sign in to the application. It is implemented on the custom user model `users.User` (`settings.AUTH_USER_MODEL`), whose primary key is `id`. Reference it through `settings.AUTH_USER_MODEL` or `get_user_model()`; do not create a second model for authentication. The required `role` is implemented directly on `users.User` as a `varchar(20)` with the three choices below and a database check constraint (`users_user_role_valid`). Migration `users.0002` assigns `ADMINISTRATOR` to every existing account, as confirmed for the current dataset; it does not change Django staff/superuser flags. New accounts must explicitly select a role; there is no ongoing default. The remaining name, UNB ID, and deletion fields and their mapping are still [pending decisions](Backend.md#9-pending-decisions).
 
 | Column     | Type         | Nullable | Constraints/default                        |
 | ---------- | ------------ | -------- | ------------------------------------------ |
@@ -136,7 +136,7 @@ SystemUser is the logical record for people who sign in to the application. It i
 | role       | varchar(20)  | No       | `TECHNICIAN`, `FACULTY`, `ADMINISTRATOR`   |
 | is_deleted | boolean      | No       | Default `False`                            |
 
-`Borrower.unb_id` and `SystemUser.unb_id` are **independently** unique; the same person may appear in both tables. The approved Technician, Faculty, and Administrator access roles are represented by Django Groups; user authentication and permission enforcement use Django's authentication/authorization facilities, not role labels alone.
+`Borrower.unb_id` and `SystemUser.unb_id` are **independently** unique; the same person may appear in both tables. The approved Technician, Faculty, and Administrator access roles are stored in `users.User.role`. The backend enforces the role policy for each protected operation; a role label alone is never authorization.
 
 ## 3. Relationships
 
@@ -181,7 +181,7 @@ SystemUser is the logical record for people who sign in to the application. It i
 
 ## 5. Permissions scope
 
-Three roles are approved: **Technician**, **Faculty**, **Administrator**. Only authorized personnel may access the web application; temporary staff access must be revocable. **Working policy:** Technicians manage inventory, borrowers, loans, certifications, and maintenance; Faculty may view inventory and analytics; Administrators have these abilities plus user-access management. The current implementation maps these roles to Django Groups and model permissions for available inventory endpoints; as additional business endpoints are added, grant each role only its policy-approved permissions. Apply checks server-side (Django permissions), not only in React. Revisit only if client feedback changes required actions.
+Three roles are approved: **Technician**, **Faculty**, **Administrator**. Only authorized personnel may access the web application; temporary staff access must be revocable. **Working policy:** Technicians manage inventory, borrowers, loans, certifications, and maintenance; Faculty may view inventory and analytics; Administrators have these abilities plus user-access management. The current implementation stores each role on `users.User.role`; available inventory endpoints allow all roles to read and only Technicians and Administrators to create, change, or delete inventory. As additional business endpoints are added, enforce each role's policy server-side. Revisit only if client feedback changes required actions.
 
 ## 6. Implementation and migrations
 

@@ -1,125 +1,87 @@
 import { apiBaseUrl } from '../../api'
 
-export interface AuthenticatedUser {
+export interface CurrentUser {
   id: number
   username: string
-  permissions: string[]
+  first_name: string
+  last_name: string
+  role: 'TECHNICIAN' | 'FACULTY' | 'ADMINISTRATOR'
+  role_label: string
 }
 
-export class AuthenticationError extends Error {
+export function hasPermission(user: CurrentUser | null, permission: string): boolean {
+  const match = /^inventory\.(view|add|change|delete)_(asset|category|equipmenttype)$/.exec(permission)
+  if (!match) return false
+
+  const [, action] = match
+  if (action === 'view') {
+    return (
+      user?.role === 'TECHNICIAN'
+      || user?.role === 'FACULTY'
+      || user?.role === 'ADMINISTRATOR'
+    )
+  }
+  return (
+    (action === 'add' || action === 'change' || action === 'delete')
+    && (user?.role === 'TECHNICIAN' || user?.role === 'ADMINISTRATOR')
+  )
+}
+
+export class AuthError extends Error {
   readonly status: number
 
-  constructor(status: number, message = `Authentication failed (${status})`) {
+  constructor(status: number, message: string) {
     super(message)
-    this.name = 'AuthenticationError'
+    this.name = 'AuthError'
     this.status = status
   }
 }
 
-function parseAuthenticatedUser(body: unknown): AuthenticatedUser {
-  if (
-    typeof body === 'object'
-    && body !== null
-    && 'id' in body
-    && typeof body.id === 'number'
-    && 'username' in body
-    && typeof body.username === 'string'
-    && 'permissions' in body
-    && Array.isArray(body.permissions)
-    && body.permissions.every((permission) => typeof permission === 'string')
-  ) {
-    return {
-      id: body.id,
-      username: body.username,
-      permissions: body.permissions,
-    }
-  }
-  throw new Error('The server returned an invalid user profile.')
-}
-
-async function readError(response: Response): Promise<AuthenticationError> {
-  let message = `Authentication failed (${response.status})`
-  try {
-    const body: unknown = await response.json()
-    if (typeof body === 'object' && body !== null) {
-      const values = Object.values(body)
-      const firstMessage = values
-        .flatMap((value) => (Array.isArray(value) ? value : [value]))
-        .find((value) => typeof value === 'string')
-      if (typeof firstMessage === 'string') {
-        message = firstMessage
-      }
-    }
-  } catch {
-    // Keep the HTTP failure message when the response has no JSON body.
-  }
-  return new AuthenticationError(response.status, message)
-}
-
 export async function fetchCsrfToken(): Promise<string> {
-  const response = await fetch(`${apiBaseUrl}/auth/csrf/`, {
-    credentials: 'include',
-  })
-  if (!response.ok) {
-    throw await readError(response)
-  }
-
-  const body: unknown = await response.json()
-  if (
-    typeof body !== 'object'
-    || body === null
-    || !('csrfToken' in body)
-    || typeof body.csrfToken !== 'string'
-  ) {
-    throw new Error('The server did not return a CSRF token.')
-  }
+  const response = await fetch(`${apiBaseUrl}/auth/csrf/`, { credentials: 'include' })
+  if (!response.ok) throw new AuthError(response.status, 'Could not prepare a secure request. Please try again.')
+  const body: { csrfToken: string } = await response.json()
   return body.csrfToken
 }
 
-export async function fetchCurrentUser(): Promise<AuthenticatedUser | null> {
-  const response = await fetch(`${apiBaseUrl}/auth/me/`, {
-    credentials: 'include',
-  })
-  if (response.status === 403) {
-    return null
-  }
-  if (!response.ok) {
-    throw await readError(response)
-  }
-  return parseAuthenticatedUser(await response.json())
+export async function fetchCurrentUser(): Promise<CurrentUser | null> {
+  const response = await fetch(`${apiBaseUrl}/auth/me/`, { credentials: 'include' })
+  if (response.status === 403) return null
+  if (!response.ok) throw new AuthError(response.status, 'Could not check your session. Please try again.')
+  return response.json()
 }
 
-export async function signIn(
-  username: string,
-  password: string,
-): Promise<AuthenticatedUser> {
+async function postAuth(action: 'login' | 'logout', body?: { username: string; password: string }) {
   const csrfToken = await fetchCsrfToken()
-  const response = await fetch(`${apiBaseUrl}/auth/login/`, {
+  const response = await fetch(`${apiBaseUrl}/auth/${action}/`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrfToken,
-    },
     credentials: 'include',
-    body: JSON.stringify({ username, password }),
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+    body: JSON.stringify(body ?? {}),
   })
   if (!response.ok) {
-    throw await readError(response)
+    const message = response.status === 400 && action === 'login'
+      ? 'Incorrect username or password.'
+      : response.status === 403
+        ? 'Your security token could not be verified. Please try again.'
+        : `Could not ${action === 'login' ? 'sign in' : 'sign out'}. Please try again.`
+    throw new AuthError(response.status, message)
   }
+  return response
+}
 
-  const user = parseAuthenticatedUser(await response.json())
+export async function signIn(username: string, password: string): Promise<CurrentUser> {
+  const response = await postAuth('login', { username: username.trim(), password })
+  const user: CurrentUser = await response.json()
+  // Django rotates the token on login; do not retain the pre-login token.
   await fetchCsrfToken()
   return user
 }
 
 export async function signOut(): Promise<void> {
-  const csrfToken = await fetchCsrfToken()
-  const response = await fetch(`${apiBaseUrl}/auth/logout/`, {
-    method: 'POST',
-    headers: { 'X-CSRFToken': csrfToken },
-    credentials: 'include',
-  })
-  if (!response.ok) {
-    throw await readError(response)
-  }
+  await postAuth('logout')
+}
+
+export function describeAuthError(error: unknown): string {
+  return error instanceof AuthError ? error.message : 'Could not reach the server. Please try again.'
 }

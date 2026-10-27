@@ -18,10 +18,10 @@ If this guide conflicts with `database.md` or `Architecture.md`, raise the confl
 
 - `inventory` provides authenticated category and equipment-type lookups, paginated asset listing/search, asset creation, asset detail/update endpoints, and a category summary list and per-category equipment-type list for the Categories page. Asset status remains server-controlled; newly created assets start as `Available`.
 - The `lending` and `maintenance` apps are mounted under `/api/` but do not yet expose business endpoints.
-- `users.User(AbstractUser)` is the custom `AUTH_USER_MODEL`; it has no extra role fields. Session login, logout, current-user, and CSRF endpoints are implemented in `users`.
-- DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Inventory endpoints also require Django model permissions, including `view_` permissions for reads. Pagination is configured for the asset list; filtering is implemented for Asset ID search.
+- `users.User(AbstractUser)` is the custom `AUTH_USER_MODEL`; its required `role` stores `TECHNICIAN`, `FACULTY`, or `ADMINISTRATOR`. Django admin creation/edit forms expose the role, and `createsuperuser` prompts for it through `REQUIRED_FIELDS`. Existing accounts receive `ADMINISTRATOR` in migration `users.0002`; new accounts have no default role. Role assignment does not grant staff/superuser flags or Django permissions.
+- DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Inventory endpoints enforce the role policy in [database.md section 5](database.md#5-permissions-scope). Pagination is configured for the asset list; filtering is implemented for Asset ID search.
 - `/api/health/` is a plain Django view, so DRF authentication does not apply to it.
-- The frontend uses the session endpoints and effective permission list to protect routes and hide unavailable actions. Django remains the authorization authority.
+- The `users` app provides CSRF, login, logout, and current-user endpoints for application-managed sessions (see [section 6](#6-authentication-endpoints)).
 
 ## 2. App layout
 
@@ -48,7 +48,7 @@ Cross-app imports are allowed where ownership requires them. For example, `lendi
 - Join models use `pk = models.CompositePrimaryKey('borrower_id', 'certification_id')`. Django admin cannot register models with a composite primary key, so manage these links through the parent records.
 - Reference users through `settings.AUTH_USER_MODEL`, for example the maintenance technician foreign key.
 - Trim strings at every entry point before saving:
-  - API: DRF `CharField` trims by default. Never set `trim_whitespace=False`.
+  - API: DRF `CharField` trims by default. The exception is a password field: use `trim_whitespace=False` to preserve the exact credential. Login usernames are trimmed.
   - Django admin: form fields strip whitespace by default.
   - Services and imports: call `normalize_text()` from `equipmanager/text.py`. Add this shared helper (not a business app) with the first model that has string fields:
 
@@ -118,7 +118,7 @@ _Proposed_ resource paths, derived from `database.md` tables:
 - Check uniqueness in the serializer against **all** rows, including soft-deleted ones, using the scope `database.md` defines for each field:
   - `Category.name` and `Certification.name`: `name__iexact` across the whole table.
   - `EquipmentType.name`: `name__iexact` within the same category only. The same type name may exist in another category.
-  - `Asset.asset_identifier`: unique by exact normalized value across the whole table.
+  - `Asset.asset_identifier`: unique across the whole table.
 - Keep the database constraint as the final guard. Two concurrent requests can both pass the serializer check, so any view that saves directly (including generic CRUD views) must wrap the save in `transaction.atomic()`, catch `IntegrityError` from that unique constraint, and raise a DRF `ValidationError` so the race returns `400`, not `500`.
 
 ## 4. Business logic and transactions
@@ -218,33 +218,40 @@ Loans and maintenance records are history. They have no `DELETE` endpoint.
 
 ## 6. Authentication endpoints
 
-Authentication endpoints in the `users` app:
+Implemented in `users/views.py`, `users/serializers.py`, and `users/urls.py`. Responses are not cacheable.
 
 | Method | Path | Behavior |
 | --- | --- | --- |
 | `GET` | `/api/auth/csrf/` | Public. Sets the `csrftoken` cookie and returns the token. |
 | `POST` | `/api/auth/login/` | Public, CSRF-protected. Body `{username, password}`. Returns `200` with the current user or `400` for invalid credentials. |
-| `POST` | `/api/auth/logout/` | Authenticated and CSRF-protected. Ends the session and returns `204`. |
-| `GET` | `/api/auth/me/` | Authenticated. Returns the user ID, username, and effective Django permissions; anonymous requests return `403`. |
+| `POST` | `/api/auth/logout/` | Public, CSRF-protected, idempotent. Ends the session. Returns `204`, including when already signed out. |
+| `GET` | `/api/auth/me/` | Returns the current user, or `403` when not logged in. |
 
 Notes for the implementation:
 
-- Use `django.contrib.auth.authenticate()`, `login()`, and `logout()`. Do not write password handling.
+- Login and current-user responses contain `id`, `username`, `first_name`, `last_name`, `role`, and `role_label`. Both role fields are read-only: `role` is the stored uppercase value and `role_label` comes from Django choices. The CSRF response is `{csrfToken}`.
+- Missing/blank login fields return DRF field errors with `400`. Unknown users, wrong passwords, and inactive accounts receive the same `400` response: `{"non_field_errors": ["Incorrect username or password."]}`. Password whitespace is significant. Missing/invalid CSRF tokens and untrusted origins receive `403`.
+
+- Use `django.contrib.auth.authenticate()` and `login()`. Do not write password handling.
 - DRF skips CSRF checks for anonymous requests, and `APIView.as_view()` returns a CSRF-exempt view. Putting `@csrf_protect` on the class, on `post()`, or around `as_view()` in `urls.py` does **not** work. Use `@method_decorator(csrf_protect, name='dispatch')` on the login view class, and test it with `APIClient(enforce_csrf_checks=True)`.
 - `login()` rotates the CSRF token. The frontend must fetch a new token after logging in.
 - Inactive users (`is_active = False`) cannot log in. Use this to revoke access for temporary staff.
-- A soft-deleted user must not be able to log in either. Django's login only checks `is_active`, so soft-deleting a user must also set `is_active = False` (and restoring sets it back) in the same transaction. Whether `is_active` should replace `is_deleted` for users is a [pending decision](#9-pending-decisions).
-- The backend enables credentialed CORS for the configured frontend origin. Frontend session requests use `credentials: 'include'` and send `X-CSRFToken` on unsafe methods.
+- The current model has no `is_deleted` field. Revocation uses `is_active`; Django also rejects inactive users on subsequent session-authenticated requests. Future user soft deletion must block login and active sessions; whether to introduce `is_deleted` remains a [pending decision](#9-pending-decisions).
+- Session configuration and frontend behavior:
+  - `CORS_ALLOW_CREDENTIALS = True`.
+  - `CSRF_TRUSTED_ORIGINS` is a comma-separated environment variable documented in `.env.example`; when omitted it defaults to `CORS_ALLOWED_ORIGINS`.
+  - Frontend requests use `credentials: 'include'` and send the `X-CSRFToken` header on `POST`, `PATCH`, and `DELETE`.
+  - Login/logout obtain a CSRF token immediately before submission. Login fetches a refreshed token after Django rotates it. Existing asset writes use the current CSRF cookie.
+  - `AuthProvider` checks `/auth/me/` at startup. A business request with `403` triggers a background session recheck without replaying the operation. A valid session retains the page's permission/CSRF error; an anonymous session returns to login.
+  - `users/tests.py` uses `APIClient(enforce_csrf_checks=True)` for authentication, inactive accounts, token rotation, origins, and revocation coverage.
 
 ## 7. Permissions
 
 - Every view keeps authentication on. A public view must set `permission_classes = [AllowAny]` and explain why in a comment.
-- A data migration creates Django Groups named `Technician`, `Faculty`, and `Administrator`, with inventory permissions based on [database.md section 5](database.md#5-permissions-scope). The Administrator group also receives user model permissions for account management.
-- Check permissions, not role names, as [Architecture.md section 9](Architecture.md#9-authentication-and-authorization) requires. Assign users to the relevant group; an Administrator who needs the Django admin site must also have Django's `is_staff` flag. The custom user admin allows administrators to assign only the approved groups and prevents them from granting staff, superuser, or direct user permissions.
-- Do **not** use plain `DjangoModelPermissions`. It lets every authenticated user make `GET` requests, so Faculty could read borrowers, loans, maintenance records, and users, which `database.md` section 5 does not allow (Faculty may only view inventory and analytics).
-- Inventory CRUD and lookup views use `users.permissions.ModelPermissionsWithView`, which also requires the `view_` permission for reads. Writes need the matching `add_`, `change_`, or `delete_` permission.
-
-- Actions that are not CRUD use custom permissions, for example `lending.return_loan`, declared in the model's `Meta.permissions`.
+- `users.User.role` stores the approved application role. Do not use Django Groups or role labels as a substitute for endpoint checks. Django admin staff/superuser flags remain separate from application roles.
+- Inventory CRUD and lookup views use `users.permissions.InventoryRolePermissions`. All three roles can read inventory; only Technicians and Administrators can create, change, or delete inventory. Unsupported roles and methods are denied. Add role-specific checks to future endpoints according to [database.md section 5](database.md#5-permissions-scope).
+- Do not use plain `DjangoModelPermissions` for these role checks. Its default read behavior would not enforce the Faculty-only-inventory boundary.
+- Actions that are not CRUD use dedicated custom permission classes or checks for their business operation, such as returning a loan.
 
 ## 8. Testing
 
@@ -274,14 +281,14 @@ Each endpoint needs tests for:
 
 | Decision | Options | Blocks |
 | --- | --- | --- |
-| `SystemUser` fields on `users.User` | Add `role`/`unb_id` to `users.User`, or a profile with a one-to-one link. Either way, SystemUser is implemented on `users.User` and foreign keys use `settings.AUTH_USER_MODEL` | Permissions, user management |
+| Remaining `SystemUser` fields | `role` is implemented directly on `users.User`. Decide the mapping of `name`/`unb_id` and remaining fields to `users.User` or a profile with a one-to-one link. Either way, SystemUser is implemented on `users.User` and foreign keys use `settings.AUTH_USER_MODEL` | Permissions, user management |
 | `TIME_ZONE` | Currently `UTC`. `America/Moncton` matches the Shop. Under UTC the date rolls over at 8 p.m. local time in AST and 9 p.m. in ADT, so loans would show as overdue a day early. Changing `TIME_ZONE` only helps if code uses `timezone.localdate()` (see [section 4](#4-business-logic-and-transactions)) | Overdue rules, analytics |
 | User soft deletion vs `is_active` | Keep both flags and set `is_active = False` whenever `is_deleted = True` (current guidance), or use `is_active` as the users' only soft-delete flag and update `database.md` | User management, login |
 | Restoring a child of a soft-deleted parent | Reject the restore until the parent is restored (current guidance), or restore the parent automatically | Restore endpoints |
 | Service error handling | Views convert `BusinessRuleError` per view (current guidance), or a custom DRF exception handler in shared settings | Every service-backed endpoint |
-| Pagination | Enable `PageNumberPagination` before the first list endpoint, or add later | All list endpoints |
+| Pagination | The asset list sets `PageNumberPagination` (20 per page) on its view. Open: make it the global DRF default, or keep it per view | All list endpoints |
 | Filtering and search | Manual query parameters (proposed), or add `django-filter` | List endpoints |
-| UI design fields not in the schema | Serial number, borrower eligibility and terms, damage-flag count, maintenance and damage notes, and who may archive. See [UI-Design.md §7](UI-Design.md#7-where-the-design-differs-from-the-data-model) | Asset, borrower, loan, and maintenance features |
+| UI design fields not in the schema | Serial number, borrower eligibility and terms, damage-flag count, maintenance and damage notes, who may archive, Asset ID in the add form, changing an asset's category or type, and asset search by name, filters, and archived view. See [UI-Design.md §7](UI-Design.md#7-where-the-design-differs-from-the-data-model) | Asset, borrower, loan, and maintenance features |
 | Analytics and Excel export | Which app owns the endpoints for the four analytics in the Project Overview, and whether Excel files are generated by Django or in the browser | Analytics pages, export |
 | Resource names | `assets/` (matches `database.md`) vs `equipment/` (Architecture.md examples) | URLs, frontend routes. Once decided, also update the examples in `docs/README.md` ("Adding an Endpoint", "Trying a Protected Endpoint") and the comment in `inventory/urls.py` |
 

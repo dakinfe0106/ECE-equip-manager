@@ -33,7 +33,9 @@ ECE-equip-manager/
 │   ├── Backend.md             # Backend code conventions and pending decisions
 │   ├── database.md            # Database schema and business rules
 │   ├── Frontend-Standards.md  # Frontend code conventions
-│   └── Quality.md             # Definition of Done and PO acceptance
+│   ├── UI-Design.md           # Approved UI design, routes, and design tokens
+│   ├── Quality.md             # Definition of Done and PO acceptance
+│   └── design/prototype/      # Figma Make prototype source (reference only)
 ├── .gitignore
 ├── AGENTS.md                  # Workflow rules for developers and coding agents
 └── README.md
@@ -366,13 +368,13 @@ The configured frontend stack includes:
 - ESLint
 - Vitest
 
-Vitest is configured as the frontend test runner. Tailwind CSS is configured in `vite.config.ts` and imported in `src/index.css`; existing global CSS is in its base layer. React Router uses `BrowserRouter` with routes defined in `src/AppRoutes.tsx`. The root route shows the Assets page, `/assets/new` shows the asset creation form, and unknown paths show a fallback. Frontend code conventions are in [Frontend-Standards.md](Frontend-Standards.md).
+Vitest is configured as the frontend test runner. Tailwind CSS is configured in `vite.config.ts` and imported in `src/index.css`; existing global CSS is in its base layer. React Router uses `BrowserRouter` with routes defined in `src/AppRoutes.tsx`. `/login` is public; `/` and `/assets` show the assets page. Asset creation, categories, and equipment types are also available behind the login check. Unknown paths show a fallback. Interactive authentication tests use jsdom and Testing Library; API tests use MSW.
 
 After pulling tooling changes, run `npm ci` from `frontend/`. No separate Tailwind or Router setup is needed per developer. Use Tailwind classes for component styling and React Router links for internal navigation. When deploying the frontend, configure the host to serve `index.html` for client-side routes while keeping `/api/` requests routed to Django.
 
 For local API configuration, copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_URL` (default `http://localhost:8000/api`). Restart Vite after changing it. Variables prefixed with `VITE_` are exposed to the browser; never put secrets in them. On Windows, use `npm.cmd` if PowerShell blocks `npm.ps1`.
 
-The browser frontend calls Django from a different origin. Django provides CORS response headers for origins listed in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env` (comma-separated, default `http://localhost:5173`), allowing the browser to read API responses. These origins are also trusted for Django CSRF checks so authenticated session requests such as asset edits can be sent from the frontend. CORS is not authentication and does not prevent non-browser clients from calling the API. If the frontend runs on a different port or host, add that origin explicitly; do not enable all origins.
+The browser frontend calls Django from a different origin. Django provides CORS response headers for origins listed in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env` (comma-separated, default `http://localhost:5173`), allowing the browser to read API responses. `CSRF_TRUSTED_ORIGINS` lists origins trusted for session-authenticated writes; it defaults to `CORS_ALLOWED_ORIGINS` when omitted. CORS is not authentication and does not prevent non-browser clients from calling the API. If the frontend runs on a different port or host, add that origin explicitly to both settings; do not enable all origins.
 
 ---
 
@@ -411,7 +413,9 @@ cd frontend
 npm run dev
 ```
 
-Open `http://localhost:5173`. The Assets page should list records, or show a sign-in message if you are not logged in (see [Trying a Protected Endpoint](#trying-a-protected-endpoint)). Either one means the frontend reached Django.
+Open `http://localhost:5173/login`. Sign in with an existing Django account. To create a local account, run `python manage.py createsuperuser` from `server/equipmanager/` with the backend virtual environment active. No demo credentials are included. Successful login opens the requested application page or `/assets`; refreshing preserves the session. Use **Sign out** in the sidebar to end it.
+
+For frontend-only verification, `npm test -- --run` includes mocked login/session tests. These do not replace testing the running React and Django applications together. Username/password accounts are managed through Django admin; registration, password reset, SSO, and role-management screens are outside this feature.
 
 ## Verify the Frontend Is Connected to the Backend
 
@@ -439,7 +443,7 @@ curl -i -H "Origin: http://localhost:5173" http://localhost:8000/api/health/
 
 The response must include the header `Access-Control-Allow-Origin: http://localhost:5173`. If that header is missing, add the origin to `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env` and restart `runserver`.
 
-**3. The browser gets the response.** Open `http://localhost:5173` with the browser developer tools on the **Network** tab. The `assets/` request should have status `200`, or `403` if you are not logged in. Both mean the browser reached Django. A `blocked by CORS policy` message in the **Console** tab means step 2 is failing.
+**3. The browser gets the response.** Open `http://localhost:5173/login` and the browser developer tools (**Network** tab). An anonymous `auth/me/` response of `403` is expected. Sign in and check that `auth/csrf/` succeeds, `auth/login/` returns `200`, and the assets request succeeds. A `blocked by CORS policy` message in the **Console** tab means step 2 is failing. Use the same host for both servers (`localhost` rather than mixing it with `127.0.0.1`).
 
 **4. Automated checks.** `server/equipmanager/tests/test_health.py` verifies the response and CORS header through Django's test client. It runs with `python -m pytest` and in CI. The frontend's MSW tests exercise the API client with mocked HTTP responses; they do not verify connectivity to a running backend.
 
@@ -460,13 +464,18 @@ All endpoints live under `/api/` and end with a trailing slash.
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/api/health/` | Public. Checks that the API is reachable: `{"status": "ok"}` |
+| GET | `/api/auth/csrf/` | Public. Sets the CSRF cookie and returns `{csrfToken}`. |
+| POST | `/api/auth/login/` | Public, CSRF-protected. Accepts `{username, password}`; returns the current user or `400` for invalid credentials. |
+| GET | `/api/auth/me/` | Returns `id`, `username`, `first_name`, and `last_name`; returns `403` when signed out. |
+| POST | `/api/auth/logout/` | Public, CSRF-protected. Ends the session; returns `204` even when already signed out. |
 | GET | `/api/categories/` | Authenticated. Lists active equipment categories for the asset form. |
 | GET | `/api/categories/summary/` | Authenticated. Lists categories for the Categories page, ordered by `category_id`, with `is_deleted` and `equipment_type_count`. Supports `search` (name contains) and `deleted` (`false` by default, `true`, or `all`). |
 | GET | `/api/categories/<id>/equipment-types/` | Authenticated. Lists a category's active equipment types, ordered by `type_id`, for the Categories page popup. Returns `404` for an unknown category. |
-| GET | `/api/equipment-types/?category_id=<id>` | Authenticated. Lists active equipment types for a category. |
-| GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search. |
+| GET | `/api/equipment-types/` | Authenticated. Lists equipment types whose category is active, ordered by `type_id`. Supports `category_id` and `deleted` (`false` by default, `true`, or `all`). |
+| GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search. `/api/assets/lookup/` is an alias. |
 | POST | `/api/assets/` | Authenticated. Creates an asset with an active `equipment_type_id`; status starts as `Available`. |
-| PATCH | `/api/assets/<pk>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
+| GET | `/api/assets/<asset_id>/` | Authenticated. Returns one asset. |
+| PATCH | `/api/assets/<asset_id>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
 
 The general asset edit endpoint keeps `asset_identifier`, `equipment_type`, and `status` read-only. Status transitions must use their corresponding loan, maintenance, retirement, or reactivation workflow so related records and state changes remain consistent.
 
@@ -488,9 +497,11 @@ Resource names use plural nouns and a trailing slash (see [API Conventions](Arch
 
 ## Trying a Protected Endpoint
 
-Protected endpoints return `403` without an authenticated session. To use the frontend sign-in page, create a local admin account once with `python manage.py createsuperuser`; the superuser can sign in with its username and password. For an ordinary account, assign it to one of the `Technician`, `Faculty`, or `Administrator` groups in Django admin after migrating.
+Once a protected endpoint exists, opening it without a logged-in session returns `403`. To try it in the browser:
 
-To try a protected API endpoint in the browser, log in at `http://localhost:8000/admin/` and in the same browser open an endpoint such as `http://localhost:8000/api/assets/`. Django REST Framework shows an interactive page where you can read data and send requests allowed by your account permissions.
+1. Create a local admin account once with `python manage.py createsuperuser`.
+2. Log in at `http://localhost:5173/login` with that account.
+3. In the same browser, open an implemented endpoint, for example `http://localhost:8000/api/assets/`. Django REST Framework shows an interactive page where you can read data and send permitted requests. Django admin remains available at `http://localhost:8000/admin/` for administrative account management.
 
 Use the same host for both steps. Cookies for `localhost` and `127.0.0.1` are separate, so logging in on one does not log you in on the other.
 
@@ -499,19 +510,19 @@ In tests, log in with DRF's `APIClient` instead:
 ```python
 import pytest
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
 from rest_framework.test import APIClient
 
 
 @pytest.mark.django_db
-def test_asset_list_requires_login_and_permission():
+def test_equipment_list_requires_login():
     client = APIClient()
-    assert client.get('/api/assets/').status_code == 403
+    assert client.get('/api/equipment/').status_code == 403
 
-    user = get_user_model().objects.create_user(username='tech', password='pw-for-tests')
-    user.groups.add(Group.objects.get(name='Technician'))
+    user = get_user_model().objects.create_user(
+        username='tech', password='pw-for-tests', role='TECHNICIAN'
+    )
     client.force_login(user)
-    assert client.get('/api/assets/').status_code == 200
+    assert client.get('/api/equipment/').status_code == 200
 ```
 
 All four apps share the `/api/` prefix, so a path must be unique across every app, not just within its own `urls.py`. If two apps define the same path (for example, both define `users/`), Django uses whichever app is included first in `equipmanager/urls.py` and silently ignores the other. Name each path after a resource the app owns: `equipment/` in `inventory`, `loans/` in `lending`.
@@ -698,7 +709,11 @@ The frontend's origin is not in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.
 
 **Asset edits return `403` even though the asset list loads**
 
-Check that the frontend origin (including its scheme, host, and port) is listed in `CORS_ALLOWED_ORIGINS` in `server/equipmanager/.env`, then restart `runserver`. This setting also configures the origins Django trusts for CSRF checks on session-authenticated updates.
+Check that the frontend origin (including its scheme, host, and port) is listed in `CORS_ALLOWED_ORIGINS` and `CSRF_TRUSTED_ORIGINS` in `server/equipmanager/.env`, then restart `runserver`. When the CSRF setting is omitted, it defaults to the CORS origins. Confirm the request includes the current `csrftoken` cookie and `X-CSRFToken` header.
+
+**Login fails or the session does not persist**
+
+Use an existing active Django account. Unknown users, wrong passwords, and inactive accounts intentionally show the same error. Confirm both servers use `localhost`, requests include cookies, and the frontend origin is allowed by CORS and CSRF settings. Login obtains a CSRF token before submission and refreshes it after success. A server/connection failure during the initial session check offers **Try again**; an expired session returns to login. Do not disable CSRF or enable all origins to bypass a failure.
 
 **`relation "..." does not exist`**
 
@@ -786,3 +801,10 @@ Both test runners must discover tests and pass. An empty suite fails CI, includi
 | [Frontend-Standards.md](Frontend-Standards.md) | Frontend code conventions |
 | [UI-Design.md](UI-Design.md) | Approved UI design: pages and routes, design tokens, shared components, and design vs. data model differences. The prototype source is in [design/prototype/](design/prototype/) |
 | [Quality.md](Quality.md) | Splitting feature work, merge gates, Definition of Done, and PO acceptance |
+
+
+### Assigning application roles
+
+Apply migration `users.0002` with `python manage.py migrate` before using the updated authentication API. It assigns `ADMINISTRATOR` to all existing accounts, matching the confirmed current dataset, without changing their Django staff/superuser flags. New users require an explicit `TECHNICIAN`, `FACULTY`, or `ADMINISTRATOR` role; there is no default. Select the role in Django admin when adding or editing a user. `python manage.py createsuperuser` also prompts for the role (enter its uppercase stored value).
+
+Login and `/api/auth/me/` return `role` and `role_label` for the sidebar. Inventory endpoints allow all three roles to read; only Technicians and Administrators may create, change, or delete inventory. Django enforces this policy regardless of frontend visibility. Django admin still requires staff status, and assigning the Administrator role alone does not grant it.

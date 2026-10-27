@@ -75,7 +75,7 @@ Follow the pattern in `features/assets/api.ts`:
 
 ## 4. State and data loading
 
-- Use `useState` for local state and `useContext` only for genuinely global state. The shared auth context tracks the Django session and effective permissions; Django still enforces every protected API operation.
+- Use `useState` for local state and `useContext` only for genuinely global state. The shared auth context tracks the Django session and application role; Django still enforces every protected API operation.
 - The backend is the source of truth. After a write, use the record the API returns instead of patching state from guesses.
 - For simple reads, reuse `useApiData` (`features/categories/hooks/useApiData.ts`). It cancels stale requests. If another feature uses it, move it to `src/hooks/` in that change.
 - Every view that loads data handles **loading, empty, error, and success** states.
@@ -105,7 +105,7 @@ These come from the Project Overview and [database.md](database.md#4-operating-r
 - **Consistent naming:** names are trimmed and unique ignoring case. Trim input before sending, show the backend's duplicate error, and optionally warn early (see `findDuplicateCategory`).
 - **Asset status:** values are exactly `Available`, `On_Loan`, `Under_Maintenance`, `Retired`; show them with the labels in [UI-Design.md §6](UI-Design.md#6-labels-and-badges). Status changes only through workflows (checkout, return, maintenance, retirement). Never offer a status field on an edit form.
 - **Dates:** loan and maintenance fields are dates (`YYYY-MM-DD`), not timestamps.
-- **Login:** the frontend provides a `/login` page for application sessions. For local setup and assigning role Groups, see [README.md](README.md#trying-a-protected-endpoint).
+- **Login:** the frontend provides a `/login` page for application sessions. For local setup and assigning application roles, see [README.md](README.md#trying-a-protected-endpoint).
 
 ## 8. Testing
 

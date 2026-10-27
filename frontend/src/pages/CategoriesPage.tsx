@@ -9,7 +9,8 @@ import {
   type DeletedFilter,
 } from '../features/categories/api'
 import { useApiData } from '../features/categories/hooks/useApiData'
-import { useAuth } from '../features/auth/context'
+import { hasPermission } from '../features/auth/api'
+import { useAuth } from '../features/auth/useAuth'
 
 function emptyMessage(search: string, show: DeletedFilter): string {
   if (search) return `No categories match "${search}".`
@@ -19,9 +20,9 @@ function emptyMessage(search: string, show: DeletedFilter): string {
 
 export default function CategoriesPage() {
   const { user } = useAuth()
-  const canAdd = user?.permissions.includes('inventory.add_category') ?? false
-  const canChange = user?.permissions.includes('inventory.change_category') ?? false
-  const canDelete = user?.permissions.includes('inventory.delete_category') ?? false
+  const canAdd = hasPermission(user, 'inventory.add_category')
+  const canChange = hasPermission(user, 'inventory.change_category')
+  const canDelete = hasPermission(user, 'inventory.delete_category')
   const [show, setShow] = useState<DeletedFilter>('false')
   const [searchText, setSearchText] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')

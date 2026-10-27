@@ -9,7 +9,8 @@ describe('Assets route', () => {
     const html = renderToString(
       <MemoryRouter initialEntries={['/assets']}>{withAuth(<AppRoutes />)}</MemoryRouter>,
     )
-    expect(html).toContain('Asset Identifier')
+    expect(html).toContain('Asset Name')
+    expect(html).toContain('Equipment Type')
     expect(html).toContain('Status')
     expect(html).toContain('Loading equipment records')
     expect(html).not.toContain('Page not found')

@@ -8,7 +8,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
-from users.permissions import ModelPermissionsWithView
+from users.permissions import InventoryRolePermissions
 
 from .models import Asset, Category, EquipmentType
 from .serializers import (
@@ -32,14 +32,14 @@ class CategoryLookupList(generics.ListAPIView):
         "name", "category_id"
     )
     serializer_class = CategorySerializer
-    permission_classes = (ModelPermissionsWithView,)
+    permission_classes = (InventoryRolePermissions,)
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
 class EquipmentTypeLookupList(generics.ListAPIView):
     queryset = EquipmentType.objects.all()
     serializer_class = EquipmentTypeLookupSerializer
-    permission_classes = (ModelPermissionsWithView,)
+    permission_classes = (InventoryRolePermissions,)
 
     def get_queryset(self):
         deleted = self.request.query_params.get("deleted", "false").lower()
@@ -76,7 +76,7 @@ class EquipmentTypeLookupList(generics.ListAPIView):
 class AssetListCreateAPIView(generics.ListCreateAPIView):
     queryset = Asset.objects.all()
     pagination_class = AssetPagination
-    permission_classes = (ModelPermissionsWithView,)
+    permission_classes = (InventoryRolePermissions,)
 
     def get_queryset(self):
         assets = (
@@ -140,7 +140,7 @@ class AssetDetail(generics.RetrieveUpdateAPIView):
         .select_related("type__category")
     )
     serializer_class = AssetSerializer
-    permission_classes = (ModelPermissionsWithView,)
+    permission_classes = (InventoryRolePermissions,)
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -170,7 +170,7 @@ class CategoryList(generics.ListAPIView):
     """
 
     serializer_class = CategorySummarySerializer
-    permission_classes = (ModelPermissionsWithView,)
+    permission_classes = (InventoryRolePermissions,)
     queryset = Category.objects.all()
 
     def get_queryset(self):
@@ -200,7 +200,7 @@ class CategoryEquipmentTypeList(generics.ListAPIView):
     """Active equipment types that belong to one category, sorted by ID (lowest first)."""
 
     serializer_class = EquipmentTypeSerializer
-    permission_classes = (ModelPermissionsWithView,)
+    permission_classes = (InventoryRolePermissions,)
     queryset = EquipmentType.objects.all()
 
     def get_queryset(self):

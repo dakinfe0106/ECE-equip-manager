@@ -110,7 +110,8 @@ describe('AssetTable', () => {
       ...technicianAuth,
       user: {
         ...technicianAuth.user!,
-        permissions: ['inventory.view_asset'],
+        role: 'FACULTY' as const,
+        role_label: 'Faculty',
       },
     }
     const html = renderToString(

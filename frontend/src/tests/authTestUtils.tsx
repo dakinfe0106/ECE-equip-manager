@@ -1,36 +1,26 @@
 import type { ReactNode } from 'react'
-import type { AuthContextValue } from '../features/auth/context'
-import { AuthContext } from '../features/auth/context'
+import type { AuthState } from '../features/auth/AuthContext'
+import { AuthContext } from '../features/auth/AuthContext'
 
-export const technicianAuth: AuthContextValue = {
+export const technicianAuth: AuthState = {
   user: {
     id: 1,
     username: 'shop-tech',
-    permissions: [
-      'inventory.add_asset',
-      'inventory.change_asset',
-      'inventory.delete_asset',
-      'inventory.view_asset',
-      'inventory.add_category',
-      'inventory.change_category',
-      'inventory.delete_category',
-      'inventory.view_category',
-      'inventory.add_equipmenttype',
-      'inventory.change_equipmenttype',
-      'inventory.delete_equipmenttype',
-      'inventory.view_equipmenttype',
-    ],
+    first_name: 'Shop',
+    last_name: 'Technician',
+    role: 'TECHNICIAN',
+    role_label: 'Technician',
   },
-  status: 'authenticated',
+  status: 'ready',
   error: '',
-  signIn: async () => {},
-  signOut: async () => {},
-  retry: () => {},
+  refresh: async () => {},
+  login: async () => {},
+  logout: async () => {},
 }
 
 export function withAuth(
   children: ReactNode,
-  value: AuthContextValue = technicianAuth,
+  value: AuthState = technicianAuth,
 ) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
