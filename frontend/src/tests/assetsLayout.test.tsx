@@ -32,6 +32,7 @@ function renderTable(props: Partial<Parameters<typeof AssetTable>[0]> = {}) {
       assets={[makeAsset()]}
       errorMessage=""
       isLoading={false}
+      hasActiveFilters={false}
       onSelectAsset={noop}
       selectedAssetId={null}
       {...props}
@@ -71,7 +72,10 @@ describe('AssetTable layout', () => {
   it('shows the empty, no-match, and error messages', () => {
     expect(renderTable({ assets: [] })).toContain('No active assets are available.')
     expect(renderTable({ assets: [], appliedSearch: 'X-1' })).toContain(
-      'No matching asset was found.',
+      'No assets match the current search and filters.',
+    )
+    expect(renderTable({ assets: [], hasActiveFilters: true })).toContain(
+      'No assets match the current search and filters.',
     )
     expect(renderTable({ assets: [], errorMessage: 'Could not connect' })).toContain(
       'The asset list could not be loaded.',
@@ -84,7 +88,7 @@ describe('AssetTable layout', () => {
 })
 
 describe('Assets page controls', () => {
-  it('shows a disabled Filters button next to the Asset ID search', () => {
+  it('shows enabled search and filters controls', () => {
     const html = renderToString(
       <AssetSearchToolbar
         assetIdentifier=""
@@ -92,11 +96,19 @@ describe('Assets page controls', () => {
         onAssetIdentifierChange={noop}
         onClear={noop}
         onSearch={noop}
+        categories={[{ category_id: 1, name: 'Tools' }]}
+        equipmentTypes={[]}
+        filters={{}}
+        isLoadingOptions={false}
+        filterError=""
+        onApplyFilters={noop}
+        onResetFilters={noop}
       />,
     )
 
     expect(html).toContain('Search asset ID or name...')
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*title="Filtering is not available yet"/)
+    expect(html).toMatch(/<button[^>]*aria-haspopup="dialog"/)
+    expect(html).not.toContain('Filtering is not available yet')
     expect(html).toContain('Filters')
   })
 

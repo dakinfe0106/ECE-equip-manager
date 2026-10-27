@@ -38,7 +38,7 @@ describe('Assets API client with mocked HTTP', () => {
         expect(data).toEqual({ count: 1, next: null, previous: null, results: [asset] });
     });
 
-    it('filters assets by a partial Asset ID and requests the selected page', async () => {
+    it('searches assets by text and requests the selected page', async () => {
         let requestedUrl = '';
         server.use(http.get(`${apiBaseUrl}/assets/`, ({ request }) => {
             requestedUrl = request.url;
@@ -48,8 +48,23 @@ describe('Assets API client with mocked HTTP', () => {
         const data = await fetchAssets(2, ' EMS-00 ');
 
         expect(new URL(requestedUrl).searchParams.get('page')).toBe('2');
-        expect(new URL(requestedUrl).searchParams.get('asset_identifier')).toBe('EMS-00');
+        expect(new URL(requestedUrl).searchParams.get('search')).toBe('EMS-00');
         expect(data.results).toEqual([asset]);
+    });
+
+    it('sends category and equipment type filters with the asset query', async () => {
+        let requestedUrl = '';
+        server.use(http.get(`${apiBaseUrl}/assets/`, ({ request }) => {
+            requestedUrl = request.url;
+            return HttpResponse.json({ count: 1, next: null, previous: null, results: [asset] });
+        }));
+
+        await fetchAssets(1, 'drill', { categoryId: 4, equipmentTypeId: 9 });
+
+        const params = new URL(requestedUrl).searchParams;
+        expect(params.get('search')).toBe('drill');
+        expect(params.get('category_id')).toBe('4');
+        expect(params.get('equipment_type_id')).toBe('9');
     });
 
     it('reports authorization failures from the backend', async () => {

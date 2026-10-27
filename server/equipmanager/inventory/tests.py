@@ -112,6 +112,112 @@ def test_full_asset_identifier_matches_one_result(
     assert response.data["results"][0]["asset_identifier"] == asset_record.asset_identifier
 
 
+def test_asset_list_search_matches_name_case_insensitively(
+    authenticated_client, asset_record
+):
+    response = authenticated_client.get("/api/assets/", {"search": "  CORDLESS DR  "})
+
+    assert response.status_code == 200
+    assert response.data["count"] == 1
+    assert response.data["results"][0]["asset_id"] == asset_record.asset_id
+
+
+def test_asset_list_search_matches_identifier_or_name(
+    authenticated_client, asset_record, inventory_type
+):
+    Asset.objects.create(
+        equipment_type=inventory_type,
+        asset_identifier="SHOP-010",
+        name="Circular saw",
+    )
+
+    by_identifier = authenticated_client.get("/api/assets/", {"search": "shop-010"})
+    by_name = authenticated_client.get("/api/assets/", {"search": "CIRCULAR"})
+
+    assert by_identifier.data["count"] == 1
+    assert by_identifier.data["results"][0]["asset_identifier"] == "SHOP-010"
+    assert by_name.data["count"] == 1
+    assert by_name.data["results"][0]["name"] == "Circular saw"
+
+
+def test_asset_list_combines_search_category_and_equipment_type_filters(
+    authenticated_client, asset_record, inventory_type
+):
+    other_category = Category.objects.create(name="Electronics")
+    other_type = EquipmentType.objects.create(
+        category=other_category,
+        name="Oscilloscope",
+    )
+    Asset.objects.create(
+        equipment_type=other_type,
+        asset_identifier="SHOP-002",
+        name="Cordless drill",
+    )
+
+    response = authenticated_client.get(
+        "/api/assets/",
+        {
+            "search": "cordless",
+            "category_id": inventory_type.category_id,
+            "equipment_type_id": inventory_type.type_id,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.data["count"] == 1
+    assert response.data["results"][0]["asset_id"] == asset_record.asset_id
+
+
+def test_asset_list_category_and_equipment_type_filters_work_independently(
+    authenticated_client, asset_record, inventory_type
+):
+    other_type = EquipmentType.objects.create(
+        category=inventory_type.category,
+        name="Hand tools",
+    )
+    other_asset = Asset.objects.create(
+        equipment_type=other_type,
+        asset_identifier="SHOP-002",
+        name="Hammer",
+    )
+
+    category_results = authenticated_client.get(
+        "/api/assets/",
+        {"category_id": inventory_type.category_id},
+    )
+    type_results = authenticated_client.get(
+        "/api/assets/",
+        {"equipment_type_id": other_type.type_id},
+    )
+    no_results = authenticated_client.get(
+        "/api/assets/",
+        {"equipment_type_id": 99999},
+    )
+
+    assert category_results.data["count"] == 2
+    assert {row["asset_id"] for row in category_results.data["results"]} == {
+        asset_record.asset_id,
+        other_asset.asset_id,
+    }
+    assert type_results.data["count"] == 1
+    assert type_results.data["results"][0]["asset_id"] == other_asset.asset_id
+    assert no_results.data["count"] == 0
+
+
+@pytest.mark.parametrize(
+    ("query", "field"),
+    [
+        ({"category_id": "not-an-id"}, "category_id"),
+        ({"equipment_type_id": "not-an-id"}, "equipment_type_id"),
+    ],
+)
+def test_asset_list_rejects_invalid_filter_ids(authenticated_client, query, field):
+    response = authenticated_client.get("/api/assets/", query)
+
+    assert response.status_code == 400
+    assert field in response.data
+
+
 @pytest.mark.parametrize("deleted_record", ["asset", "equipment_type", "category"])
 def test_asset_list_hides_soft_deleted_inventory(
     authenticated_client, asset_record, deleted_record
