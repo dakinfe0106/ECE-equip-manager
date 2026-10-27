@@ -7,9 +7,11 @@ describe('Application routes', () => {
   it('renders the Asset ID lookup page at the root', () => {
     const html = renderToString(<MemoryRouter initialEntries={['/']}><AppRoutes /></MemoryRouter>)
     expect(html).toContain('Assets')
-    expect(html).toContain('Search Asset IDs')
+    expect(html).toContain('Search asset ID or name')
+    expect(html).toContain('Include Archived')
     expect(html).toContain('Add Asset')
-    expect(html).toContain('Active Records')
+    expect(html).toContain('View by')
+    expect(html).toContain('Filters')
     expect(html).toContain('brand-name')
     expect(html).toContain('class="nav-icon"')
     expect(html).not.toContain('brand-mark')

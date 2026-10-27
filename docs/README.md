@@ -33,7 +33,9 @@ ECE-equip-manager/
 │   ├── Backend.md             # Backend code conventions and pending decisions
 │   ├── database.md            # Database schema and business rules
 │   ├── Frontend-Standards.md  # Frontend code conventions
-│   └── Quality.md             # Definition of Done and PO acceptance
+│   ├── UI-Design.md           # Approved UI design, routes, and design tokens
+│   ├── Quality.md             # Definition of Done and PO acceptance
+│   └── design/prototype/      # Figma Make prototype source (reference only)
 ├── .gitignore
 ├── AGENTS.md                  # Workflow rules for developers and coding agents
 └── README.md
@@ -469,9 +471,10 @@ All endpoints live under `/api/` and end with a trailing slash.
 | GET | `/api/categories/` | Authenticated. Lists active equipment categories for the asset form. |
 | GET | `/api/categories/summary/` | Authenticated. Lists categories for the Categories page, ordered by `category_id`, with `is_deleted` and `equipment_type_count`. Supports `search` (name contains) and `deleted` (`false` by default, `true`, or `all`). |
 | GET | `/api/categories/<id>/equipment-types/` | Authenticated. Lists a category's active equipment types, ordered by `type_id`, for the Categories page popup. Returns `404` for an unknown category. |
-| GET | `/api/equipment-types/?category_id=<id>` | Authenticated. Lists active equipment types for a category. |
-| GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search. |
+| GET | `/api/equipment-types/` | Authenticated. Lists equipment types whose category is active, ordered by `type_id`. Supports `category_id` and `deleted` (`false` by default, `true`, or `all`). |
+| GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search. `/api/assets/lookup/` is an alias. |
 | POST | `/api/assets/` | Authenticated. Creates an asset with an active `equipment_type_id`; status starts as `Available`. |
+| GET | `/api/assets/<asset_id>/` | Authenticated. Returns one asset. |
 | PATCH | `/api/assets/<asset_id>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
 
 The general asset edit endpoint keeps `asset_identifier`, `equipment_type`, and `status` read-only. Status transitions must use their corresponding loan, maintenance, retirement, or reactivation workflow so related records and state changes remain consistent.
