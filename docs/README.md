@@ -421,7 +421,7 @@ The frontend and backend run on different origins (`localhost:5173` and `localho
 
 1. Django is running and serving `/api/`.
 2. Django's CORS settings allow the frontend's origin, so the browser accepts the response.
-3. The frontend calls the right URL (`VITE_API_URL` plus `/health/`, defaulting to `http://localhost:8000/api/health/`).
+3. The frontend calls the right URL (`VITE_API_URL`, defaulting to `http://localhost:8000/api`).
 
 Check them in this order:
 
@@ -794,6 +794,7 @@ Both test runners must discover tests and pass. An empty suite fails CI, includi
 | [Backend.md](Backend.md) | Backend code conventions and pending decisions |
 | [database.md](database.md) | Database schema, constraints, business rules, and permission policy |
 | [Frontend-Standards.md](Frontend-Standards.md) | Frontend code conventions |
+| [UI-Design.md](UI-Design.md) | Approved UI design: pages and routes, design tokens, shared components, and design vs. data model differences. The prototype source is in [design/prototype/](design/prototype/) |
 | [Quality.md](Quality.md) | Splitting feature work, merge gates, Definition of Done, and PO acceptance |
 
 

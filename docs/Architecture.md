@@ -242,6 +242,7 @@ Additional planned business routes include:
 ```
 
 The final route structure can evolve with the application.
+The planned pages and routes follow the approved UI design. See the route map in [UI-Design.md](UI-Design.md#2-pages-and-routes).
 
 ### Frontend checks
 
