@@ -1,119 +1,121 @@
 # Frontend Development Standards
 
-This document outlines the setup, conventions, and standards for the React frontend of the ECE Equipment Management System (EMS).
+Code conventions for the React frontend of the ECE Equipment Management System (EMS). The goal is a simple, consistent codebase that every developer and coding agent extends the same way.
 
-Our goal is to keep the frontend simple, consistent, and easy for all team members to contribute to, while maintaining high code quality.
+Related documents:
 
----
-
-## 🛠️ Technology Stack
-
-- **Framework:** React with TypeScript
-- **Build Tool:** Vite
-- **Styling:** Tailwind CSS
-- **Routing:** React Router
-- **State Management:** React built-in (`useState`, `useContext`)
-- **Testing:** Vitest
-- **Linting & Formatting:** ESLint
-- **Runtime:** Node.js 24
-- **Package Manager:** npm
+- **UI design (pages, look, interactions): [UI-Design.md](UI-Design.md)**
+- Setup, environment variables, and running the full app: [README.md](README.md#frontend-setup)
+- Workflow, required checks, and Git: [AGENTS.md](../AGENTS.md)
+- Available API endpoints: [README.md](README.md#api)
+- Business rules and permissions: [database.md](database.md)
+- Definition of Done: [Quality.md](Quality.md)
 
 ---
 
-## 🚀 Local Setup & Running
+## 1. Technology stack
 
-Follow these steps to get the frontend running on your local machine:
+- **React 19** with **TypeScript**, built with **Vite**
+- **Tailwind CSS v4** through `@tailwindcss/vite`. There is no `tailwind.config.js`; theme tokens go in the `@theme` block in `src/index.css`.
+- **React Router 8**. Import from `react-router`, not `react-router-dom`.
+- **State:** React built-ins (`useState`, `useContext`)
+- **Testing:** Vitest, with MSW for mocked HTTP
+- **Linting:** ESLint. No formatter is configured; match the surrounding code.
+- **Runtime:** Node.js 24, npm
 
-1. **Verify Prerequisites:** Ensure you have Node.js 24 and npm installed.
-   ```bash
-   node --version  # Should be v24.x.x
-   npm --version
-   ```
+Do not add dependencies (state libraries, UI kits, data-fetching libraries, testing libraries) without team agreement.
 
-2. **Navigate to Frontend Directory:** From the root of the monorepo, move into the frontend folder:
-   ```bash
-   cd frontend
-   ```
-
-3. **Install Dependencies:** Always use `npm ci` to respect the exact versions in the lockfile and ensure consistency across the team.
-   ```bash
-   npm ci
-   ```
-
-4. **Start the Development Server:**
-   ```bash
-   npm run dev
-   ```
-
-The application will be available at `http://localhost:5173`. It supports Hot Module Replacement (HMR), so your changes will reflect instantly.
-
-## ✅ Quality Checks (Run Before Pushing)
-To ensure your Pull Request passes the GitHub Actions CI pipeline, you must run these checks locally before pushing your code:
+Before pushing, run from `frontend/`:
 
 ```bash
-    npm run lint        # Checks for ESLint rule violations
-    npm test -- --run   # Runs Vitest unit tests once (plain `npm test` starts watch mode and does not exit)
-    npm run build       # Type-checks with TypeScript (tsc -b) and builds the app for production
+npm run lint
+npm test -- --run   # plain `npm test` starts watch mode
+npm run build       # also type-checks
 ```
-*Tip: If a check fails, read the error message carefully. It will usually tell you the exact file and line number to fix.*
 
-# 🏗️ Architecture & Coding Conventions
+## 2. Folder layout
 
-**1. API Communication**
-
-- The frontend does not connect directly to PostgreSQL.
-
-- All data must be fetched from the Django backend via the REST API.
-
-- API endpoints should use the `/api/` base path (e.g., `GET /api/equipment-types/`).
-
-- Use standard HTTP methods: `GET` (retrieve), `POST` (create), `PATCH` (partial update), `DELETE` (soft delete). Note: Historical records like Loans and Maintenance do not support DELETE endpoints.
-
-**2. State Management**
-
-- Use React's built-in `useState` for local component state.
-- Use `useContext` for sharing simple global state (like current user authentication status).
-- *Do not* introduce external state management libraries (like Redux or Zustand) unless explicitly agreed upon by the team for a complex, justified use case. The Django backend remains the single source of truth for all EMS data.
-
-**3. Styling (Tailwind CSS)**
-
-- Use Tailwind CSS utility classes for all styling.
-- Create reusable UI components in a `components/` directory only when the exact same pattern appears repeatedly (e.g., a custom `Button` or `DataTable`).
-- Avoid creating unnecessary abstractions for very small, one-off pieces of UI.
-
-**4. Routing**
-
-- React Router manages all frontend navigation.
-- Use clear, pluralized, and lowercase paths (e.g., `/equipment`, `/equipment/:id`, `/borrowers`, `/maintenance`).
-
-**Testing**
-
-- Write unit tests for reusable components and custom hooks using Vitest.
-- Mock backend API responses during testing (e.g., using MSW - Mock Service Worker) so tests remain fast and isolated from the Django server.
-
-# 🌿 Git & Collaboration Workflow
-
-**1. Branching:** Never work directly on `main`. Always create a short-lived feature branch from the latest `main`:
-
- ```bash
-    git switch main
-    git pull origin main
-    git switch -c feature/your-feature-name
+```text
+src/
+├── api.ts              # Shared: apiBaseUrl, getCsrfToken()
+├── App.tsx             # Layout shell: Sidebar + <Outlet />
+├── AppRoutes.tsx       # All routes
+├── components/
+│   ├── layout/         # App shell: Sidebar, Header
+│   └── ui/             # Shared design components (UI-Design.md §4)
+├── pages/              # One component per route; composes feature components
+├── features/<name>/
+│   ├── api.ts          # Types and fetch functions for this resource
+│   ├── hooks/          # Data-loading hooks
+│   └── components/     # UI used by this feature
+└── tests/              # Component and routing tests
+    └── integration/    # API-client tests with MSW
 ```
-**2. Committing:** Make small, logical commits with clear messages (e.g., `Add equipment type list view`).
 
-**3. Pull Requests:**
+- Pages do not call `fetch` directly. Put requests in `features/<name>/api.ts`.
+- Move a component to `components/` only when a second feature needs it.
 
-- Open a PR into `main`     .
-- The PR description must explain: What changed, Why it changed, and How it was tested.
-- Ensure all CI checks (ESLint, Vitest, Build) pass before requesting a review.
+## 3. Calling the API
 
-**4. Merging:** Use *squash merge* to keep the `main` branch history clean and readable. Delete the feature branch after merging.
+The frontend talks only to the Django REST API, never to the database. Use the endpoints listed in [README.md](README.md#api). If one you need does not exist, it is backend work: raise it in the plan instead of inventing a URL.
 
-# 🆘 Troubleshooting & Common Issues
+Follow the pattern in `features/assets/api.ts`:
 
-- **`npm ci` fails:** Check your internet connection and ensure you are using the correct Node.js version (v24). You can check your npm registry with `npm config get registry`.
-- **CI Pipeline fails on linting:** Run `npm run lint` locally. ESLint will often provide an auto-fix command (e.g., `npm run lint -- --fix`).
-- **API returns 403:** The request has no logged-in Django session, or the user lacks the permission. This project is configured for session authentication (cookies) only; token authentication is not enabled. See `docs/Backend.md` section 6.
+- Build URLs from `apiBaseUrl` (set by `VITE_API_URL`). Never hard-code the host.
+- Send `credentials: 'include'` on every request to a protected endpoint, so the Django session cookie is sent.
+- On `POST`, `PATCH`, and `DELETE`, send the `X-CSRFToken` header from `getCsrfToken()`.
+- Type every request and response. Keep the backend's field names (`asset_id`, `acquisition_date`). Do not use `any`.
+- Paginated lists return `{ count, next, previous, results }`.
+- On failure, throw a typed error that carries the HTTP status (see `AssetLookupError` and `CategoryRequestError`).
+- Error responses use DRF's shapes:
+  - `400`: `{ "<field>": ["message"] }`. Show the message next to the field.
+  - `403`: not logged in, or no permission. Tell the user to sign in or ask for access.
+  - Other errors: `{ "detail": "message" }`.
+- `DELETE` is a soft delete. Loans and maintenance records have no `DELETE`. Restoring uses `POST <resource>/<id>/restore/` (proposed in [Backend.md](Backend.md#5-soft-deletion)).
 
-*For backend setup instructions and API endpoint definitions, please refer to `docs/README.md` and `docs/Architecture.md`. For database schema details, see `docs/database.md`.*
+## 4. State and data loading
+
+- Use `useState` for local state and `useContext` only for genuinely global state, such as the current user once login exists.
+- The backend is the source of truth. After a write, use the record the API returns instead of patching state from guesses.
+- For simple reads, reuse `useApiData` (`features/categories/hooks/useApiData.ts`). It cancels stale requests. If another feature uses it, move it to `src/hooks/` in that change.
+- Every view that loads data handles **loading, empty, error, and success** states.
+
+## 5. Styling
+
+- Follow [UI-Design.md](UI-Design.md) for the look and behavior of every screen.
+- Style with Tailwind utility classes in the component, using the design tokens from [UI-Design.md §3](UI-Design.md#3-design-tokens) (`bg-primary`, `text-muted`). Do not repeat raw values like `text-[#1f2b3e]`; add a token instead.
+- Do not add new `.css` files or copy the prototype's `index.css`. `index.css` holds the base styles and theme; `App.css` holds the old shell styles until the shell is moved to the design.
+- Build repeated pieces (buttons, badges, modals, tables) once in `components/ui/` and reuse them.
+- Use semantic elements (`button`, `label`, `table`) and keep interactions keyboard-accessible.
+
+## 6. Routing
+
+- Add routes in `src/AppRoutes.tsx` inside the `<App />` layout route, and add a sidebar entry in `components/layout/Sidebar.tsx`.
+- Use `Link` or `NavLink` for internal navigation.
+- Use the route map in [UI-Design.md §2](UI-Design.md#2-pages-and-routes). Paths are lowercase and kebab-case. Do not invent other top-level routes.
+- Create and detail screens are modals on the list page, not separate routes. Put filters in query parameters (`/loans?status=Overdue`).
+- Do not add `/equipment` routes. Naming `assets` vs `equipment` is a [pending decision](Backend.md#9-pending-decisions); follow the existing `assets` paths.
+
+## 7. Product rules the UI must reflect
+
+These come from the Project Overview and [database.md](database.md#4-operating-rules). The backend enforces them; the UI must not contradict them.
+
+- **Permissions:** Technicians manage records; Faculty may only view inventory and analytics; Administrators also manage users ([database.md §5](database.md#5-permissions-scope)). Hide or disable controls a user cannot use, but never rely on that for security.
+- **Recoverable deletes:** every delete can be undone. The UI calls this **Archive** and **Restore** ([UI-Design.md §6](UI-Design.md#6-labels-and-badges)). Where a resource supports archiving, also provide a way to view archived records and restore them.
+- **Consistent naming:** names are trimmed and unique ignoring case. Trim input before sending, show the backend's duplicate error, and optionally warn early (see `findDuplicateCategory`).
+- **Asset status:** values are exactly `Available`, `On_Loan`, `Under_Maintenance`, `Retired`; show them with the labels in [UI-Design.md §6](UI-Design.md#6-labels-and-badges). Status changes only through workflows (checkout, return, maintenance, retirement). Never offer a status field on an edit form.
+- **Dates:** loan and maintenance fields are dates (`YYYY-MM-DD`), not timestamps.
+- **Login:** there is no login page yet ([Backend.md §6](Backend.md#6-authentication-endpoints)). To use protected pages locally, log in at `/admin/` on the same host ([README.md](README.md#trying-a-protected-endpoint)).
+
+## 8. Testing
+
+- **API clients:** test with MSW in `tests/integration/`, using `onUnhandledRequest: 'error'`. Cover success, `400`, and `403`. These tests use mocked responses; they do not prove the real backend works ([Quality.md](Quality.md#verification-evidence-and-handoff)).
+- **Components and routes:** React Testing Library is not installed. Render with `renderToString` from `react-dom/server` (wrapped in `MemoryRouter` for routes) and assert on the HTML, as in `tests/routing.test.tsx`.
+- Add a routing test for each new route.
+
+## 9. Troubleshooting
+
+- **API returns 403:** no logged-in Django session, or the user lacks permission. Only session authentication is enabled. See [Backend.md §6](Backend.md#6-authentication-endpoints).
+- **Blocked by CORS:** see [README.md](README.md#verify-the-frontend-is-connected-to-the-backend).
+- **`npm ci` fails:** check the Node.js version (v24) and `npm config get registry`.
+- **Lint fails:** `npm run lint -- --fix` fixes many issues automatically.

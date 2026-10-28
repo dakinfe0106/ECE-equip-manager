@@ -202,7 +202,7 @@ The frontend uses:
 - ESLint
 - Vitest
 
-Tailwind CSS is configured through `@tailwindcss/vite` and `frontend/src/index.css`. React Router uses declarative routing with `BrowserRouter` and `frontend/src/AppRoutes.tsx`. The initial `/` route shows the health-check page; unknown paths show a fallback page.
+Tailwind CSS is configured through `@tailwindcss/vite` and `frontend/src/index.css`. React Router uses declarative routing with `BrowserRouter` and `frontend/src/AppRoutes.tsx`. `/login` is public and outside the sidebar layout. `/` and `/assets` show the assets page; `/assets/new`, `/categories`, and `/equipment-types` are also implemented. Application pages require a session; unknown paths show a fallback page.
 
 Frontend code conventions are in [Frontend-Standards.md](Frontend-Standards.md).
 
@@ -231,13 +231,10 @@ Reusable UI components should be created when the same pattern appears repeatedl
 
 React Router manages frontend navigation. Add routes in `frontend/src/AppRoutes.tsx` and use `Link` or `NavLink` for internal navigation. The frontend host must serve `index.html` for client-side routes on direct requests; API requests must still reach Django.
 
-Future business routes may include (these are not implemented yet):
+Additional planned business routes include:
 
 ```text
-/login
 /dashboard
-/equipment
-/equipment/:id
 /borrowers
 /loans
 /maintenance
@@ -245,6 +242,7 @@ Future business routes may include (these are not implemented yet):
 ```
 
 The final route structure can evolve with the application.
+The planned pages and routes follow the approved UI design. See the route map in [UI-Design.md](UI-Design.md#2-pages-and-routes).
 
 ### Frontend checks
 
@@ -429,7 +427,7 @@ POST /api/equipment/
 
 ```json
 {
-  "serial_number": "OSC-001"
+  "asset_identifier": "OSC-001"
 }
 ```
 
@@ -494,6 +492,12 @@ These should be introduced when the relevant feature needs them rather than buil
 The application will initially use application-managed authentication through Django.
 
 Django session-based authentication will be used initially.
+
+The `users` app implements `/api/auth/csrf/`, `/api/auth/login/`, `/api/auth/logout/`, and `/api/auth/me/`. Credentials are checked by Django and sessions use its cookies. The frontend stores neither passwords nor authentication tokens in browser storage. Login and logout are CSRF-protected, including anonymous requests; the frontend refreshes its CSRF token after login.
+
+React's `AuthProvider` checks the current user on startup and shares session state. `RequireAuth` holds protected routes behind the session check, redirects anonymous visitors to `/login`, and preserves an internal return destination. Successful login returns to that destination or `/assets`; signed-in visitors to `/login` are redirected into the application. Session-check failures offer retry rather than assuming the visitor is signed out.
+
+The login and current-user responses include read-only `role` (the stored uppercase value) and `role_label` (its display label). The sidebar shows the current user's name or username, initials, and backend-provided role label, and ends the server session on sign-out. Roles are assigned in Django admin; role labels do not grant Django permissions or staff/superuser access. API `403` responses trigger a background session check: expired sessions return to login, while permission failures retain their page feedback. Failed writes are never automatically replayed. Route protection supports the user experience; Django remains responsible for enforcing API access.
 
 Conceptually:
 

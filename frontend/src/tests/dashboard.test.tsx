@@ -1,7 +1,7 @@
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import AppRoutes from '../AppRoutes'
+import AppRoutes from './authTestHelpers'
 import {
     DashboardLookupError,
     fetchDashboardSummary,
