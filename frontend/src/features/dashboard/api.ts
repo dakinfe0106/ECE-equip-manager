@@ -1,4 +1,5 @@
 import { apiBaseUrl } from '../../api'
+import { sessionFetch } from '../auth/sessionFetch'
 
 export interface DashboardSummary {
   total_assets: number
@@ -18,7 +19,7 @@ export class DashboardLookupError extends Error {
 }
 
 export async function fetchDashboardSummary(): Promise<DashboardSummary> {
-  const response = await fetch(`${apiBaseUrl}/dashboard/`, {
+  const response = await sessionFetch(`${apiBaseUrl}/dashboard/`, {
     credentials: 'include',
   })
 

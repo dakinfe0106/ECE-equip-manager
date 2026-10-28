@@ -153,22 +153,32 @@ describe('Login and session flow', () => {
     expect(screen.getByText('Test Technician')).toBeTruthy()
   })
 
-  it('defaults to assets after login and restores an existing session', async () => {
+  it('defaults to the dashboard after login and restores an existing session', async () => {
     renderApp()
     const keyboard = await fillLogin()
     await keyboard.click(screen.getByRole('button', { name: 'Sign in' }))
-    expect(await screen.findByRole('heading', { name: 'Assets' })).toBeTruthy()
-    expect(screen.getByLabelText('Current URL').textContent).toBe('/assets')
+
+    expect(
+      await screen.findByRole('heading', { name: 'Equipment operations' }),
+    ).toBeTruthy()
+    expect(screen.getByLabelText('Current URL').textContent).toBe('/')
+
     cleanup()
-    renderApp('/assets')
-    expect(await screen.findByRole('heading', { name: 'Assets' })).toBeTruthy()
+
+    renderApp('/')
+    expect(
+      await screen.findByRole('heading', { name: 'Equipment operations' }),
+    ).toBeTruthy()
     expect(loginRequests).toBe(1)
   })
 
   it('redirects signed-in visitors away from login', async () => {
     signedIn = true
     renderApp()
-    expect(await screen.findByRole('heading', { name: 'Assets' })).toBeTruthy()
+
+    expect(
+      await screen.findByRole('heading', { name: 'Equipment operations' }),
+    ).toBeTruthy()
     expect(loginRequests).toBe(0)
   })
 
@@ -180,7 +190,9 @@ describe('Login and session flow', () => {
     await keyboard.clear(screen.getByLabelText('Password'))
     await keyboard.type(screen.getByLabelText('Password'), ' password ')
     await keyboard.click(screen.getByRole('button', { name: 'Sign in' }))
-    expect(await screen.findByRole('heading', { name: 'Assets' })).toBeTruthy()
+    expect(
+      await screen.findByRole('heading', { name: 'Equipment operations' }),
+    ).toBeTruthy()
   })
 
   it('shows a pending state and prevents duplicate submissions', async () => {
@@ -280,7 +292,7 @@ describe('Login and session flow', () => {
 
 describe('Return destination validation', () => {
   it.each(['https://example.com', '//example.com', '/\\example.com', '/login', '/login/', '/a/../login', '/\n/example.com'])('rejects %s', (path) => {
-    expect(safeReturnPath(path)).toBe('/assets')
+    expect(safeReturnPath(path)).toBe('/')
   })
   it('preserves internal paths, query strings and fragments', () => {
     expect(safeReturnPath('/assets?page=2#row')).toBe('/assets?page=2#row')
