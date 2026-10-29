@@ -29,6 +29,11 @@ let requested: URLSearchParams[] = []
 
 // Pages and searches like the backend: ordered by asset_id, 20 per page.
 const server = setupServer(
+  http.get(`${apiBaseUrl}/categories/`, () => HttpResponse.json([tools, meters])),
+  http.get(`${apiBaseUrl}/equipment-types/`, () => HttpResponse.json([
+    { ...drills, category_id: tools.category_id },
+    { ...multimeters, category_id: meters.category_id },
+  ])),
   http.get(`${apiBaseUrl}/assets/`, ({ request }) => {
     const params = new URL(request.url).searchParams
     requested.push(params)
