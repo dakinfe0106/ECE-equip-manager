@@ -1,5 +1,6 @@
-import { Navigate, Outlet, useLocation } from 'react-router'
+import { Navigate, Outlet } from 'react-router'
 import { hasPermission } from './api'
+import type { CurrentUser } from './api'
 import { useAuth } from './useAuth'
 
 export function SessionStatus() {
@@ -16,14 +17,13 @@ export function SessionStatus() {
   )
 }
 
-export default function RequireAuth({ permission }: { permission?: string }) {
+export default function RequireAuth({ permission, roles }: { permission?: string; roles?: readonly CurrentUser['role'][] }) {
   const { user, status } = useAuth()
-  const location = useLocation()
   if (status !== 'ready') return <SessionStatus />
   if (!user) {
-    return <Navigate to="/login" replace state={{ from: location.pathname + location.search + location.hash }} />
+    return <Navigate to="/login" replace />
   }
-  if (permission && !hasPermission(user, permission)) {
+  if ((permission && !hasPermission(user, permission)) || (roles && !roles.includes(user.role))) {
     return (
       <main className="p-6" role="alert">
         <h1>Access denied</h1>
