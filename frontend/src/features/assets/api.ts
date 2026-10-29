@@ -144,7 +144,7 @@ export async function fetchAssets(page = 1, assetIdentifier = ''): Promise<Pagin
     credentials: 'include',
   })
   if (!response.ok) {
-    throw new AssetLookupError(response.status)
+    throw await responseError(response, 'Asset lookup')
   }
   return response.json()
 }

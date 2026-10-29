@@ -68,14 +68,18 @@ describe('AssetTable layout', () => {
     }
   })
 
-  it('shows the empty, no-match, and error messages', () => {
+  it('shows the empty and no-match messages', () => {
     expect(renderTable({ assets: [] })).toContain('No active assets are available.')
     expect(renderTable({ assets: [], appliedSearch: 'X-1' })).toContain(
       'No matching asset was found.',
     )
-    expect(renderTable({ assets: [], errorMessage: 'Could not connect' })).toContain(
-      'The asset list could not be loaded.',
-    )
+  })
+
+  it('leaves the error to the page instead of showing an empty message', () => {
+    const html = renderTable({ assets: [], errorMessage: 'Could not connect' })
+
+    expect(html).not.toContain('No active assets')
+    expect(html).not.toContain('could not be loaded')
   })
 
   it('does not show the empty message while loading', () => {
