@@ -29,22 +29,23 @@ describe('AssetDetails modal', () => {
       <AssetDetails asset={makeAsset()} onAssetUpdated={noop} onClose={noop} />,
     )
 
-    // Verify core identity fields
     expect(html).toContain('<dialog')
     expect(html).toContain('aria-labelledby="details-title"')
     expect(html).toContain('ECE-OSC-001')
     expect(html).toContain('Rigol DS1054Z')
     
-    // Verify the new editable form structure exists
-    expect(html).toContain('Category *')
-    expect(html).toContain('Equipment Type *')
+    // Verify read-only fields (since backend doesn't support editing them yet)
+    expect(html).toContain('Category · Read only')
+    expect(html).toContain('Test &amp; Measurement')
+    expect(html).toContain('Equipment Type · Read only')
+    expect(html).toContain('Oscilloscope')
+    
     expect(html).toContain('Acquisition Date')
-    expect(html).toContain('type="date"')
     expect(html).toContain('2022-09-01')
     
-    // Verify status badge rendering using the new Tailwind classes
-    expect(html).toContain('bg-yellow-100') 
-    expect(html).toContain('On Loan')       
+    // Verify status badge rendering
+    expect(html).toContain('bg-yellow-100')
+    expect(html).toContain('On Loan')
     
     // Verify edit mode controls
     expect(html).toContain('Asset Name *')
@@ -95,10 +96,9 @@ describe('AssetDetails modal', () => {
     )
 
     expect(html).toContain('Required Certifications')
-    // Verify it doesn't show the old "None required" text
-    expect(html).not.toContain('None required')
-    // Verify the input exists but is empty
-    expect(html).toContain('placeholder="e.g., Lab Safety, Electrical Safety"')
+    // Verify it shows "None" in the read-only input instead of a placeholder
+    expect(html).toContain('value="None"')
+    expect(html).toContain('readOnly=""')
   })
 
   it('hides the certifications row until the API provides it', () => {
