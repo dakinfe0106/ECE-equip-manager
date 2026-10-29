@@ -3,7 +3,7 @@ import { AssetLookupError, fetchAssets, type AssetRecord } from '../api'
 
 const pageSize = 20
 
-function getErrorMessage(error: unknown): string {
+export function getErrorMessage(error: unknown): string {
   if (error instanceof AssetLookupError) {
     return error.status === 403
       ? 'Your account does not have permission to view assets.'

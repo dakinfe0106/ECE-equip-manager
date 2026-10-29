@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { setupServer } from 'msw/node';
 import { http, HttpResponse } from 'msw';
 import { apiBaseUrl } from '../../api';
-import { fetchAssets } from '../../features/assets/api';
+import { fetchAllAssets, fetchAssets } from '../../features/assets/api';
 
 const asset = {
     asset_id: 1,
@@ -82,5 +82,56 @@ describe('Assets API client with mocked HTTP', () => {
         server.use(http.get(`${apiBaseUrl}/assets/`, () => HttpResponse.error()));
 
         await expect(fetchAssets()).rejects.toBeInstanceOf(TypeError);
+    });
+});
+
+describe('fetchAllAssets with mocked HTTP', () => {
+    const assets = Array.from({ length: 45 }, (_, index) => ({
+        ...asset,
+        asset_id: index + 1,
+        asset_identifier: `SHOP-${index + 1}`,
+    }));
+
+    it('requests every page with the same search and returns all assets in order', async () => {
+        const requested: URLSearchParams[] = [];
+        server.use(http.get(`${apiBaseUrl}/assets/`, ({ request }) => {
+            const params = new URL(request.url).searchParams;
+            requested.push(params);
+            const page = Number(params.get('page'));
+            return HttpResponse.json({
+                count: assets.length,
+                next: null,
+                previous: null,
+                results: assets.slice((page - 1) * 20, page * 20),
+            });
+        }));
+
+        const results = await fetchAllAssets('SHOP');
+
+        expect(requested.map((params) => params.get('page')).sort()).toEqual(['1', '2', '3']);
+        expect(requested.every((params) => params.get('asset_identifier') === 'SHOP')).toBe(true);
+        expect(results.map((result) => result.asset_id)).toEqual(assets.map((item) => item.asset_id));
+    });
+
+    it('makes one request when everything fits on the first page', async () => {
+        let requests = 0;
+        server.use(http.get(`${apiBaseUrl}/assets/`, () => {
+            requests += 1;
+            return HttpResponse.json({ count: 1, next: null, previous: null, results: [asset] });
+        }));
+
+        expect(await fetchAllAssets()).toEqual([asset]);
+        expect(requests).toBe(1);
+    });
+
+    it('fails if any page fails', async () => {
+        server.use(http.get(`${apiBaseUrl}/assets/`, ({ request }) => {
+            const page = new URL(request.url).searchParams.get('page');
+            return page === '2'
+                ? HttpResponse.json({ detail: 'Page failed.' }, { status: 500 })
+                : HttpResponse.json({ count: 45, next: null, previous: null, results: assets.slice(0, 20) });
+        }));
+
+        await expect(fetchAllAssets()).rejects.toMatchObject({ status: 500, message: 'Page failed.' });
     });
 });

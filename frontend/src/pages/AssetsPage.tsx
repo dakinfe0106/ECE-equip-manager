@@ -9,42 +9,60 @@ import AssetTable from '../features/assets/components/AssetTable'
 import AssetViewBy from '../features/assets/components/AssetViewBy'
 import AddAssetAction from '../features/assets/components/AddAssetAction'
 import AssetDetails from '../features/assets/components/AssetDetails'
+import type { AssetRecord } from '../features/assets/api'
+import { groupAssets, type AssetView } from '../features/assets/groupAssets'
+import useAllAssets from '../features/assets/hooks/useAllAssets'
 import useAssets from '../features/assets/hooks/useAssets'
+
+const groupNames = { category: ['category', 'categories'], type: ['equipment type', 'equipment types'] }
 
 export default function AssetsPage() {
   const [assetIdentifier, setAssetIdentifier] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [selectedAssetId, setSelectedAssetId] = useState<number | null>(null)
-  const {
-    assets,
-    currentPage,
-    errorMessage,
-    isLoading,
-    loadAssets,
-    pageCount,
-    pageSize,
-    replaceAsset,
-    retry,
-    totalCount,
-  } = useAssets()
-  const selectedAsset = assets.find((asset) => asset.asset_id === selectedAssetId)
+  const [view, setView] = useState<AssetView>('list')
+  const list = useAssets()
+  // The Category and Equipment Type views load every matching asset, not one page.
+  const all = useAllAssets()
+  const shown = view === 'list' ? list : all
+  const groups = view === 'list' ? undefined : groupAssets(all.assets, view)
+  const selectedAsset = shown.assets.find((asset) => asset.asset_id === selectedAssetId)
 
-  const loadPage = (page: number, search = appliedSearch) => {
+  const load = (page: number, search: string, nextView = view) => {
     setSelectedAssetId(null)
-    void loadAssets(page, search)
+    if (nextView === 'list') {
+      void list.loadAssets(page, search)
+    } else {
+      void all.loadAllAssets(search)
+    }
+  }
+
+  const changeView = (nextView: AssetView) => {
+    // Category and Equipment Type group the same assets, so switching between them needs no request.
+    if (nextView === view || (nextView !== 'list' && view !== 'list')) {
+      setView(nextView)
+      return
+    }
+    setView(nextView)
+    load(1, appliedSearch, nextView)
   }
 
   const searchAssets = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const trimmedIdentifier = assetIdentifier.trim()
     setAppliedSearch(trimmedIdentifier)
-    loadPage(1, trimmedIdentifier)
+    load(1, trimmedIdentifier)
   }
 
   const clearSearch = () => {
     setAssetIdentifier('')
     setAppliedSearch('')
-    loadPage(1, '')
+    load(1, '')
+  }
+
+  const replaceAsset = (updatedAsset: AssetRecord) => {
+    list.replaceAsset(updatedAsset)
+    all.replaceAsset(updatedAsset)
   }
 
   return (
@@ -57,7 +75,7 @@ export default function AssetsPage() {
         description="Manage inventory and view equipment by category or equipment type."
         actions={
           <>
-            <AssetViewBy />
+            <AssetViewBy value={view} onChange={changeView} />
             <AddAssetAction />
           </>
         }
@@ -67,23 +85,23 @@ export default function AssetsPage() {
         <AssetArchiveToggle />
         <AssetSearchToolbar
           assetIdentifier={assetIdentifier}
-          isLoading={isLoading}
+          isLoading={shown.isLoading}
           onAssetIdentifierChange={setAssetIdentifier}
           onClear={clearSearch}
           onSearch={searchAssets}
         />
 
-        {errorMessage && (
+        {shown.errorMessage && (
           <AssetLoadError
-            isLoading={isLoading}
-            message={errorMessage}
+            isLoading={shown.isLoading}
+            message={shown.errorMessage}
             onRetry={() => {
               setSelectedAssetId(null)
-              void retry()
+              void shown.retry()
             }}
           />
         )}
-        {isLoading && (
+        {shown.isLoading && (
           <p
             className="mx-[17px] mt-[13px] mb-0 rounded-lg border border-primary/20 bg-primary-soft px-[11px] py-[9px] text-[11px] text-primary"
             role="status"
@@ -94,20 +112,31 @@ export default function AssetsPage() {
 
         <AssetTable
           appliedSearch={appliedSearch}
-          assets={assets}
-          errorMessage={errorMessage}
-          isLoading={isLoading}
+          assets={shown.assets}
+          errorMessage={shown.errorMessage}
+          groups={groups}
+          isLoading={shown.isLoading}
           onSelectAsset={setSelectedAssetId}
           selectedAssetId={selectedAssetId}
         />
-        <AssetPagination
-          currentPage={currentPage}
-          isLoading={isLoading}
-          onPageChange={(page) => loadPage(page)}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          totalCount={totalCount}
-        />
+        {view === 'list' ? (
+          <AssetPagination
+            currentPage={list.currentPage}
+            isLoading={list.isLoading}
+            onPageChange={(page) => load(page, appliedSearch)}
+            pageCount={list.pageCount}
+            pageSize={list.pageSize}
+            totalCount={list.totalCount}
+          />
+        ) : (
+          <p className="m-0 flex min-h-[54px] items-center border-t border-divider px-[17px] text-[10px] text-muted">
+            {all.assets.length === 0
+              ? 'No assets'
+              : `Showing ${all.assets.length} ${all.assets.length === 1 ? 'asset' : 'assets'} in ${groups?.length} ${
+                  groupNames[view][groups?.length === 1 ? 0 : 1]
+                }`}
+          </p>
+        )}
       </Panel>
       {selectedAsset && (
         <AssetDetails
