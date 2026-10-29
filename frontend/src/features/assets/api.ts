@@ -59,6 +59,11 @@ export interface AssetCreation {
   acquisition_date: string | null
 }
 
+export interface AssetFilters {
+  categoryId?: number | null
+  equipmentTypeId?: number | null
+}
+
 export class AssetLookupError extends Error {
   readonly status: number
 
@@ -100,9 +105,14 @@ export function fetchCategories(): Promise<CategoryOption[]> {
   return fetchJson(`${apiBaseUrl}/categories/`, 'Category lookup')
 }
 
-export function fetchEquipmentTypes(categoryId: number): Promise<EquipmentTypeOption[]> {
-  const params = new URLSearchParams({ category_id: categoryId.toString() })
-  return fetchJson(`${apiBaseUrl}/equipment-types/?${params}`, 'Equipment type lookup')
+export function fetchEquipmentTypes(categoryId?: number): Promise<EquipmentTypeOption[]> {
+  const params = new URLSearchParams()
+  if (categoryId !== undefined) {
+    params.set('category_id', categoryId.toString())
+  }
+  const queryString = params.toString()
+  const query = queryString ? `?${queryString}` : ''
+  return fetchJson(`${apiBaseUrl}/equipment-types/${query}`, 'Equipment type lookup')
 }
 
 function getCsrfToken(): string | undefined {
@@ -134,11 +144,21 @@ export async function createAsset(asset: AssetCreation): Promise<AssetRecord> {
   return response.json()
 }
 
-export async function fetchAssets(page = 1, assetIdentifier = ''): Promise<PaginatedAssets> {
+export async function fetchAssets(
+  page = 1,
+  search = '',
+  filters: AssetFilters = {},
+): Promise<PaginatedAssets> {
   const params = new URLSearchParams({ page: page.toString() })
-  const trimmedIdentifier = assetIdentifier.trim()
-  if (trimmedIdentifier) {
-    params.set('asset_identifier', trimmedIdentifier)
+  const trimmedSearch = search.trim()
+  if (trimmedSearch) {
+    params.set('search', trimmedSearch)
+  }
+  if (filters.categoryId) {
+    params.set('category_id', filters.categoryId.toString())
+  }
+  if (filters.equipmentTypeId) {
+    params.set('equipment_type_id', filters.equipmentTypeId.toString())
   }
   const response = await sessionFetch(`${apiBaseUrl}/assets/?${params}`, {
     credentials: 'include',
