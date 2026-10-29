@@ -144,6 +144,33 @@ export async function createAsset(asset: AssetCreation): Promise<AssetRecord> {
   return response.json()
 }
 
+async function postJson<T>(path: string, body: unknown, action: string): Promise<T> {
+  const headers = new Headers({ 'Content-Type': 'application/json' })
+  const csrfToken = getCsrfToken()
+  if (csrfToken) {
+    headers.set('X-CSRFToken', decodeURIComponent(csrfToken))
+  }
+
+  const response = await sessionFetch(`${apiBaseUrl}${path}`, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    throw await responseError(response, action)
+  }
+  return response.json()
+}
+
+export function createCategory(name: string): Promise<CategoryOption> {
+  return postJson('/categories/', { name }, 'Category creation')
+}
+
+export function createEquipmentType(name: string, categoryId: number): Promise<EquipmentTypeOption> {
+  return postJson('/equipment-types/', { name, category_id: categoryId }, 'Equipment type creation')
+}
+
 export async function fetchAssets(
   page = 1,
   search = '',

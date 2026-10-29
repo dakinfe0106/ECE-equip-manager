@@ -68,7 +68,7 @@ export default function AddAssetModal({ onClose, onCreated }: AddAssetModalProps
     >
       <div
         ref={dialogRef}
-        className="w-full max-w-[760px] rounded-xl border border-line bg-white p-6 shadow-2xl max-[600px]:p-4"
+        className="w-full max-w-[600px] overflow-hidden rounded-[13px] bg-white shadow-[0_24px_70px_rgb(10_20_35_/_25%)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-asset-title"

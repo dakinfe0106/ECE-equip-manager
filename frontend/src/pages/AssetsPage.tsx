@@ -25,6 +25,8 @@ export default function AssetsPage() {
   const [equipmentTypes, setEquipmentTypes] = useState<EquipmentTypeOption[]>([])
   const [isLoadingOptions, setIsLoadingOptions] = useState(true)
   const [filterError, setFilterError] = useState('')
+  // Bumped after a create, since the modal may have added a category or equipment type.
+  const [optionsVersion, setOptionsVersion] = useState(0)
   const [isAddAssetOpen, setIsAddAssetOpen] = useState(false)
   const [createdAsset, setCreatedAsset] = useState<AssetRecord | null>(null)
   const [selectedAssetId, setSelectedAssetId] = useState<number | null>(null)
@@ -55,7 +57,7 @@ export default function AssetsPage() {
     return () => {
       isCurrent = false
     }
-  }, [])
+  }, [optionsVersion])
 
   const load = (
     page: number,
@@ -110,6 +112,7 @@ export default function AssetsPage() {
     setIsAddAssetOpen(false)
     setSelectedAssetId(null)
     setCreatedAsset(asset)
+    setOptionsVersion((version) => version + 1)
     list.addAsset(asset)
     if (view !== 'list') {
       void all.loadAllAssets(appliedSearch, filters)
