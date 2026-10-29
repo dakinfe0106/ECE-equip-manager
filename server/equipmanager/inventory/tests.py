@@ -1052,3 +1052,141 @@ def test_category_equipment_types_returns_404_for_an_unknown_category(api_client
     response = api_client.get(reverse("category-equipment-type-list", args=[999999]))
 
     assert response.status_code == 404
+
+
+@pytest.fixture
+def faculty_client(db):
+    user = get_user_model().objects.create_user(
+        role="FACULTY",
+        username="faculty-viewer",
+        password="test-password",
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+    return client
+
+
+def test_technician_creates_category_with_trimmed_name(authenticated_client):
+    response = authenticated_client.post(
+        "/api/categories/", {"name": "  Test Equipment  "}, format="json"
+    )
+
+    assert response.status_code == 201
+    assert response.data["name"] == "Test Equipment"
+    assert Category.objects.get(category_id=response.data["category_id"]).name == "Test Equipment"
+
+
+def test_category_create_rejects_duplicates_ignoring_case_and_archived(
+    authenticated_client, inventory_type
+):
+    Category.objects.create(name="Archived Gear", is_deleted=True)
+
+    active_duplicate = authenticated_client.post(
+        "/api/categories/", {"name": "tools"}, format="json"
+    )
+    archived_duplicate = authenticated_client.post(
+        "/api/categories/", {"name": "ARCHIVED GEAR"}, format="json"
+    )
+
+    assert active_duplicate.status_code == 400
+    assert active_duplicate.data["name"] == ["A category with this name already exists."]
+    assert archived_duplicate.status_code == 400
+
+
+def test_category_create_rejects_blank_name(authenticated_client):
+    response = authenticated_client.post("/api/categories/", {"name": "   "}, format="json")
+
+    assert response.status_code == 400
+    assert "name" in response.data
+
+
+def test_technician_creates_equipment_type_in_category(authenticated_client, inventory_type):
+    category = inventory_type.category
+
+    response = authenticated_client.post(
+        "/api/equipment-types/",
+        {"name": "  Hand tools ", "category_id": category.category_id},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["name"] == "Hand tools"
+    assert response.data["category_id"] == category.category_id
+    assert response.data["category"] == {"category_id": category.category_id, "name": "Tools"}
+    assert response.data["description"] == ""
+
+
+def test_equipment_type_create_rejects_duplicate_name_in_same_category_only(
+    authenticated_client, inventory_type
+):
+    other_category = Category.objects.create(name="Meters")
+
+    same_category = authenticated_client.post(
+        "/api/equipment-types/",
+        {"name": "POWER TOOLS", "category_id": inventory_type.category.category_id},
+        format="json",
+    )
+    other_category_response = authenticated_client.post(
+        "/api/equipment-types/",
+        {"name": "Power tools", "category_id": other_category.category_id},
+        format="json",
+    )
+
+    assert same_category.status_code == 400
+    assert same_category.data["name"] == [
+        "An equipment type with this name already exists in this category."
+    ]
+    assert other_category_response.status_code == 201
+
+
+def test_equipment_type_create_requires_an_active_category(authenticated_client):
+    archived = Category.objects.create(name="Old Gear", is_deleted=True)
+
+    missing = authenticated_client.post(
+        "/api/equipment-types/", {"name": "Probes"}, format="json"
+    )
+    archived_category = authenticated_client.post(
+        "/api/equipment-types/",
+        {"name": "Probes", "category_id": archived.category_id},
+        format="json",
+    )
+
+    assert missing.status_code == 400
+    assert "category_id" in missing.data
+    assert archived_category.status_code == 400
+    assert "category_id" in archived_category.data
+
+
+def test_faculty_cannot_create_categories_or_equipment_types(faculty_client, inventory_type):
+    category_response = faculty_client.post(
+        "/api/categories/", {"name": "Faculty Gear"}, format="json"
+    )
+    type_response = faculty_client.post(
+        "/api/equipment-types/",
+        {"name": "Faculty type", "category_id": inventory_type.category.category_id},
+        format="json",
+    )
+
+    assert category_response.status_code == 403
+    assert type_response.status_code == 403
+    assert not Category.objects.filter(name="Faculty Gear").exists()
+
+
+def test_category_and_type_create_require_authentication(db):
+    client = APIClient()
+
+    assert client.post("/api/categories/", {"name": "Anon"}, format="json").status_code == 403
+    assert client.post("/api/equipment-types/", {"name": "Anon"}, format="json").status_code == 403
+
+
+def test_category_create_enforces_csrf_for_session_users(db):
+    user = get_user_model().objects.create_user(
+        role="TECHNICIAN", username="csrf-tech", password="test-password"
+    )
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(user)
+
+    response = client.post("/api/categories/", {"name": "No Token"}, format="json")
+
+    assert response.status_code == 403
+    assert not Category.objects.filter(name="No Token").exists()

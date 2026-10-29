@@ -160,7 +160,7 @@ Until the team decides, build what database.md supports and leave the extra desi
 | Only Administrators archive and restore assets | Technicians manage inventory | Follow database.md §5 |
 | Borrower last name required | Last name optional | Optional |
 | Return marked Damaged has no maintenance option | Return may go straight to maintenance if damaged | Ask the PO before building returns |
-| No Categories or Equipment Types pages; they are created inline from the asset form | Category and type names must be managed, archived, and restored | Demo frontend routes are removed; source components and APIs are retained. The final category/type management location remains pending. |
+| No Categories or Equipment Types pages; they are created inline from the asset form | Category and type names must be managed, archived, and restored | Create categories and types inline from the Add Asset modal ("+ Create New Category" and "+ Create New Equipment Type"). Demo frontend routes remain removed; source components and APIs are retained. The final management, archive, and restore screens remain pending. |
 | Add Asset form has no Asset ID field | `asset_identifier` is required and unique | Keep the Asset ID field in the form |
 | Category and equipment type can be changed on an existing asset | The asset edit API accepts `name` and `acquisition_date` only | Show category and type read-only in the details modal |
 | Asset search matches ID or name | The API's `search` matches the Asset ID or name | Decided: search by ID or name |

@@ -14,8 +14,10 @@ from .models import Asset, Category, EquipmentType
 from .serializers import (
     AssetCreateSerializer,
     AssetSerializer,
+    CategoryCreateSerializer,
     CategorySerializer,
     CategorySummarySerializer,
+    EquipmentTypeCreateSerializer,
     EquipmentTypeLookupSerializer,
     EquipmentTypeSerializer,
 )
@@ -54,20 +56,65 @@ class Dashboard(APIView):
 
 DELETED_FILTER_VALUES = ("false", "true", "all")
 
+
+def save_or_raise_duplicate(serializer, constraint, message):
+    """Save, turning a race on the unique name constraint into a 400 like the serializer's own check."""
+    try:
+        with transaction.atomic():
+            return serializer.save()
+    except IntegrityError as exc:
+        constraint_name = getattr(getattr(exc.__cause__, "diag", None), "constraint_name", None)
+        if constraint_name != constraint:
+            raise
+        raise ValidationError({"name": message}) from exc
+
 @method_decorator(ensure_csrf_cookie, name="dispatch")
-class CategoryLookupList(generics.ListAPIView):
+class CategoryLookupList(generics.ListCreateAPIView):
     queryset = Category.objects.filter(is_deleted=False).order_by(
         "name", "category_id"
     )
     serializer_class = CategorySerializer
     permission_classes = (InventoryRolePermissions,)
 
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return CategoryCreateSerializer
+        return CategorySerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        category = save_or_raise_duplicate(
+            serializer,
+            "inventory_category_name_ci_unique",
+            "A category with this name already exists.",
+        )
+        return Response(CategorySerializer(category).data, status=status.HTTP_201_CREATED)
+
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
-class EquipmentTypeLookupList(generics.ListAPIView):
+class EquipmentTypeLookupList(generics.ListCreateAPIView):
     queryset = EquipmentType.objects.all()
     serializer_class = EquipmentTypeLookupSerializer
     permission_classes = (InventoryRolePermissions,)
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return EquipmentTypeCreateSerializer
+        return EquipmentTypeLookupSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        equipment_type = save_or_raise_duplicate(
+            serializer,
+            "inventory_equipment_type_category_name_ci_unique",
+            "An equipment type with this name already exists in this category.",
+        )
+        return Response(
+            EquipmentTypeLookupSerializer(equipment_type).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     def get_queryset(self):
         deleted = self.request.query_params.get("deleted", "false").lower()
