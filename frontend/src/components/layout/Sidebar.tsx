@@ -1,18 +1,19 @@
 import { useState } from 'react'
 import { Link, NavLink } from 'react-router'
 import { useAuth } from '../../features/auth/useAuth'
-import { describeAuthError, hasPermission } from '../../features/auth/api'
-
-// NavLink adds aria-current="page" and tells us which link matches the current URL.
-const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  isActive ? 'sidebar-link sidebar-link-active' : 'sidebar-link'
+import { describeAuthError } from '../../features/auth/api'
+import { getUserDisplay } from '../../features/auth/userDisplay'
+import { navigationItems } from './navigation'
+import SidebarIcon from './SidebarIcon'
 
 export default function Sidebar() {
   const { user, logout } = useAuth()
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [error, setError] = useState('')
-  const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.username || ''
-  const initials = displayName.trim().split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+  const { displayName, avatarText } = getUserDisplay(user)
+  const visibleItems = navigationItems.filter((item) => user && item.roles.includes(user.role))
+  const workspaceItems = visibleItems.filter((item) => item.group === 'workspace')
+  const administrationItems = visibleItems.filter((item) => item.group === 'administration')
 
   async function handleLogout() {
     if (isSigningOut) return
@@ -26,80 +27,44 @@ export default function Sidebar() {
       setIsSigningOut(false)
     }
   }
+
+  function renderItem(item: typeof navigationItems[number]) {
+    return (
+      <NavLink key={item.path} to={item.path} end={item.path === '/'} aria-label={item.label} title={item.label}
+        className={({ isActive }) => `my-[3px] flex min-h-[42px] items-center gap-[11px] rounded-lg px-3 py-[11px] text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary max-[760px]:size-[42px] max-[760px]:shrink-0 max-[760px]:justify-center max-[760px]:p-0 ${isActive ? 'bg-sidebar-active text-white shadow-[0_5px_14px_var(--color-sidebar-shadow)]' : 'text-sidebar-text hover:bg-sidebar-hover hover:text-white'}`}>
+        <SidebarIcon name={item.icon} />
+        <span className="max-[760px]:hidden">{item.label}</span>
+      </NavLink>
+    )
+  }
+
   return (
-    <aside className="sidebar">
-      <Link className="brand" to="/" aria-label="ECE Equipment Manager home">
-        <span className="brand-name">ECE Equipment<br />Manager</span>
+    <aside className="sidebar fixed inset-y-0 left-0 z-20 flex h-dvh w-[248px] flex-col bg-sidebar px-[14px] pt-5 pb-[14px] text-sidebar-text max-[760px]:w-[60px] max-[760px]:px-[5px]">
+      <Link to="/" aria-label="ECE Equipment Manager home" className="flex shrink-0 items-center gap-[11px] px-[7px] pb-[26px] focus-visible:outline-2 focus-visible:outline-primary max-[760px]:justify-center max-[760px]:px-0">
+        <span aria-hidden="true" className="grid size-[35px] shrink-0 place-items-center rounded-[10px] bg-linear-to-br from-brand-start to-brand-end text-base font-extrabold text-white shadow-[0_6px_15px_var(--color-sidebar-shadow)]">E</span>
+        <span className="brand-name max-[760px]:hidden">
+          <strong className="block text-[15px] leading-5 font-bold tracking-[-0.2px] text-white">ECE Equipment</strong>
+          <span className="mt-px block text-[11px] text-sidebar-muted">Manager</span>
+        </span>
       </Link>
-
-      <nav className="sidebar-nav" aria-label="Main navigation">
-        <NavLink className={navLinkClass} to="/" end>
-          <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
-            <rect x="2.5" y="2.5" width="6" height="6" rx="1" />
-            <rect x="11.5" y="2.5" width="6" height="6" rx="1" />
-            <rect x="2.5" y="11.5" width="6" height="6" rx="1" />
-            <rect x="11.5" y="11.5" width="6" height="6" rx="1" />
-          </svg>
-          Dashboard
-        </NavLink>
-        {hasPermission(user, 'inventory.view_category') && <NavLink className={navLinkClass} to="/categories">
-          <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M3 5.5h5l1.5 1.8H17v7.2a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5z" />
-            <path d="M3 7.3h14" />
-          </svg>
-          Categories
-        </NavLink>}
-
-        {hasPermission(user, 'inventory.view_equipmenttype') && <NavLink
-          to="/equipment-types"
-          className={({ isActive }) =>
-            `sidebar-link${isActive ? ' sidebar-link-active' : ''}`
-          }
-        >
-          <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m10 2.7 6.8 3.7v7.2L10 17.3l-6.8-3.7V6.4z" />
-            <path d="m3.4 6.6 6.6 3.7 6.6-3.7M10 10.3v6.8" />
-          </svg>
-          Equipment Types
-        </NavLink>}
-        {hasPermission(user, 'inventory.view_asset') && <NavLink
-          to="/assets"
-          end
-          className={({ isActive }) =>
-            `sidebar-link${isActive ? ' sidebar-link-active' : ''}`
-          }
-        >
-          <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M3 6.5h14v9A1.5 1.5 0 0 1 15.5 17h-11A1.5 1.5 0 0 1 3 15.5z" />
-            <path d="M2.5 6.5 4 3h12l1.5 3.5M7 6.5v2h6v-2" />
-          </svg>
-          Assets
-        </NavLink>}
-        <span className="sidebar-link sidebar-link-disabled" aria-disabled="true">
-          <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
-            <path d="M3 6h12m0 0-2.5-2.5M15 6l-2.5 2.5M17 14H5m0 0 2.5-2.5M5 14l2.5 2.5" />
-          </svg>
-          Loans
-        </span>
-        <span className="sidebar-section-label sidebar-section-settings">ADMINISTRATION</span>
-        <span className="sidebar-link sidebar-link-disabled" aria-disabled="true">
-          <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
-            <path d="m8.4 2.8.4-1h2.4l.4 1a7 7 0 0 1 1.5.7l1-.4 1.7 1.7-.4 1a7 7 0 0 1 .7 1.5l1 .4v2.4l-1 .4a7 7 0 0 1-.7 1.5l.4 1-1.7 1.7-1-.4a7 7 0 0 1-1.5.7l-.4 1H8.8l-.4-1a7 7 0 0 1-1.5-.7l-1 .4-1.7-1.7.4-1a7 7 0 0 1-.7-1.5l-1-.4V7.7l1-.4a7 7 0 0 1 .7-1.5l-.4-1 1.7-1.7 1 .4a7 7 0 0 1 1.5-.7Z" transform="translate(1 1)" />
-            <circle cx="10" cy="10" r="2.3" />
-          </svg>
-          Settings
-        </span>
-      </nav>
-      <div className="shrink-0 px-[15px] py-3 max-[700px]:px-2">
-        <div className="flex min-h-[34px] items-center gap-[10px] max-[700px]:flex-col max-[700px]:gap-1">
-          <span aria-hidden="true" className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-[#263d59] text-[11px] font-semibold text-[#d5dfed]">
-            {initials}
-          </span>
-          <div className="min-w-0 flex-1 max-[700px]:hidden">
-            <p className="truncate text-[12px] leading-[17px] font-semibold text-white" title={displayName}>{displayName}</p>
-            <p className="truncate text-[11px] leading-[17px] text-[#8999ae]" title={user?.role_label}>{user?.role_label}</p>
+      <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="Main navigation">
+        <p className="mx-[11px] mt-2 mb-2 text-[10px] font-bold tracking-[0.12em] text-sidebar-label uppercase max-[760px]:hidden">Workspace</p>
+        {workspaceItems.map(renderItem)}
+        {administrationItems.length > 0 && (
+          <div role="group" aria-label="Administration" className="mt-6 border-t border-sidebar-line pt-4">
+            <p className="mx-[11px] mb-2 text-[10px] font-bold tracking-[0.12em] text-sidebar-label uppercase max-[760px]:hidden">Administration</p>
+            {administrationItems.map(renderItem)}
           </div>
-          <button type="button" onClick={() => { void handleLogout() }} disabled={isSigningOut} aria-label={isSigningOut ? 'Signing out…' : 'Sign out'} title="Sign out" className="shrink-0 cursor-pointer rounded-sm py-2 text-[9px] leading-4 text-[#a8b6c9] hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-wait disabled:opacity-60">
+        )}
+      </nav>
+      <div className="mt-auto shrink-0 border-t border-sidebar-line px-2 pt-[13px] pb-[3px] max-[760px]:px-0">
+        <div className="flex items-center gap-[10px] max-[760px]:flex-col max-[760px]:gap-1">
+          <span aria-hidden="true" className="grid size-[34px] shrink-0 place-items-center rounded-full bg-sidebar-avatar text-[11px] font-bold text-sidebar-avatar-text">{avatarText}</span>
+          <div className="min-w-0 flex-1 max-[760px]:hidden">
+            <p className="truncate text-xs leading-[17px] font-bold text-white" title={displayName}>{displayName}</p>
+            <p className="truncate text-[11px] leading-[17px] text-sidebar-muted" title={user?.role_label}>{user?.role_label}</p>
+          </div>
+          <button type="button" onClick={() => { void handleLogout() }} disabled={isSigningOut} aria-label={isSigningOut ? 'Signing out…' : 'Sign out'} title="Sign out" className="shrink-0 cursor-pointer rounded-sm py-2 text-[10px] text-sidebar-muted hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-wait disabled:opacity-60">
             {isSigningOut ? 'Signing out…' : 'Sign out'}
           </button>
         </div>

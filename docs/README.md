@@ -469,8 +469,8 @@ All endpoints live under `/api/` and end with a trailing slash.
 | GET | `/api/auth/me/` | Returns `id`, `username`, `first_name`, and `last_name`; returns `403` when signed out. |
 | POST | `/api/auth/logout/` | Public, CSRF-protected. Ends the session; returns `204` even when already signed out. |
 | GET | `/api/categories/` | Authenticated. Lists active equipment categories for the asset form. |
-| GET | `/api/categories/summary/` | Authenticated. Lists categories for the Categories page, ordered by `category_id`, with `is_deleted` and `equipment_type_count`. Supports `search` (name contains) and `deleted` (`false` by default, `true`, or `all`). |
-| GET | `/api/categories/<id>/equipment-types/` | Authenticated. Lists a category's active equipment types, ordered by `type_id`, for the Categories page popup. Returns `404` for an unknown category. |
+| GET | `/api/categories/summary/` | Authenticated. Lists categories for the retained category-management components (no demo page route), ordered by `category_id`, with `is_deleted` and `equipment_type_count`. Supports `search` (name contains) and `deleted` (`false` by default, `true`, or `all`). |
+| GET | `/api/categories/<id>/equipment-types/` | Authenticated. Lists a category's active equipment types, ordered by `type_id`, for the retained category detail popup (no demo page route). Returns `404` for an unknown category. |
 | GET | `/api/equipment-types/` | Authenticated. Lists equipment types whose category is active, ordered by `type_id`. Supports `category_id` and `deleted` (`false` by default, `true`, or `all`). |
 | GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search. `/api/assets/lookup/` is an alias. |
 | POST | `/api/assets/` | Authenticated. Creates an asset with an active `equipment_type_id`; status starts as `Available`. |

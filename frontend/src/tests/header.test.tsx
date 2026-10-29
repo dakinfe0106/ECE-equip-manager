@@ -24,11 +24,15 @@ describe('Shared page header', () => {
     ['/', 'Dashboard'],
     ['/assets', 'Assets'],
     ['/assets/new', 'Add Asset'],
-    ['/categories', 'Categories'],
-    ['/equipment-types', 'Equipment Types'],
+    ['/loans', 'Lending'],
+    ['/borrowers', 'Borrowers'],
+    ['/maintenance', 'Maintenance'],
+    ['/analytics', 'Analytics'],
+    ['/import-export', 'Import & Export'],
+    ['/users', 'Users & Access'],
   ])('appears in the application layout at %s with the current page name', (path, title) => {
     const html = renderToString(
-      <MemoryRouter initialEntries={[path]}>{withAuth(<AppRoutes />)}</MemoryRouter>,
+      <MemoryRouter initialEntries={[path]}>{withAuth(<AppRoutes />, { ...technicianAuth, user: { ...technicianAuth.user!, role: 'ADMINISTRATOR', role_label: 'Administrator' } })}</MemoryRouter>,
     )
     const container = document.createElement('div')
     container.innerHTML = html
@@ -46,12 +50,17 @@ describe('Shared page header', () => {
     const header = screen.getByRole('banner', { name: 'Application header' })
     expect(within(header).getByText(role_label)).toBeTruthy()
     const avatar = within(header).getByRole('img', { name: 'Signed in as Shop Technician' })
-    expect(avatar.textContent).toBe('ST')
+    expect(avatar.textContent).toBe('SH')
+  })
+
+  it('uses the first two letters of the display name rather than initials', () => {
+    renderHeader({ ...technicianAuth.user!, first_name: 'Admin', last_name: 'User' })
+    expect(screen.getByRole('img', { name: 'Signed in as Admin User' }).textContent).toBe('AD')
   })
 
   it('uses the username for the avatar when the user has no name', () => {
     renderHeader({ ...technicianAuth.user!, username: 'testuser', first_name: '', last_name: '' })
-    expect(screen.getByRole('img', { name: 'Signed in as testuser' }).textContent).toBe('T')
+    expect(screen.getByRole('img', { name: 'Signed in as testuser' }).textContent).toBe('TE')
   })
 
   it('updates the breadcrumb when navigating to another page', async () => {

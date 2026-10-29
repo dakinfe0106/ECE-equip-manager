@@ -27,8 +27,8 @@ The sidebar has a **Workspace** group and, for Administrators only, an **Adminis
 
 | Sidebar label | Route | Who sees it | Main API resource |
 | --- | --- | --- | --- |
-| (Sign-in screen) | `/login` | Everyone | `auth/` (proposed, [Backend.md §6](Backend.md#6-authentication-endpoints)) |
-| Dashboard | `/` | Everyone | Summary data (not yet defined). Until it is built, `/` shows the Assets page. |
+| (Sign-in screen) | `/login` | Everyone | `auth/` (implemented, [Backend.md §6](Backend.md#6-authentication-endpoints)) |
+| Dashboard | `/` | Everyone | Implemented inventory summary at `/api/dashboard/`. |
 | Assets | `/assets` | Everyone; Faculty read-only | `assets/`, `categories/`, `equipment-types/` |
 | Lending | `/loans` | Technician, Administrator | `loans/` |
 | Borrowers | `/borrowers` | Technician, Administrator | `borrowers/` |
@@ -39,7 +39,9 @@ The sidebar has a **Workspace** group and, for Administrators only, an **Adminis
 
 - Roles follow [database.md §5](database.md#5-permissions-scope). The prototype only demos Administrator and Technician; Faculty see view-only pages with no create, edit, or workflow buttons.
 - Use query parameters for filters so links work, for example a dashboard card linking to `/loans?status=Overdue`.
-- **Existing routes not in the design:** `/categories` and `/equipment-types` stay until the team decides where category and type management lives (section 7). `/assets/new` becomes the **Add Asset** modal on `/assets`.
+- **Demo navigation:** `/categories` and `/equipment-types` have been removed from frontend navigation and routing. Their existing source components and backend lookup APIs are retained for future integration and asset forms. `/assets/new` remains the working Add Asset route.
+- **In-progress pages:** Lending, Borrowers, Maintenance, Analytics, Import & Export, and Users & Access display "This page is still in progress." They have no business API integration. Navigation and direct page access follow the roles in the table above; these frontend guards do not replace backend authorization when those APIs are implemented.
+- **Sidebar:** the desktop sidebar follows the prototype at 248px, with the brand mark, Workspace links, administrator-only Administration group, and signed-in profile/sign-out footer. Below 760px it retains an accessible 60px icon rail; a slide-in menu remains future work.
 
 ## 3. Design tokens
 
@@ -70,11 +72,19 @@ Add these to the `@theme` block in `frontend/src/index.css` when you first resty
   --color-sidebar-hover: #19283c;
   --color-sidebar-active: #2767d8;
   --color-sidebar-text: #aab5c4;
+  --color-sidebar-muted: #8491a3; --color-sidebar-label: #68778b;
+  --color-sidebar-line: #283447;  --color-sidebar-shadow: #081323;
+  --color-sidebar-avatar: #263d5d; --color-sidebar-avatar-text: #bcd0ec;
+  --color-brand-start: #4285f4;   --color-brand-end: #2057c8;
 
   --color-success: #087c68;  --color-success-soft: #e8f7f1;
   --color-warning: #a15c07;  --color-warning-soft: #fff3d9;
   --color-danger:  #b42318;  --color-danger-soft:  #feebea;
   --color-neutral: #667085;  --color-neutral-soft: #eef0f3;
+  --color-violet: #7047bf;   --color-violet-soft: #f0eafa;
+  --color-chart-available: #2aa580;
+  --color-chart-maintenance: #f2a134;
+  --color-chart-retired: #a5aebb;
 }
 ```
 
@@ -83,7 +93,7 @@ Other values from the prototype:
 - **Radius:** controls 8px, cards 11px, modals 13px, badges fully rounded.
 - **Type:** page title 27px bold; panel and modal titles 14px; body and table text 11–12px; field labels 10px; table headers 9px uppercase.
 - **Layout:** sidebar 248px fixed; sticky header 66px; content max width 1500px with 34px padding.
-- **Breakpoints:** 1050px (metric cards go to two columns), 760px (sidebar becomes a slide-in menu opened from the header), 520px (single column, full-width primary button).
+- **Breakpoints:** 1050px (metric cards go to two columns), 760px (the current sidebar uses an icon rail; a slide-in menu is planned), 520px (single column, full-width primary button).
 
 ## 4. Shared components
 
@@ -102,7 +112,7 @@ Build each one in `src/components/ui/` the first time a feature needs it, then r
 | `Modal`, `ConfirmModal` | Create forms, record details, confirmations |
 | `Toast` | Bottom "Success" notice that hides after a few seconds |
 
-The existing Assets, Categories, and Equipment Types pages predate the design. Move them to these components when you next work on them.
+The category and equipment-type source components are retained but no longer routed in the demo. Reuse the shared design components when integrating category/type management into a future screen.
 
 ## 5. Interaction patterns
 
@@ -112,8 +122,10 @@ The existing Assets, Categories, and Equipment Types pages predate the design. M
 - **Workflow actions** (Checkout, Start Maintenance, Process Return, Complete Maintenance, Archive) sit in the detail modal footer and are disabled when the record's status does not allow them. The backend still enforces the rules.
 - **Destructive actions:** a `danger` button opens a `ConfirmModal` that says what happens and that the record can be restored and its history is kept.
 - **Errors:** show a block titled "Unable to …" with the message from the API (see [Frontend-Standards.md §3](Frontend-Standards.md#3-calling-the-api)).
-- **Header:** `components/layout/Header.tsx` is shared by all signed-in routes. It shows the current route name, the backend `role_label`, and initials from the user's name (falling back to username). The header stays visible while the page body scrolls. On narrow screens the breadcrumb brand and notification placeholder are hidden to keep the page name and role readable.
+- **Header:** `components/layout/Header.tsx` is shared by all signed-in routes. It shows the current route name, the backend `role_label`, and the first two letters of the user's display name (falling back to username), uppercased with whitespace ignored. Both header and sidebar use this rule (for example, Admin User becomes AD). The header stays visible while the page body scrolls. On narrow screens the breadcrumb brand and notification placeholder are hidden to keep the page name and role readable.
 - **Notifications:** the approved header includes a disabled bell labelled "Notifications (coming soon)". Notification behavior is not designed yet; there is no unread indicator or notification API integration.
+- **Dashboard demo:** four summary cards and the availability chart use `/api/dashboard/` inventory totals. The retired segment is total minus available, on-loan, and maintenance counts. Missing inventory data shows a loading/unavailable state, not fabricated counts. An all-zero inventory shows an empty chart state.
+- **Lending previews:** the Overdue Loans card, Upcoming returns panel, and Recent lending activity table use explicitly labelled synthetic sample data until lending APIs are integrated. They are visible only to Technicians and Administrators. Sample due dates follow the local calendar so future return examples stay current; they are not operational records. View all opens the in-progress Lending page, and sample rows do not offer record-detail actions.
 
 ## 6. Labels and badges
 
@@ -148,7 +160,7 @@ Until the team decides, build what database.md supports and leave the extra desi
 | Only Administrators archive and restore assets | Technicians manage inventory | Follow database.md §5 |
 | Borrower last name required | Last name optional | Optional |
 | Return marked Damaged has no maintenance option | Return may go straight to maintenance if damaged | Ask the PO before building returns |
-| No Categories or Equipment Types pages; they are created inline from the asset form | Category and type names must be managed, archived, and restored | Keep the existing pages for now |
+| No Categories or Equipment Types pages; they are created inline from the asset form | Category and type names must be managed, archived, and restored | Demo frontend routes are removed; source components and APIs are retained. The final category/type management location remains pending. |
 | Add Asset form has no Asset ID field | `asset_identifier` is required and unique | Keep the Asset ID field in the form |
 | Category and equipment type can be changed on an existing asset | The asset edit API accepts `name` and `acquisition_date` only | Show category and type read-only in the details modal |
 | Asset search matches ID or name | The API searches `asset_identifier` only | The placeholder says ID or name, but only the Asset ID is searched |

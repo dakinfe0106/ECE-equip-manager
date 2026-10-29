@@ -1,20 +1,14 @@
 import { useLocation } from 'react-router'
 import { useAuth } from '../../features/auth/useAuth'
-
-const pageNames: Record<string, string> = {
-  '/': 'Dashboard',
-  '/assets': 'Assets',
-  '/assets/new': 'Add Asset',
-  '/categories': 'Categories',
-  '/equipment-types': 'Equipment Types',
-}
+import { getUserDisplay } from '../../features/auth/userDisplay'
+import { navigationItems } from './navigation'
 
 export default function Header() {
   const { pathname } = useLocation()
   const { user } = useAuth()
-  const pageName = pageNames[pathname.replace(/\/+$/, '') || '/'] || 'Workspace'
-  const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.username || ''
-  const initials = displayName.trim().split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+  const path = pathname.replace(/\/+$/, '') || '/'
+  const pageName = path === '/assets/new' ? 'Add Asset' : navigationItems.find((item) => item.path === path)?.label || 'Workspace'
+  const { displayName, avatarText } = getUserDisplay(user)
 
   return (
     <header aria-label="Application header" className="flex h-[66px] shrink-0 items-center justify-between gap-3 border-b border-line bg-white/95 px-8 max-[760px]:px-4">
@@ -33,7 +27,7 @@ export default function Header() {
           </svg>
         </button>
         <div role="img" aria-label={`Signed in as ${displayName}`} title={displayName} className="grid size-8 shrink-0 place-items-center rounded-full bg-avatar-soft text-[11px] font-bold text-avatar">
-          <span aria-hidden="true">{initials}</span>
+          <span aria-hidden="true">{avatarText}</span>
         </div>
       </div>
     </header>

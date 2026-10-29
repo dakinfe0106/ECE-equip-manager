@@ -119,7 +119,7 @@ describe('Login and session flow', () => {
     renderApp('/assets')
     expect(await screen.findByText('Test Technician')).toBeTruthy()
     expect(within(screen.getByRole('complementary')).getByText(role_label)).toBeTruthy()
-    expect(within(screen.getByRole('complementary')).getByText('TT')).toBeTruthy()
+    expect(within(screen.getByRole('complementary')).getByText('TE')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
   })
 
@@ -128,7 +128,7 @@ describe('Login and session flow', () => {
     server.use(http.get(`${apiBaseUrl}/auth/me/`, () => HttpResponse.json({ ...user, first_name: '', last_name: '' })))
     renderApp('/assets')
     expect(await screen.findByText('shoptech')).toBeTruthy()
-    expect(within(screen.getByRole('complementary')).getByText('S')).toBeTruthy()
+    expect(within(screen.getByRole('complementary')).getByText('SH')).toBeTruthy()
   })
 
   it('renders the standalone design with required fields and autofill', async () => {
@@ -144,11 +144,11 @@ describe('Login and session flow', () => {
   })
 
   it('logs in by keyboard, preserves password whitespace, refreshes CSRF and returns to the requested page', async () => {
-    renderApp('/categories')
+    renderApp('/assets')
     const keyboard = await fillLogin()
     await keyboard.keyboard('{Enter}')
-    expect(await screen.findByRole('heading', { name: 'Categories' })).toBeTruthy()
-    expect(screen.getByLabelText('Current URL').textContent).toBe('/categories')
+    expect(await screen.findByRole('heading', { name: 'Assets' })).toBeTruthy()
+    expect(screen.getByLabelText('Current URL').textContent).toBe('/assets')
     expect(receivedPassword).toBe(' password ')
     expect(csrfRequests).toBe(2)
     expect(loginRequests).toBe(1)
