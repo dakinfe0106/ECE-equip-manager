@@ -6,12 +6,16 @@ import {
   fetchCategories,
   fetchEquipmentTypes,
   type CategoryOption,
+  type AssetRecord,
   type EquipmentTypeOption,
 } from '../api'
 import './AddAssetForm.css'
 
 interface AddAssetFormProps {
   onCancel?: () => void
+  onCreated?: (asset: AssetRecord) => void
+  onSubmittingChange?: (isSubmitting: boolean) => void
+  isModal?: boolean
 }
 
 function getErrorMessage(error: unknown): string {
@@ -27,7 +31,12 @@ function getErrorMessage(error: unknown): string {
   return 'Could not connect to equipment records. Please try again.'
 }
 
-export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
+export default function AddAssetForm({
+  onCancel,
+  onCreated,
+  onSubmittingChange,
+  isModal = false,
+}: AddAssetFormProps) {
   const navigate = useNavigate()
   const [assetIdentifier, setAssetIdentifier] = useState('')
   const [name, setName] = useState('')
@@ -93,6 +102,7 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
     }
 
     setIsSubmitting(true)
+    onSubmittingChange?.(true)
     try {
       const asset = await createAsset({
         asset_identifier: assetIdentifier.trim(),
@@ -100,6 +110,10 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
         equipment_type_id: Number(equipmentTypeId),
         acquisition_date: acquisitionDate || null,
       })
+      if (onCreated) {
+        onCreated(asset)
+        return
+      }
       setSuccessMessage(`Asset ${asset.asset_identifier} was added successfully.`)
       setAssetIdentifier('')
       setName('')
@@ -111,17 +125,31 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
       setError(getErrorMessage(submitError))
     } finally {
       setIsSubmitting(false)
+      onSubmittingChange?.(false)
     }
   }
 
   return (
-    <section className="add-asset" aria-labelledby="add-asset-title">
+    <section className={`add-asset${isModal ? ' add-asset--modal' : ''}`} aria-labelledby="add-asset-title">
       <header className="add-asset__header">
-        <p className="add-asset__eyebrow">Equipment Management</p>
-        <h1 id="add-asset-title">Add New Asset</h1>
-        <p className="add-asset__description">
-          Enter the details below to register an equipment asset.
-        </p>
+        <div>
+          <p className="add-asset__eyebrow">New record</p>
+          {isModal
+            ? <h2 id="add-asset-title">Add Asset</h2>
+            : <h1 id="add-asset-title">Add New Asset</h1>}
+          <p className="add-asset__description">
+            Enter the details below to register an equipment asset.
+          </p>
+        </div>
+        {isModal && onCancel && (
+          <button
+            className="add-asset__close"
+            type="button"
+            aria-label="Close add asset dialog"
+            disabled={isSubmitting}
+            onClick={onCancel}
+          >×</button>
+        )}
       </header>
 
       <form className="add-asset__form" onSubmit={handleSubmit} noValidate>
@@ -135,6 +163,7 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
               onChange={(event) => setAssetIdentifier(event.target.value)}
               placeholder="e.g. ECE-001"
               maxLength={100}
+              autoFocus={isModal}
               required
             />
           </div>
@@ -242,6 +271,7 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
             <button
               className="add-asset__button add-asset__button--secondary"
               type="button"
+              disabled={isSubmitting}
               onClick={onCancel}
             >
               Cancel
@@ -250,6 +280,7 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
             <button
               className="add-asset__button add-asset__button--secondary"
               type="button"
+              disabled={isSubmitting}
               onClick={() => navigate('/assets')}
             >
               Cancel
@@ -260,7 +291,7 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
             type="submit"
             disabled={isSubmitting || isLoadingCategories || categories.length === 0}
           >
-            {isSubmitting ? 'Submitting…' : 'Submit Asset'}
+            {isSubmitting ? 'Saving…' : isModal ? 'Save Asset' : 'Submit Asset'}
           </button>
         </div>
       </form>

@@ -95,6 +95,7 @@ describe('AssetTable', () => {
         assets={[makeAsset()]}
         errorMessage=""
         isLoading={false}
+        hasActiveFilters={false}
         onSelectAsset={noop}
         selectedAssetId={1}
       />,

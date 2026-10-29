@@ -1,6 +1,5 @@
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
-from django.db.models.functions import Lower, Trim
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import generics, status
@@ -118,11 +117,38 @@ class AssetListCreateAPIView(generics.ListCreateAPIView):
             .order_by("asset_id")
         )
 
+        search = self.request.query_params.get("search", "").strip()
+        if search:
+            assets = assets.filter(
+                Q(asset_identifier__icontains=search) | Q(name__icontains=search)
+            )
+
+        # The older Asset ID lookup keeps matching identifiers only.
         asset_identifier = self.request.query_params.get("asset_identifier", "").strip()
         if asset_identifier:
-            assets = assets.annotate(
-                normalized_asset_identifier=Lower(Trim("asset_identifier"))
-            ).filter(normalized_asset_identifier__contains=asset_identifier.lower())
+            assets = assets.filter(asset_identifier__icontains=asset_identifier)
+
+        category_id = self.request.query_params.get("category_id", "").strip()
+        if category_id:
+            try:
+                category_id = int(category_id)
+            except ValueError as exc:
+                raise ValidationError(
+                    {"category_id": "Must be a valid category ID."}
+                ) from exc
+            assets = assets.filter(type__category_id=category_id)
+
+        equipment_type_id = self.request.query_params.get(
+            "equipment_type_id", ""
+        ).strip()
+        if equipment_type_id:
+            try:
+                equipment_type_id = int(equipment_type_id)
+            except ValueError as exc:
+                raise ValidationError(
+                    {"equipment_type_id": "Must be a valid equipment type ID."}
+                ) from exc
+            assets = assets.filter(type_id=equipment_type_id)
         return assets
 
     def get_serializer_class(self):
