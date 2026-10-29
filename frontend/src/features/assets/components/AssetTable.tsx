@@ -71,14 +71,11 @@ export default function AssetTable({
               </td>
             </tr>
           ))}
-          {!isLoading && assets.length === 0 && (
+          {/* On an error, the page shows the "Unable to load assets" block instead. */}
+          {!isLoading && !errorMessage && assets.length === 0 && (
             <tr>
               <td className="h-[116px] px-[17px] text-center text-[11px] text-subtle whitespace-normal" colSpan={5}>
-                {errorMessage
-                  ? 'The asset list could not be loaded.'
-                  : appliedSearch
-                    ? 'No matching asset was found.'
-                    : 'No active assets are available.'}
+                {appliedSearch ? 'No matching asset was found.' : 'No active assets are available.'}
               </td>
             </tr>
           )}

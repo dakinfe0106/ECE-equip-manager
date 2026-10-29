@@ -57,4 +57,30 @@ describe('Assets API client with mocked HTTP', () => {
 
         await expect(fetchAssets()).rejects.toMatchObject({ status: 403 });
     });
+
+    it('keeps the message from a DRF error response', async () => {
+        server.use(http.get(`${apiBaseUrl}/assets/`, () =>
+            HttpResponse.json({ detail: 'A server error occurred.' }, { status: 500 }),
+        ));
+
+        await expect(fetchAssets()).rejects.toMatchObject({
+            status: 500,
+            message: 'A server error occurred.',
+        });
+    });
+
+    it('falls back to the HTTP status when the error has no JSON body', async () => {
+        server.use(http.get(`${apiBaseUrl}/assets/`, () => new HttpResponse('Bad gateway', { status: 502 })));
+
+        await expect(fetchAssets()).rejects.toMatchObject({
+            status: 502,
+            message: 'Asset lookup failed (502)',
+        });
+    });
+
+    it('rejects without a status when the server cannot be reached', async () => {
+        server.use(http.get(`${apiBaseUrl}/assets/`, () => HttpResponse.error()));
+
+        await expect(fetchAssets()).rejects.toBeInstanceOf(TypeError);
+    });
 });
