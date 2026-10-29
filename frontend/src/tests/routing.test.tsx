@@ -5,21 +5,15 @@ import AppRoutes from '../AppRoutes'
 import { technicianAuth, withAuth } from './authTestUtils'
 
 describe('Application routes', () => {
-  it('renders the Asset ID lookup page at the root', () => {
+  it('renders the Dashboard at the root', () => {
     const html = renderToString(
       <MemoryRouter initialEntries={['/']}>{withAuth(<AppRoutes />)}</MemoryRouter>,
     )
-    expect(html).toContain('Assets')
-    expect(html).toContain('Search asset ID or name')
-    expect(html).toContain('Include Archived')
-    expect(html).toContain('Add Asset')
-    expect(html).toContain('View by')
-    expect(html).toContain('Filters')
+    expect(html).toContain('Equipment operations')
+    expect(html).toContain('A live overview of inventory health and lending activity')
+    expect(html).toContain('Loading dashboard information')
     expect(html).toContain('brand-name')
     expect(html).toContain('class="nav-icon"')
-    expect(html).not.toContain('brand-mark')
-    expect(html).toContain('Shop Technician')
-    expect(html).not.toContain('Inventory')
     expect(html).not.toContain('Page not found')
   })
 

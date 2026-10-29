@@ -7,6 +7,7 @@ from rest_framework import generics, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from users.permissions import InventoryRolePermissions
 
@@ -23,6 +24,34 @@ from .serializers import (
 
 class AssetPagination(PageNumberPagination):
     page_size = 20
+
+
+class Dashboard(APIView):
+    """Issue #46: current counts of eligible, non-retired assets."""
+
+    permission_classes = (InventoryRolePermissions,)
+    queryset = Asset.objects.all()
+
+    def get(self, request):
+        counts = Asset.objects.filter(
+            is_deleted=False,
+            type__is_deleted=False,
+            type__category__is_deleted=False,
+            status__in=(
+                Asset.Status.AVAILABLE,
+                Asset.Status.ON_LOAN,
+                Asset.Status.UNDER_MAINTENANCE,
+            ),
+        ).exclude(status=Asset.Status.RETIRED).aggregate(
+            total_assets=Count("pk"),
+            available_assets=Count("pk", filter=Q(status=Asset.Status.AVAILABLE)),
+            on_loan_assets=Count("pk", filter=Q(status=Asset.Status.ON_LOAN)),
+            under_maintenance_assets=Count(
+                "pk", filter=Q(status=Asset.Status.UNDER_MAINTENANCE)
+            ),
+        )
+        return Response(counts)
+
 
 DELETED_FILTER_VALUES = ("false", "true", "all")
 
