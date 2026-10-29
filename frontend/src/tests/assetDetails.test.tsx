@@ -33,13 +33,28 @@ describe('AssetDetails modal', () => {
     expect(html).toContain('aria-labelledby="details-title"')
     expect(html).toContain('ECE-OSC-001')
     expect(html).toContain('Rigol DS1054Z')
+    
+    // Verify read-only fields (since backend doesn't support editing them yet)
+    expect(html).toContain('Category · Read only')
     expect(html).toContain('Test &amp; Measurement')
+    expect(html).toContain('Equipment Type · Read only')
     expect(html).toContain('Oscilloscope')
+    
+    expect(html).toContain('Acquisition Date')
     expect(html).toContain('2022-09-01')
-    expect(html).toContain('status-on-loan')
+    
+    // Verify status badge rendering
+    expect(html).toContain('bg-yellow-100')
     expect(html).toContain('On Loan')
-    expect(html).toContain('Edit information')
+    
+    // Verify edit mode controls
+    expect(html).toContain('Asset Name *')
+    expect(html).toContain('Save Changes')
     expect(html).toContain('Close asset details')
+    
+    // Verify history placeholders
+    expect(html).toContain('View Lending History')
+    expect(html).toContain('View Maintenance History')
   })
 
   it('says when the acquisition date is missing', () => {
@@ -50,11 +65,17 @@ describe('AssetDetails modal', () => {
         onClose={noop}
       />,
     )
-    expect(html).toContain('Not recorded')
+    
+    // In edit mode, we verify the date input exists and handles null values
+    expect(html).toContain('Acquisition Date')
+    expect(html).toContain('type="date"')
+    // Verify "Not recorded" text is NOT present in edit mode
+    expect(html).not.toContain('Not recorded')
   })
 
-  it('lists required certifications when the type has them', () => {
+    it('displays certifications in the input field when present', () => {
     const asset = makeAsset()
+    // Note: In your new draft state, certs are joined into a string
     asset.equipment_type.required_certifications = [
       { certification_id: 1, name: 'Lab Safety' },
       { certification_id: 2, name: 'High Voltage' },
@@ -63,19 +84,21 @@ describe('AssetDetails modal', () => {
       <AssetDetails asset={asset} onAssetUpdated={noop} onClose={noop} />,
     )
 
-    expect(html).toContain('Required certifications')
-    expect(html).toContain('Lab Safety')
-    expect(html).toContain('High Voltage')
+    expect(html).toContain('Required Certifications')
+    expect(html).toContain('Lab Safety, High Voltage')
   })
 
-  it('says none are required when the list is empty', () => {
+  it('shows empty certifications input when none exist', () => {
     const asset = makeAsset()
     asset.equipment_type.required_certifications = []
     const html = renderToString(
       <AssetDetails asset={asset} onAssetUpdated={noop} onClose={noop} />,
     )
 
-    expect(html).toContain('None required')
+    expect(html).toContain('Required Certifications')
+    // Verify it shows "None" in the read-only input instead of a placeholder
+    expect(html).toContain('value="None"')
+    expect(html).toContain('readOnly=""')
   })
 
   it('hides the certifications row until the API provides it', () => {

@@ -1,22 +1,14 @@
-import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react'
+import { useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import {
   AssetLookupError,
   updateAsset,
   type AssetRecord,
-  type AssetUpdate,
 } from '../api'
 
 interface AssetDetailsProps {
   asset: AssetRecord
   onClose: () => void
   onAssetUpdated: (asset: AssetRecord) => void
-}
-
-const statusClassNames: Record<AssetRecord['status'], string> = {
-  Available: 'bg-[#def5e8] text-[#16864f]',
-  On_Loan: 'bg-[#fff0d6] text-[#ad6b00]',
-  Under_Maintenance: 'bg-[#fde2e2] text-[#bb4044]',
-  Retired: 'bg-[#e8ebf0] text-[#5b6574]',
 }
 
 function getErrorMessage(error: unknown): string {
@@ -32,55 +24,62 @@ export default function AssetDetails({
   onAssetUpdated,
 }: AssetDetailsProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
-  const certifications = asset.equipment_type.required_certifications
-  const [isEditing, setIsEditing] = useState(false)
+  
+  // UI States
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [statusMessage, setStatusMessage] = useState('')
-  const [draft, setDraft] = useState<AssetUpdate>({
+  const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
+  const [validationError, setValidationError] = useState('')
+
+  // Draft state for form fields (ONLY the ones the backend currently supports)
+  const [draft, setDraft] = useState({
     name: asset.name,
     acquisition_date: asset.acquisition_date,
   })
 
-  useEffect(() => {
-    const dialog = dialogRef.current
-    if (dialog && !dialog.open && typeof dialog.showModal === 'function') {
-      dialog.showModal()
+  // Compute dirty state by comparing draft directly to initial asset values
+  const isDirty = 
+    draft.name.trim() !== asset.name ||
+    draft.acquisition_date !== asset.acquisition_date
+
+  const handleAttemptClose = () => {
+    if (isDirty && !showUnsavedWarning) {
+      setShowUnsavedWarning(true)
+      return
     }
-    return () => {
-      if (dialog?.open) {
-        dialog.close()
-      }
-    }
-  }, [])
+    onClose()
+  }
 
   const closeOnBackdropClick = (event: MouseEvent<HTMLDialogElement>) => {
     if (event.target === event.currentTarget) {
-      onClose()
+      handleAttemptClose()
     }
-  }
-
-  const startEditing = () => {
-    setDraft({
-      name: asset.name,
-      acquisition_date: asset.acquisition_date,
-    })
-    setErrorMessage('')
-    setStatusMessage('')
-    setIsEditing(true)
   }
 
   const handleSave = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setIsSaving(true)
+    setValidationError('')
     setErrorMessage('')
-    setStatusMessage('')
 
+    // Trim validation on Asset Name
+    if (!draft.name.trim()) {
+      setValidationError('Asset Name cannot be empty or contain only spaces.')
+      return
+    }
+
+    setIsSaving(true)
     try {
-      const updatedAsset = await updateAsset(asset.asset_id, draft)
+      // Payload only includes fields the backend currently accepts for PATCH
+      const payload = {
+        name: draft.name.trim(),
+        acquisition_date: draft.acquisition_date,
+      }
+      
+      const updatedAsset = await updateAsset(asset.asset_id, payload)
       onAssetUpdated(updatedAsset)
-      setIsEditing(false)
       setStatusMessage(`Changes saved for ${updatedAsset.asset_identifier}.`)
+      setShowUnsavedWarning(false)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     } finally {
@@ -88,206 +87,247 @@ export default function AssetDetails({
     }
   }
 
+  // Helper for status badge color (TODO: Replace with <AssetStatusBadge /> if available)
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Available': return 'bg-green-100 text-green-800 border-green-200';
+      case 'On_Loan': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'Under_Maintenance': return 'bg-red-100 text-red-800 border-red-200';
+      case 'Retired': return 'bg-gray-100 text-gray-800 border-gray-200';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Read-only values directly from the asset prop (no API fetch needed!)
+  const currentCategoryName = asset.equipment_type.category.name;
+  const currentTypeName = asset.equipment_type.name;
+
   return (
     <dialog
       ref={dialogRef}
-      className="m-auto max-h-[calc(100dvh-48px)] w-[min(520px,calc(100vw-32px))] overflow-y-auto rounded-[10px] border-0 bg-white px-6 pb-[18px] pt-[22px] shadow-[0_24px_60px_rgb(15_27_45_/_28%)] backdrop:bg-[rgb(20_33_54_/_45%)]"
+      className="m-auto max-h-[calc(100dvh-48px)] w-[min(720px,calc(100vw-32px))] overflow-y-auto rounded-[10px] border-0 bg-white px-6 pb-[18px] pt-[22px] shadow-[0_24px_60px_rgb(15_27_45_/_28%)] backdrop:bg-[rgb(20_33_54_/_45%)]"
       id="asset-details"
       aria-labelledby="details-title"
       onCancel={(event) => {
         event.preventDefault()
-        onClose()
+        handleAttemptClose()
       }}
       onClick={closeOnBackdropClick}
     >
-      <header className="flex items-start justify-between gap-3 border-b border-[#e8edf3] pb-4">
+      {/* HEADER */}
+      <header className="flex items-start justify-between gap-3 border-b border-[#e8edf3] pb-4 mb-6">
         <div>
-          <p className="mb-[6px] text-[9px] font-bold tracking-[1px] text-[#8491a4]">
-            EQUIPMENT RECORD
+          <p className="mb-[6px] text-[11px] font-bold tracking-wide text-blue-600 uppercase">
+            ASSET DETAILS · {asset.asset_identifier}
           </p>
-          <h2 className="m-0 text-[15px] font-[650] text-[#26344a]" id="details-title">
+          <h2 className="m-0 text-[20px] font-[650] text-[#26344a]" id="details-title">
             {asset.name}
           </h2>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="rounded-[5px] bg-[#f1f4f9] px-2 py-[3px] font-mono text-[11px] font-semibold text-[#26344a]">
-              {asset.asset_identifier}
-            </span>
-            <span
-              className={`rounded-xl px-2 py-1 text-[9px] font-[650] ${statusClassNames[asset.status]} status-${asset.status.toLowerCase().replaceAll('_', '-')}`}
-            >
-              {asset.status.replaceAll('_', ' ')}
-            </span>
-          </div>
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
-          {!isEditing && (
-            <button
-              className="rounded-[5px] border border-[#2672e8] bg-[#2672e8] px-[10px] py-[6px] text-[10px] text-white focus-visible:outline-2 focus-visible:outline-[#347ee9] focus-visible:outline-offset-[3px]"
-              type="button"
-              onClick={startEditing}
-            >
-              Edit information
-            </button>
-          )}
-          <button
-            className="rounded-[5px] border border-[#dce3ed] bg-white px-[10px] py-[6px] text-[10px] text-[#59677a] focus-visible:outline-2 focus-visible:outline-[#347ee9] focus-visible:outline-offset-[3px]"
-            type="button"
-            onClick={onClose}
-            aria-label="Close asset details"
+        <button
+          className="rounded-[5px] border border-[#dce3ed] bg-white px-[10px] py-[6px] text-[14px] text-[#59677a] hover:bg-gray-50"
+          type="button"
+          onClick={handleAttemptClose}
+          aria-label="Close asset details"
+        >
+          ×
+        </button>
+      </header>
+
+      {/* STATUS BADGE */}
+      <div className="mb-6">
+        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(asset.status)}`}>
+          <span className="w-2 h-2 rounded-full bg-current mr-2"></span>
+          {asset.status.replaceAll('_', ' ')}
+        </span>
+      </div>
+
+      {/* UNSAVED CHANGES WARNING (Replaces window.confirm) */}
+      {showUnsavedWarning && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-[5px] flex justify-between items-start gap-3">
+          <p className="text-[10px] text-amber-800 font-medium">You have unsaved changes. Please save your changes or discard them.</p>
+          <button 
+            type="button" 
+            className="text-[10px] text-amber-800 underline whitespace-nowrap hover:text-amber-900"
+            onClick={() => {
+              setShowUnsavedWarning(false)
+              onClose()
+            }}
           >
-            ×
+            Discard and Close
           </button>
         </div>
-      </header>
-      {isEditing ? (
-        <form className="pt-[15px]" onSubmit={handleSave} aria-busy={isSaving}>
-          <div className="grid grid-cols-4 gap-[13px] max-[700px]:grid-cols-2 max-[390px]:grid-cols-1">
-            <label className="flex min-w-0 flex-col gap-[6px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">
-              <span>Asset ID</span>
-              <input
-                className="w-full min-w-0 rounded-[5px] border border-[#dce3ed] bg-[#eef2f7] px-[9px] py-2 text-[11px] text-[#68768a] normal-case"
-                value={asset.asset_identifier}
-                readOnly
-              />
-            </label>
-            <label className="flex min-w-0 flex-col gap-[6px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">
-              <span>Name</span>
-              <input
-                className="w-full min-w-0 rounded-[5px] border border-[#dce3ed] bg-white px-[9px] py-2 text-[11px] text-[#39465a] normal-case focus-visible:outline-2 focus-visible:outline-[#347ee9]"
-                required
-                maxLength={255}
-                value={draft.name}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, name: event.target.value }))
-                }
-              />
-            </label>
-            <label className="flex min-w-0 flex-col gap-[6px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">
-              <span>Status</span>
-              <input
-                className="w-full min-w-0 rounded-[5px] border border-[#dce3ed] bg-[#eef2f7] px-[9px] py-2 text-[11px] text-[#68768a] normal-case"
-                value={asset.status.replaceAll('_', ' ')}
-                readOnly
-              />
-            </label>
-            <label className="flex min-w-0 flex-col gap-[6px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">
-              <span>Acquisition date</span>
-              <input
-                className="w-full min-w-0 rounded-[5px] border border-[#dce3ed] bg-white px-[9px] py-2 text-[11px] text-[#39465a] normal-case focus-visible:outline-2 focus-visible:outline-[#347ee9]"
-                type="date"
-                value={draft.acquisition_date ?? ''}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    acquisition_date: event.target.value || null,
-                  }))
-                }
-              />
-            </label>
-          </div>
-          <div className="mt-[14px] flex items-center justify-end gap-2">
-            {errorMessage && (
-              <p className="mr-auto text-[10px] text-[#b42332]" role="alert">
-                {errorMessage}
-              </p>
-            )}
+      )}
+
+      {/* FORM */}
+      <form className="pt-[15px]" onSubmit={handleSave} aria-busy={isSaving}>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+          
+          {/* Row 1: Read Only Fields */}
+          <label className="flex min-w-0 flex-col gap-[6px]">
+            <span className="text-[10px] font-[650] text-[#8792a2]">Asset ID · Read only</span>
+            <input
+              className="w-full rounded-[5px] border border-[#dce3ed] bg-[#f1f3f6] px-3 py-2 text-[12px] text-[#68768a] cursor-not-allowed"
+              value={asset.asset_identifier}
+              readOnly
+            />
+          </label>
+          <label className="flex min-w-0 flex-col gap-[6px]">
+            <span className="text-[10px] font-[650] text-[#8792a2]">Current Status · Read only</span>
+            <input
+              className="w-full rounded-[5px] border border-[#dce3ed] bg-[#f1f3f6] px-3 py-2 text-[12px] text-[#68768a] cursor-not-allowed"
+              value={asset.status.replaceAll('_', ' ')}
+              readOnly
+            />
+          </label>
+
+          {/* Row 2: Editable Name */}
+          <label className="flex min-w-0 flex-col gap-[6px]">
+            <span className="text-[10px] font-[650] text-[#8792a2]">Asset Name *</span>
+            <input
+              className="w-full rounded-[5px] border border-[#dce3ed] bg-white px-3 py-2 text-[12px] text-[#39465a] focus:border-blue-500 focus:outline-none"
+              required
+              maxLength={255}
+              value={draft.name}
+              onChange={(event) => {
+                setDraft((current) => ({ ...current, name: event.target.value }))
+              }}
+            />
+          </label>
+          
+          {/* Serial Number disabled per review until backend supports it */}
+          <label className="flex min-w-0 flex-col gap-[6px]">
+            <span className="text-[10px] font-[650] text-[#8792a2]">Serial Number (Coming Soon)</span>
+            <input
+              className="w-full rounded-[5px] border border-[#dce3ed] bg-[#f1f3f6] px-3 py-2 text-[12px] text-[#68768a] cursor-not-allowed"
+              value="N/A"
+              readOnly
+              disabled
+            />
+          </label>
+
+          {/* Row 3: Category & Equipment Type (Read-only until backend supports updates) */}
+          <label className="flex min-w-0 flex-col gap-[6px]">
+            <span className="text-[10px] font-[650] text-[#8792a2]">Category · Read only</span>
+            <input
+              className="w-full rounded-[5px] border border-[#dce3ed] bg-[#f1f3f6] px-3 py-2 text-[12px] text-[#68768a] cursor-not-allowed"
+              value={currentCategoryName}
+              readOnly
+            />
+          </label>
+
+          <label className="flex min-w-0 flex-col gap-[6px]">
+            <span className="text-[10px] font-[650] text-[#8792a2]">Equipment Type · Read only</span>
+            <input
+              className="w-full rounded-[5px] border border-[#dce3ed] bg-[#f1f3f6] px-3 py-2 text-[12px] text-[#68768a] cursor-not-allowed"
+              value={currentTypeName}
+              readOnly
+            />
+          </label>
+
+          {/* Row 4: Acquisition Date & Required Certifications */}
+          <label className="flex min-w-0 flex-col gap-[6px]">
+            <span className="text-[10px] font-[650] text-[#8792a2]">Acquisition Date</span>
+            <input
+              className="w-full rounded-[5px] border border-[#dce3ed] bg-white px-3 py-2 text-[12px] text-[#39465a] focus:border-blue-500 focus:outline-none"
+              type="date"
+              value={draft.acquisition_date ?? ''}
+              onChange={(event) => {
+                setDraft((current) => ({
+                  ...current,
+                  acquisition_date: event.target.value || null,
+                }))
+              }}
+            />
+          </label>
+          
+          {/* Required Certifications - Read only as it belongs to Equipment Type */}
+          <label className="flex min-w-0 flex-col gap-[6px]">
+            <span className="text-[10px] font-[650] text-[#8792a2]">Required Certifications</span>
+            <input
+              className="w-full rounded-[5px] border border-[#dce3ed] bg-[#f1f3f6] px-3 py-2 text-[12px] text-[#68768a] cursor-not-allowed"
+              value={asset.equipment_type.required_certifications?.map(c => c.name).join(', ') || 'None'}
+              readOnly
+            />
+          </label>
+
+          {/* Error Displays */}
+          {validationError && (
+            <div className="col-span-2 p-3 bg-red-50 border border-red-200 rounded-[5px]">
+              <p className="text-[10px] text-red-600 font-medium">{validationError}</p>
+            </div>
+          )}
+          {errorMessage && (
+            <div className="col-span-2 p-3 bg-red-50 border border-red-200 rounded-[5px]">
+              <p className="text-[10px] text-red-600 font-medium">{errorMessage}</p>
+            </div>
+          )}
+          {statusMessage && (
+            <div className="col-span-2 p-3 bg-green-50 border border-green-200 rounded-[5px]">
+              <p className="text-[10px] text-green-700 font-medium">{statusMessage}</p>
+            </div>
+          )}
+        </div>
+
+        {/* History Links (Disabled per review until feature exists, replaces alert()) */}
+        <div className="mt-6 grid grid-cols-2 gap-3 border-t border-[#e8edf3] pt-4">
+           <button
+            type="button"
+            disabled
+            title="Lending History feature coming in a future sprint!"
+            className="rounded-[5px] border border-[#dce3ed] bg-[#f8f9fb] px-3 py-2 text-[11px] font-[650] text-[#8792a2] cursor-not-allowed flex justify-between items-center"
+          >
+            View Lending History <span>→</span>
+          </button>
+          <button
+            type="button"
+            disabled
+            title="Maintenance History feature coming in a future sprint!"
+            className="rounded-[5px] border border-[#dce3ed] bg-[#f8f9fb] px-3 py-2 text-[11px] font-[650] text-[#8792a2] cursor-not-allowed flex justify-between items-center"
+          >
+            View Maintenance History <span>→</span>
+          </button>
+        </div>
+
+        {/* Lifecycle Safeguards */}
+        <div className="mt-4 p-4 bg-blue-50 border border-blue-100 rounded-[5px]">
+          <h4 className="text-[11px] font-bold text-gray-800 mb-1">Lifecycle safeguards</h4>
+          <p className="text-[10px] text-gray-600">
+            Operational actions are disabled while the asset has an active loan, maintenance record, or retired status.
+          </p>
+        </div>
+
+        {/* Footer Buttons */}
+        <div className="mt-6 flex items-center justify-between border-t border-[#e8edf3] pt-4">
+          {/* Left Side: Archive */}
+          <button
+            className="rounded-[5px] border border-red-200 bg-white px-4 py-2 text-[12px] font-semibold text-red-600 hover:bg-red-50"
+            type="button"
+            disabled
+          >
+            Archive Asset
+          </button>
+
+          {/* Right Side: Actions */}
+          <div className="flex items-center gap-2">
             <button
-              className="rounded-[5px] border border-[#dce3ed] bg-white px-[10px] py-[6px] text-[10px] text-[#59677a] disabled:cursor-wait disabled:opacity-70"
+              className="rounded-[5px] border border-[#dce3ed] bg-white px-4 py-2 text-[12px] font-semibold text-[#59677a] hover:bg-gray-50"
               type="button"
-              disabled={isSaving}
-              onClick={() => setIsEditing(false)}
+              onClick={handleAttemptClose}
             >
               Cancel
             </button>
             <button
-              className="rounded-[5px] border border-[#2672e8] bg-[#2672e8] px-[10px] py-[6px] text-[10px] text-white disabled:cursor-wait disabled:opacity-70"
+              className="rounded-[5px] border border-[#2672e8] bg-[#2672e8] px-4 py-2 text-[12px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
               type="submit"
-              disabled={isSaving}
+              disabled={isSaving || !isDirty}
             >
-              {isSaving ? 'Saving…' : 'Save changes'}
+              {isSaving ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
-        </form>
-      ) : (
-        <dl className="mt-4 grid grid-cols-3 gap-x-[23px] gap-y-[17px] max-[700px]:grid-cols-2 max-[390px]:grid-cols-1">
-          <div>
-            <dt className="mb-[5px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">
-              Asset ID
-            </dt>
-            <dd className="m-0 [overflow-wrap:anywhere] text-[11px] text-[#39465a]">
-              {asset.asset_identifier}
-            </dd>
-          </div>
-          {certifications !== undefined && (
-            <div className="col-span-full">
-              <dt className="mb-[5px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">
-                Required certifications
-              </dt>
-              <dd className="m-0 [overflow-wrap:anywhere] text-[11px] text-[#39465a]">
-                {certifications.length === 0 ? (
-                  'None required'
-                ) : (
-                  <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0">
-                    {certifications.map((certification) => (
-                      <li
-                        className="rounded-xl border border-[#d6e2f5] bg-[#f1f6ff] px-[9px] py-[3px] text-[10px] font-semibold text-[#174fa1]"
-                        key={certification.certification_id}
-                      >
-                        {certification.name}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </dd>
-            </div>
-          )}
-          <div>
-            <dt className="mb-[5px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">
-              Category
-            </dt>
-            <dd className="m-0 [overflow-wrap:anywhere] text-[11px] text-[#39465a]">
-              {asset.equipment_type.category.name}
-            </dd>
-          </div>
-          <div>
-            <dt className="mb-[5px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">
-              Equipment type
-            </dt>
-            <dd className="m-0 [overflow-wrap:anywhere] text-[11px] text-[#39465a]">
-              {asset.equipment_type.name}
-            </dd>
-          </div>
-          <div>
-            <dt className="mb-[5px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">
-              Status
-            </dt>
-            <dd className="m-0 [overflow-wrap:anywhere] text-[11px] text-[#39465a]">
-              {asset.status.replaceAll('_', ' ')}
-            </dd>
-          </div>
-          <div>
-            <dt className="mb-[5px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">
-              Acquisition date
-            </dt>
-            <dd className="m-0 [overflow-wrap:anywhere] text-[11px] text-[#39465a]">
-              {asset.acquisition_date ?? 'Not recorded'}
-            </dd>
-          </div>
-          <div>
-            <dt className="mb-[5px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">
-              Description
-            </dt>
-            <dd className="m-0 [overflow-wrap:anywhere] text-[11px] text-[#39465a]">
-              {asset.equipment_type.description || 'No description recorded'}
-            </dd>
-          </div>
-        </dl>
-      )}
-      {statusMessage && (
-        <p className="mt-3 text-[10px] text-[#087443]" role="status">
-          {statusMessage}
-        </p>
-      )}
+        </div>
+      </form>
     </dialog>
   )
 }
+
