@@ -47,7 +47,7 @@
 | ---------------- | ------------ | -------- | ----------------------------------------------------------- |
 | asset_id         | int          | No       | PK                                                          |
 | type_id          | int          | No       | FK → EquipmentType.type_id (`PROTECT`)                           |
-| asset_identifier | varchar(100) | No       | Trimmed, nonempty; globally unique by exact value, including soft-deleted |
+| asset_identifier | varchar(100) | No       | Trimmed, nonempty; globally unique ignoring case (`SHOP-001` and `shop-001` are the same ID), including soft-deleted |
 | name             | varchar(255) | No       | Trimmed, nonempty                                           |
 | acquisition_date | date         | **Yes**  | Optional for imported/older assets                          |
 | status           | varchar(20)  | No       | Default `Available`; choices below                          |
@@ -55,7 +55,7 @@
 
 **Asset statuses:** `Available`, `On_Loan`, `Under_Maintenance`, `Retired`.
 
-Asset ID search trims surrounding whitespace and matches identifiers by case-insensitive substring. An exact-case full identifier takes precedence when case variants exist. Asset results are paginated at 20 per page. Results exclude assets whose asset, equipment type, or category is soft-deleted.
+Asset ID search trims surrounding whitespace and matches identifiers by case-insensitive substring. A full identifier returns its matching asset. Asset results are paginated at 20 per page. Results exclude assets whose asset, equipment type, or category is soft-deleted.
 
 ### Borrower
 
@@ -166,7 +166,7 @@ SystemUser is the logical record for people who sign in to the application. It i
 
 ### Naming, deletion, and restoration
 
-1. Trim whitespace from all string input as described in section 1. Uniqueness for category, equipment type, and certification names is case-insensitive. Name and identifier reservations continue across soft deletion.
+1. Trim whitespace from all string input as described in section 1. Uniqueness for category, equipment type, and certification names and for asset IDs is case-insensitive. Name and identifier reservations continue across soft deletion.
 2. Soft-delete `Category`, `EquipmentType`, `Asset`, `Borrower`, and `SystemUser`; do not cascade soft-deletion through related tables.
 3. Prevent deletion of a category with active dependent equipment types, an equipment type with active dependent assets, or an asset with an open loan or maintenance record. Deactivated/soft-deleted records are unavailable for new operations, but existing transaction history stays accessible to authorized users.
 4. Restore an existing record by clearing `is_deleted`, not by inserting a duplicate. `Certification` and join-table associations are not part of the general soft-delete workflow; changes to them must be deliberate and preserve transaction-related semantics.

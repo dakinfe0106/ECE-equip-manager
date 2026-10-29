@@ -92,7 +92,7 @@ class AssetCreateSerializer(serializers.ModelSerializer):
         read_only_fields = ("asset_id", "status")
 
     def validate_asset_identifier(self, value):
-        if Asset.objects.filter(asset_identifier=value).exists():
+        if Asset.objects.filter(asset_identifier__iexact=value).exists():
             raise serializers.ValidationError(
                 "An asset with this Asset ID already exists."
             )

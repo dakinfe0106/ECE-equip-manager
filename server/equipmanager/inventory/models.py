@@ -91,8 +91,8 @@ class Asset(models.Model):
     class Meta:
         constraints = (
             UniqueConstraint(
-                fields=["asset_identifier"],
-                name="inventory_asset_identifier_unique",
+                Lower("asset_identifier"),
+                name="inventory_asset_identifier_ci_unique",
             ),
             CheckConstraint(
                 condition=Q(asset_identifier=Trim("asset_identifier"))

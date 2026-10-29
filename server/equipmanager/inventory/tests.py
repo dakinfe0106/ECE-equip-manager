@@ -331,51 +331,32 @@ def test_asset_list_paginates_twenty_records_per_page(
     assert second_page.data["previous"] is not None
 
 
-def test_asset_identifier_is_case_sensitive_unique_including_soft_deleted(
+def test_asset_identifier_is_case_insensitive_unique_including_soft_deleted(
     db, asset_record
 ):
     asset_record.is_deleted = True
     asset_record.save(update_fields=["is_deleted"])
 
-    lowercase_identifier = Asset.objects.create(
-        type=asset_record.type,
-        asset_identifier="shop-001",
-        name="Lowercase identifier asset",
-    )
-    assert lowercase_identifier.asset_identifier == "shop-001"
+    for duplicate_identifier in (" SHOP-001 ", "shop-001", "Shop-001"):
+        with pytest.raises(IntegrityError), transaction.atomic():
+            Asset.objects.create(
+                type=asset_record.type,
+                asset_identifier=duplicate_identifier,
+                name="Duplicate drill",
+            )
 
-    with pytest.raises(IntegrityError), transaction.atomic():
-        Asset.objects.create(
-            type=asset_record.type,
-            asset_identifier=" SHOP-001 ",
-            name="Duplicate drill",
+
+def test_asset_search_matches_identifier_case_insensitively(
+    authenticated_client, asset_record
+):
+    for query in ("SHOP-001", "shop-001", "Shop-00"):
+        response = authenticated_client.get(
+            "/api/assets/",
+            {"asset_identifier": query},
         )
 
-
-def test_asset_search_prefers_exact_case_before_case_insensitive_substring(
-    authenticated_client, asset_record, inventory_type
-):
-    lowercase_asset = Asset.objects.create(
-        type=inventory_type,
-        asset_identifier="shop-001",
-        name="Lowercase identifier asset",
-    )
-
-    exact_response = authenticated_client.get(
-        "/api/assets/",
-        {"asset_identifier": "SHOP-001"},
-    )
-    fallback_response = authenticated_client.get(
-        "/api/assets/",
-        {"asset_identifier": "SHOP-00"},
-    )
-
-    assert exact_response.data["count"] == 1
-    assert exact_response.data["results"][0]["asset_identifier"] == "SHOP-001"
-    assert fallback_response.data["count"] == 2
-    assert {
-        asset["asset_identifier"] for asset in fallback_response.data["results"]
-    } == {asset_record.asset_identifier, lowercase_asset.asset_identifier}
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["asset_identifier"] == "SHOP-001"
 
 
 def test_model_save_normalizes_inventory_text(db):
@@ -623,7 +604,7 @@ def test_asset_create_rejects_duplicate_identifier_even_if_deleted(
     assert "asset_identifier" in response.data
 
 
-def test_asset_create_allows_case_variant_identifier(
+def test_asset_create_rejects_case_variant_identifier(
     authenticated_client, asset_record
 ):
     response = authenticated_client.post(
@@ -636,8 +617,11 @@ def test_asset_create_allows_case_variant_identifier(
         format="json",
     )
 
-    assert response.status_code == 201
-    assert response.data["asset_identifier"] == "shop-001"
+    assert response.status_code == 400
+    assert response.data["asset_identifier"] == [
+        "An asset with this Asset ID already exists."
+    ]
+    assert Asset.objects.count() == 1
 
 
 def test_asset_create_rejects_inactive_equipment_type(
