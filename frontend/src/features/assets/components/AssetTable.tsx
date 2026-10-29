@@ -10,6 +10,7 @@ interface AssetTableProps {
   assets: AssetRecord[]
   errorMessage: string
   isLoading: boolean
+  hasActiveFilters: boolean
   onSelectAsset: (assetId: number | null) => void
   selectedAssetId: number | null
 }
@@ -19,6 +20,7 @@ export default function AssetTable({
   assets,
   errorMessage,
   isLoading,
+  hasActiveFilters,
   onSelectAsset,
   selectedAssetId,
 }: AssetTableProps) {
@@ -76,8 +78,8 @@ export default function AssetTable({
               <td className="h-[116px] px-[17px] text-center text-[11px] text-subtle whitespace-normal" colSpan={5}>
                 {errorMessage
                   ? 'The asset list could not be loaded.'
-                  : appliedSearch
-                    ? 'No matching asset was found.'
+                  : appliedSearch || hasActiveFilters
+                    ? 'No assets match the current search and filters.'
                     : 'No active assets are available.'}
               </td>
             </tr>

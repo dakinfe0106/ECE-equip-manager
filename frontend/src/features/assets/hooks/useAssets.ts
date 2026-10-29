@@ -1,5 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
-import { AssetLookupError, fetchAssets, type AssetRecord } from '../api'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  AssetLookupError,
+  fetchAssets,
+  type AssetFilters,
+  type AssetRecord,
+} from '../api'
 
 const pageSize = 20
 
@@ -16,22 +21,31 @@ export default function useAssets() {
   const [currentPage, setCurrentPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
+  const latestRequestId = useRef(0)
 
-  const loadAssets = useCallback(async (page: number, search: string) => {
+  const loadAssets = useCallback(async (
+    page: number,
+    search: string,
+    filters: AssetFilters = {},
+  ) => {
+    const requestId = latestRequestId.current + 1
+    latestRequestId.current = requestId
     setIsLoading(true)
     setErrorMessage('')
 
     try {
-      const response = await fetchAssets(page, search)
+      const response = await fetchAssets(page, search, filters)
+      if (requestId !== latestRequestId.current) return
       setAssets(response.results)
       setTotalCount(response.count)
       setCurrentPage(page)
     } catch (error) {
+      if (requestId !== latestRequestId.current) return
       setAssets([])
       setTotalCount(0)
       setErrorMessage(getErrorMessage(error))
     } finally {
-      setIsLoading(false)
+      if (requestId === latestRequestId.current) setIsLoading(false)
     }
   }, [])
 
@@ -44,27 +58,26 @@ export default function useAssets() {
   }, [])
 
   useEffect(() => {
-    let isCurrent = true
+    const requestId = latestRequestId.current + 1
+    latestRequestId.current = requestId
     fetchAssets()
       .then((response) => {
-        if (isCurrent) {
+        if (requestId === latestRequestId.current) {
           setAssets(response.results)
           setTotalCount(response.count)
         }
       })
       .catch((error: unknown) => {
-        if (isCurrent) {
+        if (requestId === latestRequestId.current) {
           setErrorMessage(getErrorMessage(error))
         }
       })
       .finally(() => {
-        if (isCurrent) {
-          setIsLoading(false)
-        }
+        if (requestId === latestRequestId.current) setIsLoading(false)
       })
 
     return () => {
-      isCurrent = false
+      if (requestId === latestRequestId.current) latestRequestId.current += 1
     }
   }, [])
 

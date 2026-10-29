@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import PageIntro from '../components/ui/PageIntro'
 import Panel from '../components/ui/Panel'
 import AssetArchiveToggle from '../features/assets/components/AssetArchiveToggle'
@@ -8,11 +8,20 @@ import AssetTable from '../features/assets/components/AssetTable'
 import AssetViewBy from '../features/assets/components/AssetViewBy'
 import AddAssetAction from '../features/assets/components/AddAssetAction'
 import AssetDetails from '../features/assets/components/AssetDetails'
+import AddAssetModal from '../features/assets/components/AddAssetModal'
+import { fetchCategories, fetchEquipmentTypes, type AssetFilters, type AssetRecord, type CategoryOption, type EquipmentTypeOption } from '../features/assets/api'
 import useAssets from '../features/assets/hooks/useAssets'
 
 export default function AssetsPage() {
   const [assetIdentifier, setAssetIdentifier] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
+  const [filters, setFilters] = useState<AssetFilters>({})
+  const [categories, setCategories] = useState<CategoryOption[]>([])
+  const [equipmentTypes, setEquipmentTypes] = useState<EquipmentTypeOption[]>([])
+  const [isLoadingOptions, setIsLoadingOptions] = useState(true)
+  const [filterError, setFilterError] = useState('')
+  const [isAddAssetOpen, setIsAddAssetOpen] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
   const [selectedAssetId, setSelectedAssetId] = useState<number | null>(null)
   const {
     assets,
@@ -27,22 +36,64 @@ export default function AssetsPage() {
   } = useAssets()
   const selectedAsset = assets.find((asset) => asset.asset_id === selectedAssetId)
 
-  const loadPage = (page: number, search = appliedSearch) => {
+  useEffect(() => {
+    let isCurrent = true
+    Promise.all([fetchCategories(), fetchEquipmentTypes()])
+      .then(([categoryOptions, typeOptions]) => {
+        if (isCurrent) {
+          setCategories(categoryOptions)
+          setEquipmentTypes(typeOptions)
+        }
+      })
+      .catch(() => {
+        if (isCurrent) setFilterError('Could not load category and equipment type filters.')
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingOptions(false)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
+
+  const loadPage = (page: number, search = appliedSearch, selectedFilters = filters) => {
     setSelectedAssetId(null)
-    void loadAssets(page, search)
+    setSuccessMessage('')
+    void loadAssets(page, search, selectedFilters)
   }
 
   const searchAssets = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const trimmedIdentifier = assetIdentifier.trim()
     setAppliedSearch(trimmedIdentifier)
-    loadPage(1, trimmedIdentifier)
+    loadPage(1, trimmedIdentifier, filters)
   }
 
   const clearSearch = () => {
     setAssetIdentifier('')
     setAppliedSearch('')
-    loadPage(1, '')
+    loadPage(1, '', filters)
+  }
+
+  const applyFilters = (nextFilters: AssetFilters) => {
+    setFilters(nextFilters)
+    loadPage(1, appliedSearch, nextFilters)
+  }
+
+  const resetFilters = () => {
+    setFilters({})
+    loadPage(1, appliedSearch, {})
+  }
+
+  const handleAssetCreated = (asset: AssetRecord) => {
+    setIsAddAssetOpen(false)
+    setAssetIdentifier('')
+    setAppliedSearch('')
+    setFilters({})
+    setSelectedAssetId(null)
+    setSuccessMessage(`Asset ${asset.asset_identifier} was added successfully.`)
+    void loadAssets(currentPage, '', {})
   }
 
   return (
@@ -56,7 +107,7 @@ export default function AssetsPage() {
         actions={
           <>
             <AssetViewBy />
-            <AddAssetAction />
+            <AddAssetAction onClick={() => setIsAddAssetOpen(true)} />
           </>
         }
       />
@@ -69,7 +120,20 @@ export default function AssetsPage() {
           onAssetIdentifierChange={setAssetIdentifier}
           onClear={clearSearch}
           onSearch={searchAssets}
+          categories={categories}
+          equipmentTypes={equipmentTypes}
+          filters={filters}
+          isLoadingOptions={isLoadingOptions}
+          filterError={filterError}
+          onApplyFilters={applyFilters}
+          onResetFilters={resetFilters}
         />
+
+        {successMessage && (
+          <p className="mx-[17px] mt-[13px] mb-0 rounded-lg border border-success/20 bg-success-soft px-[11px] py-[9px] text-[11px] text-success" role="status">
+            {successMessage}
+          </p>
+        )}
 
         {errorMessage && (
           <p
@@ -93,6 +157,7 @@ export default function AssetsPage() {
           assets={assets}
           errorMessage={errorMessage}
           isLoading={isLoading}
+          hasActiveFilters={Boolean(filters.categoryId || filters.equipmentTypeId)}
           onSelectAsset={setSelectedAssetId}
           selectedAssetId={selectedAssetId}
         />
@@ -111,6 +176,12 @@ export default function AssetsPage() {
           asset={selectedAsset}
           onAssetUpdated={replaceAsset}
           onClose={() => setSelectedAssetId(null)}
+        />
+      )}
+      {isAddAssetOpen && (
+        <AddAssetModal
+          onClose={() => setIsAddAssetOpen(false)}
+          onCreated={handleAssetCreated}
         />
       )}
     </section>
