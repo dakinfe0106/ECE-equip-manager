@@ -45,6 +45,7 @@ const server = setupServer(
   }),
   http.get(`${apiBaseUrl}/assets/`, () => HttpResponse.json({ count: 0, next: null, previous: null, results: [] })),
   http.get(`${apiBaseUrl}/categories/summary/`, () => HttpResponse.json([])),
+  http.get(`${apiBaseUrl}/dashboard/`, () => HttpResponse.json({ total_assets: 0, available_assets: 0, on_loan_assets: 0, under_maintenance_assets: 0 })),
 )
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
