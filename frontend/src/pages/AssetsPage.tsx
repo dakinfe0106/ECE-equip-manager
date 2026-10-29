@@ -25,7 +25,6 @@ export default function AssetsPage() {
   const [selectedAssetId, setSelectedAssetId] = useState<number | null>(null)
   const {
     assets,
-    addAsset,
     currentPage,
     errorMessage,
     isLoading,
@@ -88,14 +87,13 @@ export default function AssetsPage() {
   }
 
   const handleAssetCreated = (asset: AssetRecord) => {
-    addAsset(asset)
     setIsAddAssetOpen(false)
     setAssetIdentifier('')
     setAppliedSearch('')
     setFilters({})
     setSelectedAssetId(null)
     setSuccessMessage(`Asset ${asset.asset_identifier} was added successfully.`)
-    void loadAssets(1, '', {})
+    void loadAssets(currentPage, '', {})
   }
 
   return (

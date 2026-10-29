@@ -152,4 +152,64 @@ describe('Assets page revamp workflows', () => {
       acquisition_date: null,
     })
   })
+
+  it('keeps the current page when an asset is created from a later page', async () => {
+    const user = userEvent.setup()
+    const firstPageAssets = Array.from({ length: 20 }, (_, index) => ({
+      ...asset,
+      asset_id: index + 1,
+      asset_identifier: `SHOP-${String(index + 1).padStart(3, '0')}`,
+      name: `Drill ${index + 1}`,
+    }))
+    const pageTwoAsset = {
+      ...asset,
+      asset_id: 21,
+      asset_identifier: 'SHOP-021',
+      name: 'Page two drill',
+    }
+    const createdAsset = {
+      ...asset,
+      asset_id: 22,
+      asset_identifier: 'SHOP-022',
+      name: 'New page two drill',
+    }
+    const requestedPages: string[] = []
+    let wasCreated = false
+    server.use(
+      http.get(`${apiBaseUrl}/assets/`, ({ request }) => {
+        const page = new URL(request.url).searchParams.get('page') ?? '1'
+        requestedPages.push(page)
+        const results = page === '2'
+          ? wasCreated ? [pageTwoAsset, createdAsset] : [pageTwoAsset]
+          : firstPageAssets
+        return HttpResponse.json({
+          count: wasCreated ? 22 : 21,
+          next: null,
+          previous: page === '2' ? 'page=1' : null,
+          results,
+        })
+      }),
+      http.post(`${apiBaseUrl}/assets/`, () => {
+        wasCreated = true
+        return HttpResponse.json(createdAsset, { status: 201 })
+      }),
+    )
+    renderAssetsPage()
+
+    expect(await screen.findByText('Page 1 of 2')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    expect(await screen.findByText('Page 2 of 2')).toBeTruthy()
+    expect(await screen.findByText('Page two drill')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Add Asset' }))
+    await user.type(screen.getByLabelText(/Asset ID/), 'SHOP-022')
+    await user.type(screen.getByLabelText(/Asset name/i), 'New page two drill')
+    await user.selectOptions(await screen.findByLabelText(/Category/), '1')
+    await user.selectOptions(await screen.findByLabelText(/Equipment type/), '1')
+    await user.click(screen.getByRole('button', { name: 'Save Asset' }))
+
+    expect(await screen.findByText('New page two drill')).toBeTruthy()
+    expect(screen.getByText('Page 2 of 2')).toBeTruthy()
+    expect(requestedPages.at(-1)).toBe('2')
+  })
 })

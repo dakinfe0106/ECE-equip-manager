@@ -57,16 +57,6 @@ export default function useAssets() {
     )
   }, [])
 
-  const addAsset = useCallback((asset: AssetRecord) => {
-    setAssets((currentAssets) => [
-      asset,
-      ...currentAssets.filter((currentAsset) => currentAsset.asset_id !== asset.asset_id),
-    ].slice(0, pageSize))
-    setTotalCount((currentCount) => currentCount + 1)
-    setCurrentPage(1)
-    setErrorMessage('')
-  }, [])
-
   useEffect(() => {
     const requestId = latestRequestId.current + 1
     latestRequestId.current = requestId
@@ -94,7 +84,6 @@ export default function useAssets() {
   return {
     assets,
     currentPage,
-    addAsset,
     errorMessage,
     isLoading,
     loadAssets,
