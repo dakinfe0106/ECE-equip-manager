@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
@@ -118,8 +118,8 @@ describe('Login and session flow', () => {
     server.use(http.get(`${apiBaseUrl}/auth/me/`, () => HttpResponse.json({ ...user, role, role_label })))
     renderApp('/assets')
     expect(await screen.findByText('Test Technician')).toBeTruthy()
-    expect(screen.getByText(role_label)).toBeTruthy()
-    expect(screen.getByText('TT')).toBeTruthy()
+    expect(within(screen.getByRole('complementary')).getByText(role_label)).toBeTruthy()
+    expect(within(screen.getByRole('complementary')).getByText('TT')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
   })
 
@@ -128,13 +128,14 @@ describe('Login and session flow', () => {
     server.use(http.get(`${apiBaseUrl}/auth/me/`, () => HttpResponse.json({ ...user, first_name: '', last_name: '' })))
     renderApp('/assets')
     expect(await screen.findByText('shoptech')).toBeTruthy()
-    expect(screen.getByText('S')).toBeTruthy()
+    expect(within(screen.getByRole('complementary')).getByText('S')).toBeTruthy()
   })
 
   it('renders the standalone design with required fields and autofill', async () => {
     renderApp()
     expect(await screen.findByRole('heading', { name: 'Sign in to your workspace' })).toBeTruthy()
     expect(screen.queryByRole('navigation')).toBeNull()
+    expect(screen.queryByRole('banner')).toBeNull()
     expect(screen.getByLabelText('Username').getAttribute('autocomplete')).toBe('username')
     expect(screen.getByLabelText('Password').getAttribute('autocomplete')).toBe('current-password')
     expect(screen.getByLabelText('Password').getAttribute('type')).toBe('password')
@@ -250,6 +251,7 @@ describe('Login and session flow', () => {
     expect(await screen.findByLabelText('Username')).toBeTruthy()
     expect(signedIn).toBe(false)
     expect(screen.queryByRole('navigation')).toBeNull()
+    expect(screen.queryByRole('banner')).toBeNull()
   })
 
   it('keeps the session visible when logout fails and allows retry', async () => {

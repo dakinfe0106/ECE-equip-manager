@@ -35,7 +35,7 @@ describe('Categories page', () => {
   it('renders inside the shared sidebar layout with Categories highlighted', () => {
     expect(html).toContain('ECE Equipment')
     expect(html).toMatch(/<a[^>]*aria-current="page"[^>]*href="\/categories"/)
-    expect(html.match(/aria-current="page"/g)).toHaveLength(1)
+    expect(html.match(/<a[^>]*aria-current="page"/g)).toHaveLength(1)
   })
 })
 
@@ -45,7 +45,7 @@ describe('Assets page navigation', () => {
 
     expect(html).toMatch(/<a[^>]*aria-current="page"[^>]*href="\/"/)
     expect(html).toContain('href="/categories"')
-    expect(html.match(/aria-current="page"/g)).toHaveLength(1)
+    expect(html.match(/<a[^>]*aria-current="page"/g)).toHaveLength(1)
   })
 })
 

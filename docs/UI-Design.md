@@ -63,6 +63,9 @@ Add these to the `@theme` block in `frontend/src/index.css` when you first resty
   --color-muted: #697586;
   --color-subtle: #929baa;
 
+  --color-role: #416598;         --color-role-soft: #edf3fc;
+  --color-avatar: #2759b1;       --color-avatar-soft: #e7edfa;
+
   --color-sidebar: #101b2b;
   --color-sidebar-hover: #19283c;
   --color-sidebar-active: #2767d8;
@@ -109,7 +112,8 @@ The existing Assets, Categories, and Equipment Types pages predate the design. M
 - **Workflow actions** (Checkout, Start Maintenance, Process Return, Complete Maintenance, Archive) sit in the detail modal footer and are disabled when the record's status does not allow them. The backend still enforces the rules.
 - **Destructive actions:** a `danger` button opens a `ConfirmModal` that says what happens and that the record can be restored and its history is kept.
 - **Errors:** show a block titled "Unable to …" with the message from the API (see [Frontend-Standards.md §3](Frontend-Standards.md#3-calling-the-api)).
-- **Not designed yet:** the notification bell in the header. Do not implement it until it is specified.
+- **Header:** `components/layout/Header.tsx` is shared by all signed-in routes. It shows the current route name, the backend `role_label`, and initials from the user's name (falling back to username). The header stays visible while the page body scrolls. On narrow screens the breadcrumb brand and notification placeholder are hidden to keep the page name and role readable.
+- **Notifications:** the approved header includes a disabled bell labelled "Notifications (coming soon)". Notification behavior is not designed yet; there is no unread indicator or notification API integration.
 
 ## 6. Labels and badges
 
