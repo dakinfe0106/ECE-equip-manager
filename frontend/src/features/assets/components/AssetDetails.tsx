@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import {
   AssetLookupError,
   updateAsset,
@@ -32,16 +32,17 @@ export default function AssetDetails({
   const [showUnsavedWarning, setShowUnsavedWarning] = useState(false)
   const [validationError, setValidationError] = useState('')
 
-  // Draft state for form fields (ONLY the ones the backend currently supports)
+  // Draft state for form fields
   const [draft, setDraft] = useState({
     name: asset.name,
     acquisition_date: asset.acquisition_date,
   })
 
   // Compute dirty state by comparing draft directly to initial asset values
+  // FIX: Normalize dates to prevent false positives when comparing "" vs null
   const isDirty = 
     draft.name.trim() !== asset.name ||
-    draft.acquisition_date !== asset.acquisition_date
+    (draft.acquisition_date || null) !== (asset.acquisition_date || null)
 
   const handleAttemptClose = () => {
     if (isDirty && !showUnsavedWarning) {
@@ -68,9 +69,9 @@ export default function AssetDetails({
       return
     }
 
+    // FIX: Move setIsSaving(true) AFTER validation to prevent UI freeze
     setIsSaving(true)
     try {
-      // Payload only includes fields the backend currently accepts for PATCH
       const payload = {
         name: draft.name.trim(),
         acquisition_date: draft.acquisition_date,
@@ -87,7 +88,7 @@ export default function AssetDetails({
     }
   }
 
-  // Helper for status badge color (TODO: Replace with <AssetStatusBadge /> if available)
+  // Helper for status badge color
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Available': return 'bg-green-100 text-green-800 border-green-200';
@@ -98,9 +99,19 @@ export default function AssetDetails({
     }
   };
 
-  // Read-only values directly from the asset prop (no API fetch needed!)
   const currentCategoryName = asset.equipment_type.category.name;
   const currentTypeName = asset.equipment_type.name;
+
+  // FIX: Ensure showModal() is called when the component mounts
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (dialog && !dialog.open && typeof dialog.showModal === 'function') {
+      dialog.showModal()
+    }
+    return () => {
+      if (dialog?.open) dialog.close()
+    }
+  }, [])
 
   return (
     <dialog
@@ -142,7 +153,7 @@ export default function AssetDetails({
         </span>
       </div>
 
-      {/* UNSAVED CHANGES WARNING (Replaces window.confirm) */}
+      {/* UNSAVED CHANGES WARNING */}
       {showUnsavedWarning && (
         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-[5px] flex justify-between items-start gap-3">
           <p className="text-[10px] text-amber-800 font-medium">You have unsaved changes. Please save your changes or discard them.</p>
@@ -195,7 +206,6 @@ export default function AssetDetails({
             />
           </label>
           
-          {/* Serial Number disabled per review until backend supports it */}
           <label className="flex min-w-0 flex-col gap-[6px]">
             <span className="text-[10px] font-[650] text-[#8792a2]">Serial Number (Coming Soon)</span>
             <input
@@ -206,7 +216,7 @@ export default function AssetDetails({
             />
           </label>
 
-          {/* Row 3: Category & Equipment Type (Read-only until backend supports updates) */}
+          {/* Row 3: Category & Equipment Type (Read-only) */}
           <label className="flex min-w-0 flex-col gap-[6px]">
             <span className="text-[10px] font-[650] text-[#8792a2]">Category · Read only</span>
             <input
@@ -241,7 +251,6 @@ export default function AssetDetails({
             />
           </label>
           
-          {/* Required Certifications - Read only as it belongs to Equipment Type */}
           <label className="flex min-w-0 flex-col gap-[6px]">
             <span className="text-[10px] font-[650] text-[#8792a2]">Required Certifications</span>
             <input
@@ -269,7 +278,7 @@ export default function AssetDetails({
           )}
         </div>
 
-        {/* History Links (Disabled per review until feature exists, replaces alert()) */}
+        {/* History Links */}
         <div className="mt-6 grid grid-cols-2 gap-3 border-t border-[#e8edf3] pt-4">
            <button
             type="button"
@@ -304,12 +313,30 @@ export default function AssetDetails({
             className="rounded-[5px] border border-red-200 bg-white px-4 py-2 text-[12px] font-semibold text-red-600 hover:bg-red-50"
             type="button"
             disabled
+            title="Archive feature coming in a future sprint!"
           >
             Archive Asset
           </button>
 
           {/* Right Side: Actions */}
           <div className="flex items-center gap-2">
+            {/* FIX: Restored missing action buttons with tooltips */}
+            <button
+              className="rounded-[5px] border border-[#dce3ed] bg-white px-4 py-2 text-[12px] font-semibold text-[#59677a] hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              type="button"
+              disabled
+              title="Checkout feature coming in a future sprint!"
+            >
+              Check Out Asset
+            </button>
+            <button
+              className="rounded-[5px] border border-[#dce3ed] bg-white px-4 py-2 text-[12px] font-semibold text-[#59677a] hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              type="button"
+              disabled
+              title="Maintenance feature coming in a future sprint!"
+            >
+              Start Maintenance
+            </button>
             <button
               className="rounded-[5px] border border-[#dce3ed] bg-white px-4 py-2 text-[12px] font-semibold text-[#59677a] hover:bg-gray-50"
               type="button"
