@@ -8,11 +8,13 @@ import {
 
 const pageSize = 20
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof AssetLookupError && error.status === 403) {
-    return 'Your account does not have permission to view assets.'
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof AssetLookupError) {
+    return error.status === 403
+      ? 'Your account does not have permission to view assets.'
+      : error.message
   }
-  return 'Could not connect to equipment records. Please try again.'
+  return 'Could not connect to equipment records. Check that the server is running and try again.'
 }
 
 export default function useAssets() {
@@ -22,6 +24,12 @@ export default function useAssets() {
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
   const latestRequestId = useRef(0)
+  // The page, search, and filters of the latest request, so a failed load can be retried as-is.
+  const lastRequest = useRef<{ page: number; search: string; filters: AssetFilters }>({
+    page: 1,
+    search: '',
+    filters: {},
+  })
 
   const loadAssets = useCallback(async (
     page: number,
@@ -30,6 +38,7 @@ export default function useAssets() {
   ) => {
     const requestId = latestRequestId.current + 1
     latestRequestId.current = requestId
+    lastRequest.current = { page, search, filters }
     setIsLoading(true)
     setErrorMessage('')
 
@@ -49,12 +58,30 @@ export default function useAssets() {
     }
   }, [])
 
+  const retry = useCallback(
+    () => loadAssets(lastRequest.current.page, lastRequest.current.search, lastRequest.current.filters),
+    [loadAssets],
+  )
+
   const replaceAsset = useCallback((updatedAsset: AssetRecord) => {
     setAssets((currentAssets) =>
       currentAssets.map((asset) =>
         asset.asset_id === updatedAsset.asset_id ? updatedAsset : asset,
       ),
     )
+  }, [])
+
+  // Shows a just-created asset at the top of the current page, so it stays visible even though
+  // the API (ordered by asset_id) would list it on the last page. The next load restores API order.
+  const addAsset = useCallback((createdAsset: AssetRecord) => {
+    latestRequestId.current += 1
+    setAssets((currentAssets) => [
+      createdAsset,
+      ...currentAssets.filter((asset) => asset.asset_id !== createdAsset.asset_id),
+    ].slice(0, pageSize))
+    setTotalCount((count) => count + 1)
+    setErrorMessage('')
+    setIsLoading(false)
   }, [])
 
   useEffect(() => {
@@ -82,6 +109,7 @@ export default function useAssets() {
   }, [])
 
   return {
+    addAsset,
     assets,
     currentPage,
     errorMessage,
@@ -90,6 +118,7 @@ export default function useAssets() {
     pageCount: Math.max(1, Math.ceil(totalCount / pageSize)),
     pageSize,
     replaceAsset,
+    retry,
     totalCount,
   }
 }
