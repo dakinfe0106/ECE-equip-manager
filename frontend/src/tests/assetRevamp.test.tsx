@@ -6,7 +6,8 @@ import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { MemoryRouter } from 'react-router'
 import { apiBaseUrl } from '../api'
-import AuthenticatedAppRoutes from './authTestHelpers'
+import AppRoutes from '../AppRoutes'
+import { withAuth } from './authTestUtils'
 
 const asset = {
   asset_id: 1,
@@ -47,7 +48,7 @@ const server = setupServer(
 function renderAssetsPage() {
   return render(
     <MemoryRouter initialEntries={['/assets']}>
-      <AuthenticatedAppRoutes />
+      {withAuth(<AppRoutes />)}
     </MemoryRouter>,
   )
 }

@@ -1,7 +1,8 @@
 from django.db import models
-from django.db.models import CheckConstraint, F, UniqueConstraint
-from django.db.models.functions import Length, Lower, Trim
-from django.db.models.lookups import GreaterThan
+from django.db.models import CheckConstraint, Q, UniqueConstraint
+from django.db.models.functions import Lower, Trim
+
+from equipmanager.text import normalize_text
 
 
 class Category(models.Model):
@@ -12,17 +13,17 @@ class Category(models.Model):
     class Meta:
         constraints = (
             UniqueConstraint(
-                Lower(Trim("name")),
-                name="inv_category_name_ci_uniq",
+                Lower("name"),
+                name="inventory_category_name_ci_unique",
             ),
             CheckConstraint(
-                condition=GreaterThan(Length(Trim("name")), 0),
-                name="inv_category_name_nonblank",
+                condition=Q(name=Trim("name")) & ~Q(name=""),
+                name="inventory_category_name_trimmed_nonempty",
             ),
         )
 
     def save(self, *args, **kwargs):
-        self.name = self.name.strip()
+        self.name = normalize_text(self.name)
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -44,18 +45,19 @@ class EquipmentType(models.Model):
     class Meta:
         constraints = (
             UniqueConstraint(
-                F("category"),
-                Lower(Trim("name")),
-                name="inv_type_cat_name_ci_uniq",
+                Lower("name"),
+                "category",
+                name="inventory_equipment_type_category_name_ci_unique",
             ),
             CheckConstraint(
-                condition=GreaterThan(Length(Trim("name")), 0),
-                name="inv_type_name_nonblank",
+                condition=Q(name=Trim("name")) & ~Q(name=""),
+                name="inventory_equipment_type_name_trimmed_nonempty",
             ),
         )
 
     def save(self, *args, **kwargs):
-        self.name = self.name.strip()
+        self.name = normalize_text(self.name)
+        self.description = normalize_text(self.description)
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -70,7 +72,7 @@ class Asset(models.Model):
         RETIRED = "Retired", "Retired"
 
     asset_id = models.AutoField(primary_key=True)
-    equipment_type = models.ForeignKey(
+    type = models.ForeignKey(
         EquipmentType,
         db_column="type_id",
         on_delete=models.PROTECT,
@@ -89,22 +91,23 @@ class Asset(models.Model):
     class Meta:
         constraints = (
             UniqueConstraint(
-                Lower(Trim("asset_identifier")),
-                name="inv_asset_ident_ci_uniq",
+                Lower("asset_identifier"),
+                name="inventory_asset_identifier_ci_unique",
             ),
             CheckConstraint(
-                condition=GreaterThan(Length(Trim("asset_identifier")), 0),
-                name="inv_asset_identifier_nonblank",
+                condition=Q(asset_identifier=Trim("asset_identifier"))
+                & ~Q(asset_identifier=""),
+                name="inventory_asset_identifier_trimmed_nonempty",
             ),
             CheckConstraint(
-                condition=GreaterThan(Length(Trim("name")), 0),
-                name="inv_asset_name_nonblank",
+                condition=Q(name=Trim("name")) & ~Q(name=""),
+                name="inventory_asset_name_trimmed_nonempty",
             ),
         )
 
     def save(self, *args, **kwargs):
-        self.asset_identifier = self.asset_identifier.strip()
-        self.name = self.name.strip()
+        self.asset_identifier = normalize_text(self.asset_identifier)
+        self.name = normalize_text(self.name)
         super().save(*args, **kwargs)
 
     def __str__(self):

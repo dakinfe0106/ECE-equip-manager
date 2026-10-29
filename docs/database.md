@@ -47,7 +47,7 @@
 | ---------------- | ------------ | -------- | ----------------------------------------------------------- |
 | asset_id         | int          | No       | PK                                                          |
 | type_id          | int          | No       | FK → EquipmentType.type_id (`PROTECT`)                           |
-| asset_identifier | varchar(100) | No       | Trimmed, nonempty; globally unique, including soft-deleted |
+| asset_identifier | varchar(100) | No       | Trimmed, nonempty; globally unique ignoring case (`SHOP-001` and `shop-001` are the same ID), including soft-deleted |
 | name             | varchar(255) | No       | Trimmed, nonempty                                           |
 | acquisition_date | date         | **Yes**  | Optional for imported/older assets                          |
 | status           | varchar(20)  | No       | Default `Available`; choices below                          |
@@ -55,7 +55,7 @@
 
 **Asset statuses:** `Available`, `On_Loan`, `Under_Maintenance`, `Retired`.
 
-Asset ID search trims surrounding whitespace and matches identifiers by case-insensitive substring; a full identifier returns its matching asset. Asset results are paginated at 20 per page. Results exclude assets whose asset, equipment type, or category is soft-deleted.
+Asset ID search trims surrounding whitespace and matches identifiers by case-insensitive substring. A full identifier returns its matching asset. Asset results are paginated at 20 per page. Results exclude assets whose asset, equipment type, or category is soft-deleted.
 
 ### Borrower
 
@@ -136,7 +136,7 @@ SystemUser is the logical record for people who sign in to the application. It i
 | role       | varchar(20)  | No       | `TECHNICIAN`, `FACULTY`, `ADMINISTRATOR`   |
 | is_deleted | boolean      | No       | Default `False`                            |
 
-`Borrower.unb_id` and `SystemUser.unb_id` are **independently** unique; the same person may appear in both tables. User authentication and permission enforcement should use Django's authentication/authorization facilities; these role labels alone do not grant access.
+`Borrower.unb_id` and `SystemUser.unb_id` are **independently** unique; the same person may appear in both tables. The approved Technician, Faculty, and Administrator access roles are stored in `users.User.role`. The backend enforces the role policy for each protected operation; a role label alone is never authorization.
 
 ## 3. Relationships
 
@@ -166,7 +166,7 @@ SystemUser is the logical record for people who sign in to the application. It i
 
 ### Naming, deletion, and restoration
 
-1. Trim whitespace from all string input as described in section 1. Uniqueness for category, equipment type, and certification names is case-insensitive. Name and identifier reservations continue across soft deletion.
+1. Trim whitespace from all string input as described in section 1. Uniqueness for category, equipment type, and certification names and for asset IDs is case-insensitive. Name and identifier reservations continue across soft deletion.
 2. Soft-delete `Category`, `EquipmentType`, `Asset`, `Borrower`, and `SystemUser`; do not cascade soft-deletion through related tables.
 3. Prevent deletion of a category with active dependent equipment types, an equipment type with active dependent assets, or an asset with an open loan or maintenance record. Deactivated/soft-deleted records are unavailable for new operations, but existing transaction history stays accessible to authorized users.
 4. Restore an existing record by clearing `is_deleted`, not by inserting a duplicate. `Certification` and join-table associations are not part of the general soft-delete workflow; changes to them must be deliberate and preserve transaction-related semantics.
@@ -181,7 +181,7 @@ SystemUser is the logical record for people who sign in to the application. It i
 
 ## 5. Permissions scope
 
-Three roles are approved: **Technician**, **Faculty**, **Administrator**. Only authorized personnel may access the web application; temporary staff access must be revocable. **Working implementation policy:** Technicians manage inventory, borrowers, loans, certifications, and maintenance; Faculty may view inventory and analytics; Administrators have these abilities plus user-access management. Apply checks server-side (Django permissions), not only in React. Revisit only if client feedback changes required actions.
+Three roles are approved: **Technician**, **Faculty**, **Administrator**. Only authorized personnel may access the web application; temporary staff access must be revocable. **Working policy:** Technicians manage inventory, borrowers, loans, certifications, and maintenance; Faculty may view inventory and analytics; Administrators have these abilities plus user-access management. The current implementation stores each role on `users.User.role`; available inventory endpoints allow all roles to read and only Technicians and Administrators to create, change, or delete inventory. As additional business endpoints are added, enforce each role's policy server-side. Revisit only if client feedback changes required actions.
 
 ## 6. Implementation and migrations
 

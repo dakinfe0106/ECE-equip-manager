@@ -518,7 +518,9 @@ def test_equipment_list_requires_login():
     client = APIClient()
     assert client.get('/api/equipment/').status_code == 403
 
-    user = get_user_model().objects.create_user(username='tech', password='pw-for-tests')
+    user = get_user_model().objects.create_user(
+        username='tech', password='pw-for-tests', role='TECHNICIAN'
+    )
     client.force_login(user)
     assert client.get('/api/equipment/').status_code == 200
 ```
@@ -805,4 +807,4 @@ Both test runners must discover tests and pass. An empty suite fails CI, includi
 
 Apply migration `users.0002` with `python manage.py migrate` before using the updated authentication API. It assigns `ADMINISTRATOR` to all existing accounts, matching the confirmed current dataset, without changing their Django staff/superuser flags. New users require an explicit `TECHNICIAN`, `FACULTY`, or `ADMINISTRATOR` role; there is no default. Select the role in Django admin when adding or editing a user. `python manage.py createsuperuser` also prompts for the role (enter its uppercase stored value).
 
-Login and `/api/auth/me/` return `role` and `role_label` for the sidebar. These describe the application role; role-based endpoint permissions remain pending. Django admin still requires staff status, and assigning the Administrator role alone does not grant it.
+Login and `/api/auth/me/` return `role` and `role_label` for the sidebar. Inventory endpoints allow all three roles to read; only Technicians and Administrators may create, change, or delete inventory. Django enforces this policy regardless of frontend visibility. Django admin still requires staff status, and assigning the Administrator role alone does not grant it.

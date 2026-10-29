@@ -23,7 +23,7 @@ function getErrorMessage(error: unknown): string {
     if (error.message.toLowerCase().includes('csrf')) {
       return 'The request could not be verified. Refresh the page and try again.'
     }
-    return 'You are not authorized to add assets. Sign in with your EMS account and try again.'
+    return 'Your account does not have permission to add assets.'
   }
   if (error instanceof AssetLookupError) {
     return error.message
@@ -262,7 +262,7 @@ export default function AddAssetForm({
         {error && <p className="add-asset__message add-asset__message--error" role="alert">{error}</p>}
         {successMessage && (
           <p className="add-asset__message add-asset__message--success" role="status">
-            {successMessage} <Link to="/">View assets</Link>
+            {successMessage} <Link to="/assets">View assets</Link>
           </p>
         )}
 
@@ -281,7 +281,7 @@ export default function AddAssetForm({
               className="add-asset__button add-asset__button--secondary"
               type="button"
               disabled={isSubmitting}
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/assets')}
             >
               Cancel
             </button>
