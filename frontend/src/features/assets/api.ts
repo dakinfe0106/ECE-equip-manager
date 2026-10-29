@@ -144,9 +144,20 @@ export async function fetchAssets(page = 1, assetIdentifier = ''): Promise<Pagin
     credentials: 'include',
   })
   if (!response.ok) {
-    throw new AssetLookupError(response.status)
+    throw await responseError(response, 'Asset lookup')
   }
   return response.json()
+}
+
+// Grouped views need every matching asset, but the list API returns one page at a time.
+export async function fetchAllAssets(assetIdentifier = ''): Promise<AssetRecord[]> {
+  const firstPage = await fetchAssets(1, assetIdentifier)
+  const pageSize = firstPage.results.length
+  const pageCount = pageSize ? Math.ceil(firstPage.count / pageSize) : 1
+  const otherPages = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, index) => fetchAssets(index + 2, assetIdentifier)),
+  )
+  return [firstPage, ...otherPages].flatMap((page) => page.results)
 }
 
 export type AssetUpdate = Pick<AssetRecord, 'name' | 'acquisition_date'>
