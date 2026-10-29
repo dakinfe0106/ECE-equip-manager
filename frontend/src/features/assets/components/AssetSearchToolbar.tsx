@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { AssetFilters, CategoryOption, EquipmentTypeOption } from '../api'
 
 interface AssetSearchToolbarProps {
@@ -31,6 +31,8 @@ export default function AssetSearchToolbar({
   onResetFilters,
 }: AssetSearchToolbarProps) {
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const filterMenuRef = useRef<HTMLDivElement>(null)
+  const filterTriggerRef = useRef<HTMLButtonElement>(null)
   const [categoryId, setCategoryId] = useState('')
   const [equipmentTypeId, setEquipmentTypeId] = useState('')
   const selectedCategoryId = categoryId ? Number(categoryId) : null
@@ -44,6 +46,29 @@ export default function AssetSearchToolbar({
     setEquipmentTypeId(filters.equipmentTypeId?.toString() ?? '')
     setIsFilterOpen(true)
   }
+
+  // While the panel is open: focus its first control, and close it on Escape or an outside click.
+  useEffect(() => {
+    if (!isFilterOpen) return
+    filterMenuRef.current?.querySelector<HTMLElement>('[role="dialog"] select')?.focus()
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsFilterOpen(false)
+        filterTriggerRef.current?.focus()
+      }
+    }
+    function handlePointerDown(event: MouseEvent) {
+      if (!filterMenuRef.current?.contains(event.target as Node)) setIsFilterOpen(false)
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('mousedown', handlePointerDown)
+    }
+  }, [isFilterOpen])
 
   function resetFilters() {
     setCategoryId('')
@@ -94,8 +119,9 @@ export default function AssetSearchToolbar({
         </button>
       </form>
 
-      <div className="relative">
+      <div className="relative" ref={filterMenuRef}>
         <button
+          ref={filterTriggerRef}
           className="flex min-h-9 items-center gap-[7px] rounded-lg border border-input bg-white px-[10px] text-[10px] font-[650] text-body disabled:cursor-not-allowed disabled:opacity-60"
           type="button"
           disabled={isLoadingOptions}

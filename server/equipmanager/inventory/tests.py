@@ -248,6 +248,23 @@ def test_asset_list_search_matches_identifier_or_name(
     assert by_name.data["results"][0]["name"] == "Circular saw"
 
 
+def test_asset_identifier_lookup_does_not_match_names(
+    authenticated_client, asset_record, inventory_type
+):
+    Asset.objects.create(
+        type=inventory_type,
+        asset_identifier="SHOP-010",
+        name="Circular saw",
+    )
+
+    by_name = authenticated_client.get("/api/assets/", {"asset_identifier": "circular"})
+    lookup = authenticated_client.get("/api/assets/lookup/", {"asset_identifier": "saw"})
+
+    assert by_name.status_code == 200
+    assert by_name.data["count"] == 0
+    assert lookup.data["count"] == 0
+
+
 def test_asset_list_combines_search_category_and_equipment_type_filters(
     authenticated_client, asset_record, inventory_type
 ):

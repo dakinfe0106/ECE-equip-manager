@@ -117,14 +117,16 @@ class AssetListCreateAPIView(generics.ListCreateAPIView):
             .order_by("asset_id")
         )
 
-        search = self.request.query_params.get(
-            "search",
-            self.request.query_params.get("asset_identifier", ""),
-        ).strip()
+        search = self.request.query_params.get("search", "").strip()
         if search:
             assets = assets.filter(
                 Q(asset_identifier__icontains=search) | Q(name__icontains=search)
             )
+
+        # The older Asset ID lookup keeps matching identifiers only.
+        asset_identifier = self.request.query_params.get("asset_identifier", "").strip()
+        if asset_identifier:
+            assets = assets.filter(asset_identifier__icontains=asset_identifier)
 
         category_id = self.request.query_params.get("category_id", "").strip()
         if category_id:
