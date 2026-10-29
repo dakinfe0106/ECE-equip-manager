@@ -15,11 +15,19 @@ export default function AppRoutes() {
 
       <Route element={<RequireAuth />}>
         <Route element={<App />}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/equipment-types" element={<EquipmentTypes />} />
-          <Route path="/assets" element={<AssetsPage />} />
-          <Route path="/assets/new" element={<AddAssetForm />} />
-          <Route path="/categories" element={<CategoriesPage />} />
+          <Route element={<RequireAuth permission="inventory.view_asset" />}>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/assets" element={<AssetsPage />} />
+          </Route>
+          <Route element={<RequireAuth permission="inventory.add_asset" />}>
+            <Route path="/assets/new" element={<AddAssetForm />} />
+          </Route>
+          <Route element={<RequireAuth permission="inventory.view_equipmenttype" />}>
+            <Route path="/equipment-types" element={<EquipmentTypes />} />
+          </Route>
+          <Route element={<RequireAuth permission="inventory.view_category" />}>
+            <Route path="/categories" element={<CategoriesPage />} />
+          </Route>
         </Route>
       </Route>
 

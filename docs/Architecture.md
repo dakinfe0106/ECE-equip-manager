@@ -533,7 +533,7 @@ The React frontend may hide or disable controls based on a user's permissions, b
 
 The approved roles are Technician, Faculty, and Administrator. Transient staff, such as co-op students in the Shop, may also need access, which must be revocable. The working permission policy is in [database.md section 5](database.md#5-permissions-scope).
 
-Authorization should be based on roles and permissions rather than repeatedly hard-coding role names throughout the application. How roles map to Django permissions is a pending decision in [Backend.md](Backend.md#9-pending-decisions).
+Authorization uses the application role stored on `users.User.role`, with backend checks applying the policy in [database.md section 5](database.md#5-permissions-scope). Current inventory endpoints allow all roles to read; only Technicians and Administrators may create, change, or delete. Django remains the final authority even when React hides unavailable actions. Application roles do not grant Django admin staff or superuser access.
 
 ---
 

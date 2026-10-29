@@ -1,7 +1,8 @@
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import AppRoutes from './authTestHelpers'
+import AppRoutes from '../AppRoutes'
+import { withAuth } from './authTestUtils'
 import {
     DashboardLookupError,
     fetchDashboardSummary,
@@ -108,7 +109,7 @@ describe('Dashboard route', () => {
 
         const html = renderToString(
             <MemoryRouter initialEntries={['/']}>
-                <AppRoutes />
+                {withAuth(<AppRoutes />)}
             </MemoryRouter>,
         )
 

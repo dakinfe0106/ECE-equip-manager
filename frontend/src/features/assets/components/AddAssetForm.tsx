@@ -19,7 +19,7 @@ function getErrorMessage(error: unknown): string {
     if (error.message.toLowerCase().includes('csrf')) {
       return 'The request could not be verified. Refresh the page and try again.'
     }
-    return 'You are not authorized to add assets. Sign in with your EMS account and try again.'
+    return 'Your account does not have permission to add assets.'
   }
   if (error instanceof AssetLookupError) {
     return error.message

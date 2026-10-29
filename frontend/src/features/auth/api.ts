@@ -9,6 +9,24 @@ export interface CurrentUser {
   role_label: string
 }
 
+export function hasPermission(user: CurrentUser | null, permission: string): boolean {
+  const match = /^inventory\.(view|add|change|delete)_(asset|category|equipmenttype)$/.exec(permission)
+  if (!match) return false
+
+  const [, action] = match
+  if (action === 'view') {
+    return (
+      user?.role === 'TECHNICIAN'
+      || user?.role === 'FACULTY'
+      || user?.role === 'ADMINISTRATOR'
+    )
+  }
+  return (
+    (action === 'add' || action === 'change' || action === 'delete')
+    && (user?.role === 'TECHNICIAN' || user?.role === 'ADMINISTRATOR')
+  )
+}
+
 export class AuthError extends Error {
   readonly status: number
 
