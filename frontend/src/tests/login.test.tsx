@@ -7,7 +7,6 @@ import { setupServer } from 'msw/node'
 import { MemoryRouter, useLocation } from 'react-router'
 import AppRoutes from '../AppRoutes'
 import AuthProvider from '../features/auth/AuthProvider'
-import { safeReturnPath } from '../features/auth/safeReturnPath'
 import { apiBaseUrl } from '../api'
 import { SESSION_CHECK_EVENT, sessionFetch } from '../features/auth/sessionFetch'
 
@@ -143,12 +142,12 @@ describe('Login and session flow', () => {
     expect(loginRequests).toBe(0)
   })
 
-  it('logs in by keyboard, preserves password whitespace, refreshes CSRF and returns to the requested page', async () => {
+  it('logs in by keyboard, preserves password whitespace, refreshes CSRF and opens the dashboard', async () => {
     renderApp('/assets')
     const keyboard = await fillLogin()
     await keyboard.keyboard('{Enter}')
-    expect(await screen.findByRole('heading', { name: 'Assets' })).toBeTruthy()
-    expect(screen.getByLabelText('Current URL').textContent).toBe('/assets')
+    expect(await screen.findByRole('heading', { name: 'Equipment operations' })).toBeTruthy()
+    expect(screen.getByLabelText('Current URL').textContent).toBe('/')
     expect(receivedPassword).toBe(' password ')
     expect(csrfRequests).toBe(2)
     expect(loginRequests).toBe(1)
@@ -293,11 +292,19 @@ describe('Login and session flow', () => {
   })
 })
 
-describe('Return destination validation', () => {
-  it.each(['https://example.com', '//example.com', '/\\example.com', '/login', '/login/', '/a/../login', '/\n/example.com'])('rejects %s', (path) => {
-    expect(safeReturnPath(path)).toBe('/')
+describe('Dashboard login destination', () => {
+  it.each(['/assets', '/users', '/assets?page=2#row', 'https://example.com', '//example.com', '/login'])('ignores a stored return destination of %s after sign-in', async (from) => {
+    renderApp('/login', { from })
+    const keyboard = await fillLogin()
+    await keyboard.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByRole('heading', { name: 'Equipment operations' })).toBeTruthy()
+    expect(screen.getByLabelText('Current URL').textContent).toBe('/')
   })
-  it('preserves internal paths, query strings and fragments', () => {
-    expect(safeReturnPath('/assets?page=2#row')).toBe('/assets?page=2#row')
+
+  it('keeps an already signed-in user on the protected page they open', async () => {
+    signedIn = true
+    renderApp('/assets')
+    expect(await screen.findByRole('heading', { name: 'Assets' })).toBeTruthy()
+    expect(screen.getByLabelText('Current URL').textContent).toBe('/assets')
   })
 })
