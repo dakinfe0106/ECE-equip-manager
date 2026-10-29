@@ -4,24 +4,30 @@ import { describe, expect, it } from 'vitest'
 import AppRoutes from './authTestHelpers'
 
 describe('Application routes', () => {
-  it('renders the Asset ID lookup page at the root', () => {
-    const html = renderToString(<MemoryRouter initialEntries={['/']}><AppRoutes /></MemoryRouter>)
-    expect(html).toContain('Assets')
-    expect(html).toContain('Search asset ID or name')
-    expect(html).toContain('Include Archived')
-    expect(html).toContain('Add Asset')
-    expect(html).toContain('View by')
-    expect(html).toContain('Filters')
+  it('renders the Dashboard at the root', () => {
+    const html = renderToString(
+      <MemoryRouter initialEntries={['/']}>
+        <AppRoutes />
+      </MemoryRouter>,
+    )
+
+    expect(html).toContain('Equipment operations')
+    expect(html).toContain(
+      'A live overview of inventory health and lending activity',
+    )
+    expect(html).toContain('Loading dashboard information')
     expect(html).toContain('brand-name')
     expect(html).toContain('class="nav-icon"')
-    expect(html).not.toContain('brand-mark')
-    expect(html).not.toContain('Shop Tech')
-    expect(html).not.toContain('Inventory')
     expect(html).not.toContain('Page not found')
   })
 
   it('renders a fallback with a home link for unknown paths', () => {
-    const html = renderToString(<MemoryRouter initialEntries={['/missing']}><AppRoutes /></MemoryRouter>)
+    const html = renderToString(
+      <MemoryRouter initialEntries={['/missing']}>
+        <AppRoutes />
+      </MemoryRouter>,
+    )
+
     expect(html).toContain('Page not found')
     expect(html).toContain('href="/"')
     expect(html).not.toContain('Search by Asset ID')

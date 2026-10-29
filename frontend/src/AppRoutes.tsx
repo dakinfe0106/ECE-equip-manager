@@ -4,6 +4,7 @@ import EquipmentTypes from './pages/EquipmentTypes'
 import AddAssetForm from './features/assets/components/AddAssetForm'
 import AssetsPage from './pages/AssetsPage'
 import CategoriesPage from './pages/CategoriesPage'
+import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
 import RequireAuth from './features/auth/RequireAuth'
 
@@ -11,22 +12,25 @@ export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+
       <Route element={<RequireAuth />}>
         <Route element={<App />}>
-          <Route path="/" element={<AssetsPage />} />
+          <Route path="/" element={<DashboardPage />} />
           <Route path="/equipment-types" element={<EquipmentTypes />} />
-
           <Route path="/assets" element={<AssetsPage />} />
           <Route path="/assets/new" element={<AddAssetForm />} />
           <Route path="/categories" element={<CategoriesPage />} />
         </Route>
       </Route>
+
       <Route
         path="*"
         element={
           <main className="p-6">
             <h1>Page not found</h1>
-            <Link className="underline" to="/">Return home</Link>
+            <Link className="underline" to="/">
+              Return home
+            </Link>
           </main>
         }
       />
