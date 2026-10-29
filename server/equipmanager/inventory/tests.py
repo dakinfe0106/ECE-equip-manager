@@ -23,7 +23,7 @@ def inventory_type(db):
 @pytest.fixture
 def asset_record(inventory_type):
     return Asset.objects.create(
-        equipment_type=inventory_type,
+        type=inventory_type,
         asset_identifier="SHOP-001",
         name="Cordless drill",
         acquisition_date=date(2024, 3, 15),
@@ -40,6 +40,114 @@ def authenticated_client(db):
     client = APIClient()
     client.force_authenticate(user=user)
     return client
+
+
+def test_dashboard_returns_zero_counts_for_authenticated_session(db):
+    user = get_user_model().objects.create_user(username="dashboard-tech", role="TECHNICIAN")
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(user)
+
+    response = client.get("/api/dashboard/")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "total_assets": 0,
+        "available_assets": 0,
+        "on_loan_assets": 0,
+        "under_maintenance_assets": 0,
+    }
+
+
+def test_dashboard_requires_authentication():
+    assert APIClient().get("/api/dashboard/").status_code == 403
+
+
+def test_dashboard_counts_mixed_statuses(authenticated_client, inventory_type):
+    statuses = (
+        [Asset.Status.AVAILABLE] * 21
+        + [Asset.Status.ON_LOAN] * 2
+        + [Asset.Status.UNDER_MAINTENANCE] * 3
+        + [Asset.Status.RETIRED] * 4
+    )
+    Asset.objects.bulk_create([
+        Asset(
+            type=inventory_type,
+            asset_identifier=f"DASH-{index}",
+            name=f"Dashboard asset {index}",
+            status=asset_status,
+        )
+        for index, asset_status in enumerate(statuses)
+    ])
+
+    response = authenticated_client.get("/api/dashboard/")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "total_assets": 26,
+        "available_assets": 21,
+        "on_loan_assets": 2,
+        "under_maintenance_assets": 3,
+    }
+
+
+@pytest.mark.parametrize("excluded_record", ["retired", "asset", "equipment_type", "category"])
+@pytest.mark.parametrize("asset_status", [
+    Asset.Status.AVAILABLE,
+    Asset.Status.ON_LOAN,
+    Asset.Status.UNDER_MAINTENANCE,
+])
+def test_dashboard_excludes_ineligible_inventory(
+    authenticated_client, asset_record, excluded_record, asset_status
+):
+    asset_record.status = asset_status
+    asset_record.save(update_fields=["status"])
+    if excluded_record == "retired":
+        asset_record.status = Asset.Status.RETIRED
+        asset_record.save(update_fields=["status"])
+    else:
+        record = {
+            "asset": asset_record,
+            "equipment_type": asset_record.type,
+            "category": asset_record.type.category,
+        }[excluded_record]
+        record.is_deleted = True
+        record.save(update_fields=["is_deleted"])
+
+    response = authenticated_client.get("/api/dashboard/")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "total_assets": 0,
+        "available_assets": 0,
+        "on_loan_assets": 0,
+        "under_maintenance_assets": 0,
+    }
+
+
+def test_dashboard_reflects_persisted_status_changes(authenticated_client, asset_record):
+    for asset_status in Asset.Status.values:
+        asset_record.status = asset_status
+        asset_record.save(update_fields=["status"])
+
+        response = authenticated_client.get("/api/dashboard/")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "total_assets": int(asset_status != Asset.Status.RETIRED),
+            "available_assets": int(asset_status == Asset.Status.AVAILABLE),
+            "on_loan_assets": int(asset_status == Asset.Status.ON_LOAN),
+            "under_maintenance_assets": int(asset_status == Asset.Status.UNDER_MAINTENANCE),
+        }
+
+
+@pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
+def test_dashboard_rejects_write_methods(authenticated_client, asset_record, method):
+    response = getattr(authenticated_client, method)("/api/dashboard/", {}, format="json")
+
+    assert response.status_code == 405
+    asset_record.refresh_from_db()
+    assert asset_record.status == Asset.Status.AVAILABLE
+    assert Asset.objects.count() == 1
 
 
 def test_asset_list_returns_assets_with_type_and_category_details(
@@ -61,11 +169,11 @@ def test_asset_list_returns_assets_with_type_and_category_details(
             "acquisition_date": "2024-03-15",
             "status": "Available",
             "equipment_type": {
-                "type_id": asset_record.equipment_type.type_id,
+                "type_id": asset_record.type.type_id,
                 "name": "Power tools",
                 "description": "Portable power tools",
                 "category": {
-                    "category_id": asset_record.equipment_type.category.category_id,
+                    "category_id": asset_record.type.category.category_id,
                     "name": "Tools",
                 },
             },
@@ -77,7 +185,7 @@ def test_asset_list_search_matches_identifier_substring_case_insensitively(
     authenticated_client, asset_record, inventory_type
 ):
     second_asset = Asset.objects.create(
-        equipment_type=inventory_type,
+        type=inventory_type,
         asset_identifier="SHOP-010",
         name="Circular saw",
     )
@@ -98,7 +206,7 @@ def test_full_asset_identifier_matches_one_result(
     authenticated_client, asset_record, inventory_type
 ):
     Asset.objects.create(
-        equipment_type=inventory_type,
+        type=inventory_type,
         asset_identifier="SHOP-010",
         name="Circular saw",
     )
@@ -118,8 +226,8 @@ def test_asset_list_hides_soft_deleted_inventory(
 ):
     records = {
         "asset": asset_record,
-        "equipment_type": asset_record.equipment_type,
-        "category": asset_record.equipment_type.category,
+        "equipment_type": asset_record.type,
+        "category": asset_record.type.category,
     }
     record = records[deleted_record]
     record.is_deleted = True
@@ -143,6 +251,47 @@ def test_asset_list_requires_authentication():
     assert response.status_code == 403
 
 
+def test_authenticated_user_with_unsupported_role_is_denied(db):
+    user = get_user_model().objects.create_user(
+        role='FACULTY',
+        username="unassigned-user",
+        password="test-password",
+    )
+    user.role = "UNSUPPORTED"
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get("/api/assets/")
+
+    assert response.status_code == 403
+
+
+def test_faculty_can_view_inventory_but_cannot_create_assets(
+    db, inventory_type
+):
+    user = get_user_model().objects.create_user(
+        role='FACULTY',
+        username="faculty-user",
+        password="test-password",
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    list_response = client.get("/api/assets/")
+    create_response = client.post(
+        "/api/assets/",
+        {
+            "asset_identifier": "FACULTY-CANNOT-CREATE",
+            "name": "Restricted asset",
+            "equipment_type_id": inventory_type.type_id,
+        },
+        format="json",
+    )
+
+    assert list_response.status_code == 200
+    assert create_response.status_code == 403
+
+
 def test_asset_list_allows_credentials_for_configured_frontend_origin():
     response = APIClient().get(
         "/api/assets/",
@@ -160,7 +309,7 @@ def test_asset_list_paginates_twenty_records_per_page(
     Asset.objects.bulk_create(
         [
             Asset(
-                equipment_type=inventory_type,
+                type=inventory_type,
                 asset_identifier=f"SHOP-{index:03d}",
                 name=f"Equipment {index}",
             )
@@ -188,11 +337,101 @@ def test_asset_identifier_is_case_insensitive_unique_including_soft_deleted(
     asset_record.is_deleted = True
     asset_record.save(update_fields=["is_deleted"])
 
+    for duplicate_identifier in (" SHOP-001 ", "shop-001", "Shop-001"):
+        with pytest.raises(IntegrityError), transaction.atomic():
+            Asset.objects.create(
+                type=asset_record.type,
+                asset_identifier=duplicate_identifier,
+                name="Duplicate drill",
+            )
+
+
+def test_asset_search_matches_identifier_case_insensitively(
+    authenticated_client, asset_record
+):
+    for query in ("SHOP-001", "shop-001", "Shop-00"):
+        response = authenticated_client.get(
+            "/api/assets/",
+            {"asset_identifier": query},
+        )
+
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["asset_identifier"] == "SHOP-001"
+
+
+def test_model_save_normalizes_inventory_text(db):
+    category = Category.objects.create(name="  Lab Gear  ")
+    equipment_type = EquipmentType.objects.create(
+        category=category,
+        name="  Measurement Equipment  ",
+        description="  Precision tools  ",
+    )
+    asset = Asset.objects.create(
+        type=equipment_type,
+        asset_identifier="  LAB-001  ",
+        name="  Multimeter  ",
+    )
+
+    assert category.name == "Lab Gear"
+    assert equipment_type.name == "Measurement Equipment"
+    assert equipment_type.description == "Precision tools"
+    assert asset.asset_identifier == "LAB-001"
+    assert asset.name == "Multimeter"
+
+
+def test_database_constraints_reject_untrimmed_inventory_strings(
+    inventory_type,
+):
     with pytest.raises(IntegrityError), transaction.atomic():
-        Asset.objects.create(
-            equipment_type=asset_record.equipment_type,
-            asset_identifier=" shop-001 ",
-            name="Duplicate drill",
+        Category.objects.bulk_create([Category(name="  New category  ")])
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        EquipmentType.objects.bulk_create(
+            [EquipmentType(category=inventory_type.category, name="  New type  ")]
+        )
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Asset.objects.bulk_create(
+            [
+                Asset(
+                    type=inventory_type,
+                    asset_identifier="  SHOP-002  ",
+                    name="New drill",
+                )
+            ]
+        )
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Asset.objects.bulk_create(
+            [
+                Asset(
+                    type=inventory_type,
+                    asset_identifier="SHOP-002",
+                    name="  New drill  ",
+                )
+            ]
+        )
+
+
+def test_database_constraints_reject_empty_required_inventory_strings(
+    inventory_type,
+):
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Category.objects.bulk_create([Category(name="")])
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        EquipmentType.objects.bulk_create(
+            [EquipmentType(category=inventory_type.category, name="")]
+        )
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Asset.objects.bulk_create(
+            [Asset(type=inventory_type, asset_identifier="", name="New drill")]
+        )
+
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Asset.objects.bulk_create(
+            [Asset(type=inventory_type, asset_identifier="SHOP-002", name="")]
         )
 
 
@@ -202,7 +441,7 @@ def test_asset_update_changes_permitted_fields_without_creating_a_duplicate(
     response = authenticated_client.patch(
         f"/api/assets/{asset_record.asset_id}/",
         {
-            "name": "Updated cordless drill",
+            "name": "  Updated cordless drill  ",
             "acquisition_date": "2024-04-02",
         },
         format="json",
@@ -354,15 +593,35 @@ def test_asset_create_rejects_duplicate_identifier_even_if_deleted(
     response = authenticated_client.post(
         "/api/assets/",
         {
-            "asset_identifier": " shop-001 ",
+            "asset_identifier": " SHOP-001 ",
             "name": "Duplicate drill",
-            "equipment_type_id": asset_record.equipment_type_id,
+            "equipment_type_id": asset_record.type_id,
         },
         format="json",
     )
 
     assert response.status_code == 400
     assert "asset_identifier" in response.data
+
+
+def test_asset_create_rejects_case_variant_identifier(
+    authenticated_client, asset_record
+):
+    response = authenticated_client.post(
+        "/api/assets/",
+        {
+            "asset_identifier": "shop-001",
+            "name": "Case variant drill",
+            "equipment_type_id": asset_record.type_id,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.data["asset_identifier"] == [
+        "An asset with this Asset ID already exists."
+    ]
+    assert Asset.objects.count() == 1
 
 
 def test_asset_create_rejects_inactive_equipment_type(

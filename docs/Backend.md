@@ -19,7 +19,7 @@ If this guide conflicts with `database.md` or `Architecture.md`, raise the confl
 - `inventory` provides authenticated category and equipment-type lookups, paginated asset listing/search, asset creation, asset detail/update endpoints, and a category summary list and per-category equipment-type list for the Categories page. Asset status remains server-controlled; newly created assets start as `Available`.
 - The `lending` and `maintenance` apps are mounted under `/api/` but do not yet expose business endpoints.
 - `users.User(AbstractUser)` is the custom `AUTH_USER_MODEL`; its required `role` stores `TECHNICIAN`, `FACULTY`, or `ADMINISTRATOR`. Django admin creation/edit forms expose the role, and `createsuperuser` prompts for it through `REQUIRED_FIELDS`. Existing accounts receive `ADMINISTRATOR` in migration `users.0002`; new accounts have no default role. Role assignment does not grant staff/superuser flags or Django permissions.
-- DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Pagination is configured for the asset list; filtering is implemented for Asset ID search.
+- DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Inventory endpoints enforce the role policy in [database.md section 5](database.md#5-permissions-scope). Pagination is configured for the asset list; filtering is implemented for Asset ID search.
 - `/api/health/` is a plain Django view, so DRF authentication does not apply to it.
 - The `users` app provides CSRF, login, logout, and current-user endpoints for application-managed sessions (see [section 6](#6-authentication-endpoints)).
 
@@ -118,7 +118,7 @@ _Proposed_ resource paths, derived from `database.md` tables:
 - Check uniqueness in the serializer against **all** rows, including soft-deleted ones, using the scope `database.md` defines for each field:
   - `Category.name` and `Certification.name`: `name__iexact` across the whole table.
   - `EquipmentType.name`: `name__iexact` within the same category only. The same type name may exist in another category.
-  - `Asset.asset_identifier`: unique across the whole table.
+  - `Asset.asset_identifier`: `asset_identifier__iexact` across the whole table.
 - Keep the database constraint as the final guard. Two concurrent requests can both pass the serializer check, so any view that saves directly (including generic CRUD views) must wrap the save in `transaction.atomic()`, catch `IntegrityError` from that unique constraint, and raise a DRF `ValidationError` so the race returns `400`, not `500`.
 
 ## 4. Business logic and transactions
@@ -248,23 +248,10 @@ Notes for the implementation:
 ## 7. Permissions
 
 - Every view keeps authentication on. A public view must set `permission_classes = [AllowAny]` and explain why in a comment.
-- _Proposed:_ represent the roles in `database.md` (Technician, Faculty, Administrator) as Django **Groups** with model permissions, created by a data migration. Check permissions, not role names, as [Architecture.md section 9](Architecture.md#9-authentication-and-authorization) requires.
-  - Do **not** use plain `DjangoModelPermissions`. It lets every authenticated user make `GET` requests, so Faculty could read borrowers, loans, maintenance records, and users, which `database.md` section 5 does not allow (Faculty may only view inventory and analytics).
-  - CRUD views use a shared subclass that also requires the `view_` permission for reads. Writes need the matching `add_`, `change_`, or `delete_` permission.
-
-    ```python
-    from rest_framework.permissions import DjangoModelPermissions
-
-
-    class ModelPermissionsWithView(DjangoModelPermissions):
-        perms_map = {
-            **DjangoModelPermissions.perms_map,
-            'GET': ['%(app_label)s.view_%(model_name)s'],
-            'HEAD': ['%(app_label)s.view_%(model_name)s'],
-        }
-    ```
-  - Actions that are not CRUD use custom permissions, for example `lending.return_loan`, declared in the model's `Meta.permissions`.
-- Role storage is implemented on `users.User`; mapping that role to Django permissions remains a [pending decision](#9-pending-decisions). Existing business endpoints currently require authentication only; role-specific authorization is not yet implemented.
+- `users.User.role` stores the approved application role. Do not use Django Groups or role labels as a substitute for endpoint checks. Django admin staff/superuser flags remain separate from application roles.
+- Inventory CRUD and lookup views use `users.permissions.InventoryRolePermissions`. All three roles can read inventory; only Technicians and Administrators can create, change, or delete inventory. Unsupported roles and methods are denied. Add role-specific checks to future endpoints according to [database.md section 5](database.md#5-permissions-scope).
+- Do not use plain `DjangoModelPermissions` for these role checks. Its default read behavior would not enforce the Faculty-only-inventory boundary.
+- Actions that are not CRUD use dedicated custom permission classes or checks for their business operation, such as returning a loan.
 
 ## 8. Testing
 
@@ -295,14 +282,13 @@ Each endpoint needs tests for:
 | Decision | Options | Blocks |
 | --- | --- | --- |
 | Remaining `SystemUser` fields | `role` is implemented directly on `users.User`. Decide the mapping of `name`/`unb_id` and remaining fields to `users.User` or a profile with a one-to-one link. Either way, SystemUser is implemented on `users.User` and foreign keys use `settings.AUTH_USER_MODEL` | Permissions, user management |
-| Roles and permissions | Groups with model permissions (proposed), or a `role` field with custom checks | Every protected endpoint |
 | `TIME_ZONE` | Currently `UTC`. `America/Moncton` matches the Shop. Under UTC the date rolls over at 8 p.m. local time in AST and 9 p.m. in ADT, so loans would show as overdue a day early. Changing `TIME_ZONE` only helps if code uses `timezone.localdate()` (see [section 4](#4-business-logic-and-transactions)) | Overdue rules, analytics |
 | User soft deletion vs `is_active` | Keep both flags and set `is_active = False` whenever `is_deleted = True` (current guidance), or use `is_active` as the users' only soft-delete flag and update `database.md` | User management, login |
 | Restoring a child of a soft-deleted parent | Reject the restore until the parent is restored (current guidance), or restore the parent automatically | Restore endpoints |
 | Service error handling | Views convert `BusinessRuleError` per view (current guidance), or a custom DRF exception handler in shared settings | Every service-backed endpoint |
-| Pagination | Enable `PageNumberPagination` before the first list endpoint, or add later | All list endpoints |
+| Pagination | The asset list sets `PageNumberPagination` (20 per page) on its view. Open: make it the global DRF default, or keep it per view | All list endpoints |
 | Filtering and search | Manual query parameters (proposed), or add `django-filter` | List endpoints |
-| UI design fields not in the schema | Serial number, borrower eligibility and terms, damage-flag count, maintenance and damage notes, and who may archive. See [UI-Design.md §7](UI-Design.md#7-where-the-design-differs-from-the-data-model) | Asset, borrower, loan, and maintenance features |
+| UI design fields not in the schema | Serial number, borrower eligibility and terms, damage-flag count, maintenance and damage notes, who may archive, Asset ID in the add form, changing an asset's category or type, and asset search by name, filters, and archived view. See [UI-Design.md §7](UI-Design.md#7-where-the-design-differs-from-the-data-model) | Asset, borrower, loan, and maintenance features |
 | Analytics and Excel export | Which app owns the endpoints for the four analytics in the Project Overview, and whether Excel files are generated by Django or in the browser | Analytics pages, export |
 | Resource names | `assets/` (matches `database.md`) vs `equipment/` (Architecture.md examples) | URLs, frontend routes. Once decided, also update the examples in `docs/README.md` ("Adding an Endpoint", "Trying a Protected Endpoint") and the comment in `inventory/urls.py` |
 

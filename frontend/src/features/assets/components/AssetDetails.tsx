@@ -5,6 +5,8 @@ import {
   type AssetRecord,
   type AssetUpdate,
 } from '../api'
+import { hasPermission } from '../../auth/api'
+import { useAuth } from '../../auth/useAuth'
 
 interface AssetDetailsProps {
   asset: AssetRecord
@@ -21,7 +23,7 @@ const statusClassNames: Record<AssetRecord['status'], string> = {
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof AssetLookupError && error.status === 403) {
-    return 'You are not authorized to edit this asset. Sign in with your EMS account and try again.'
+    return 'Your account does not have permission to edit this asset.'
   }
   return error instanceof Error ? error.message : 'Could not save asset changes.'
 }
@@ -31,6 +33,8 @@ export default function AssetDetails({
   onClose,
   onAssetUpdated,
 }: AssetDetailsProps) {
+  const { user } = useAuth()
+  const canEdit = hasPermission(user, 'inventory.change_asset')
   const dialogRef = useRef<HTMLDialogElement>(null)
   const certifications = asset.equipment_type.required_certifications
   const [isEditing, setIsEditing] = useState(false)
@@ -120,7 +124,7 @@ export default function AssetDetails({
           </div>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          {!isEditing && (
+          {!isEditing && canEdit && (
             <button
               className="rounded-[5px] border border-[#2672e8] bg-[#2672e8] px-[10px] py-[6px] text-[10px] text-white focus-visible:outline-2 focus-visible:outline-[#347ee9] focus-visible:outline-offset-[3px]"
               type="button"
@@ -139,7 +143,7 @@ export default function AssetDetails({
           </button>
         </div>
       </header>
-      {isEditing ? (
+      {isEditing && canEdit ? (
         <form className="pt-[15px]" onSubmit={handleSave} aria-busy={isSaving}>
           <div className="grid grid-cols-4 gap-[13px] max-[700px]:grid-cols-2 max-[390px]:grid-cols-1">
             <label className="flex min-w-0 flex-col gap-[6px] text-[9px] font-[650] tracking-[0.25px] text-[#8792a2] uppercase">

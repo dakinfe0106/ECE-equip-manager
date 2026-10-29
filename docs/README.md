@@ -33,7 +33,9 @@ ECE-equip-manager/
 │   ├── Backend.md             # Backend code conventions and pending decisions
 │   ├── database.md            # Database schema and business rules
 │   ├── Frontend-Standards.md  # Frontend code conventions
-│   └── Quality.md             # Definition of Done and PO acceptance
+│   ├── UI-Design.md           # Approved UI design, routes, and design tokens
+│   ├── Quality.md             # Definition of Done and PO acceptance
+│   └── design/prototype/      # Figma Make prototype source (reference only)
 ├── .gitignore
 ├── AGENTS.md                  # Workflow rules for developers and coding agents
 └── README.md
@@ -469,9 +471,10 @@ All endpoints live under `/api/` and end with a trailing slash.
 | GET | `/api/categories/` | Authenticated. Lists active equipment categories for the asset form. |
 | GET | `/api/categories/summary/` | Authenticated. Lists categories for the Categories page, ordered by `category_id`, with `is_deleted` and `equipment_type_count`. Supports `search` (name contains) and `deleted` (`false` by default, `true`, or `all`). |
 | GET | `/api/categories/<id>/equipment-types/` | Authenticated. Lists a category's active equipment types, ordered by `type_id`, for the Categories page popup. Returns `404` for an unknown category. |
-| GET | `/api/equipment-types/?category_id=<id>` | Authenticated. Lists active equipment types for a category. |
-| GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search. |
+| GET | `/api/equipment-types/` | Authenticated. Lists equipment types whose category is active, ordered by `type_id`. Supports `category_id` and `deleted` (`false` by default, `true`, or `all`). |
+| GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search. `/api/assets/lookup/` is an alias. |
 | POST | `/api/assets/` | Authenticated. Creates an asset with an active `equipment_type_id`; status starts as `Available`. |
+| GET | `/api/assets/<asset_id>/` | Authenticated. Returns one asset. |
 | PATCH | `/api/assets/<asset_id>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
 
 The general asset edit endpoint keeps `asset_identifier`, `equipment_type`, and `status` read-only. Status transitions must use their corresponding loan, maintenance, retirement, or reactivation workflow so related records and state changes remain consistent.
@@ -515,7 +518,9 @@ def test_equipment_list_requires_login():
     client = APIClient()
     assert client.get('/api/equipment/').status_code == 403
 
-    user = get_user_model().objects.create_user(username='tech', password='pw-for-tests')
+    user = get_user_model().objects.create_user(
+        username='tech', password='pw-for-tests', role='TECHNICIAN'
+    )
     client.force_login(user)
     assert client.get('/api/equipment/').status_code == 200
 ```
@@ -802,4 +807,4 @@ Both test runners must discover tests and pass. An empty suite fails CI, includi
 
 Apply migration `users.0002` with `python manage.py migrate` before using the updated authentication API. It assigns `ADMINISTRATOR` to all existing accounts, matching the confirmed current dataset, without changing their Django staff/superuser flags. New users require an explicit `TECHNICIAN`, `FACULTY`, or `ADMINISTRATOR` role; there is no default. Select the role in Django admin when adding or editing a user. `python manage.py createsuperuser` also prompts for the role (enter its uppercase stored value).
 
-Login and `/api/auth/me/` return `role` and `role_label` for the sidebar. These describe the application role; role-based endpoint permissions remain pending. Django admin still requires staff status, and assigning the Administrator role alone does not grant it.
+Login and `/api/auth/me/` return `role` and `role_label` for the sidebar. Inventory endpoints allow all three roles to read; only Technicians and Administrators may create, change, or delete inventory. Django enforces this policy regardless of frontend visibility. Django admin still requires staff status, and assigning the Administrator role alone does not grant it.

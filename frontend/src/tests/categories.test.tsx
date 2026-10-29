@@ -1,16 +1,17 @@
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
-import AppRoutes from './authTestHelpers'
+import AppRoutes from '../AppRoutes'
 import type { Category, EquipmentType } from '../features/categories/api'
 import CategoryTable from '../features/categories/components/CategoryTable'
 import CategoryTypesDialog from '../features/categories/components/CategoryTypesDialog'
 import EquipmentTypeTable from '../features/categories/components/EquipmentTypeTable'
+import { technicianAuth, withAuth } from './authTestUtils'
 
-function renderAt(path: string): string {
+function renderAt(path: string, auth = technicianAuth): string {
   return renderToString(
     <MemoryRouter initialEntries={[path]}>
-      <AppRoutes />
+      {withAuth(<AppRoutes />, auth)}
     </MemoryRouter>,
   )
 }
@@ -58,6 +59,8 @@ describe('CategoryTable', () => {
     renderToString(
       <CategoryTable
         categories={list}
+        canChange
+        canDelete
         emptyMessage="There are no categories yet."
         errorMessage={errorMessage}
         isLoading={false}
@@ -104,6 +107,22 @@ describe('CategoryTable', () => {
     for (const button of actionButtons) {
       expect(button).toContain('disabled')
     }
+  })
+
+  it('does not show mutation actions to a view-only user', () => {
+    const html = renderToString(
+      <CategoryTable
+        categories={categories}
+        canChange={false}
+        canDelete={false}
+        emptyMessage="There are no categories yet."
+        errorMessage=""
+        isLoading={false}
+        onSelectCategory={() => {}}
+      />,
+    )
+    expect(html).not.toContain('aria-label="Edit Tools (coming soon)"')
+    expect(html).not.toContain('aria-label="Delete Tools (coming soon)"')
   })
 
   it('shows the empty message when there are no categories', () => {

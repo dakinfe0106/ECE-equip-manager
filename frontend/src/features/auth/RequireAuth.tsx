@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router'
+import { hasPermission } from './api'
 import { useAuth } from './useAuth'
 
 export function SessionStatus() {
@@ -15,12 +16,20 @@ export function SessionStatus() {
   )
 }
 
-export default function RequireAuth() {
+export default function RequireAuth({ permission }: { permission?: string }) {
   const { user, status } = useAuth()
   const location = useLocation()
   if (status !== 'ready') return <SessionStatus />
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location.pathname + location.search + location.hash }} />
+  }
+  if (permission && !hasPermission(user, permission)) {
+    return (
+      <main className="p-6" role="alert">
+        <h1>Access denied</h1>
+        <p>Your role does not allow access to this page.</p>
+      </main>
+    )
   }
   return <Outlet />
 }

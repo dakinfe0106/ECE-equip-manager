@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, NavLink } from 'react-router'
 import { useAuth } from '../../features/auth/useAuth'
-import { describeAuthError } from '../../features/auth/api'
+import { describeAuthError, hasPermission } from '../../features/auth/api'
 
 // NavLink adds aria-current="page" and tells us which link matches the current URL.
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -33,8 +33,7 @@ export default function Sidebar() {
       </Link>
 
       <nav className="sidebar-nav" aria-label="Main navigation">
-        <span className="sidebar-section-label">WORKSPACE</span>
-        <span className="sidebar-link sidebar-link-disabled" aria-disabled="true">
+        <NavLink className={navLinkClass} to="/" end>
           <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
             <rect x="2.5" y="2.5" width="6" height="6" rx="1" />
             <rect x="11.5" y="2.5" width="6" height="6" rx="1" />
@@ -42,16 +41,16 @@ export default function Sidebar() {
             <rect x="11.5" y="11.5" width="6" height="6" rx="1" />
           </svg>
           Dashboard
-        </span>
-        <NavLink className={navLinkClass} to="/categories">
+        </NavLink>
+        {hasPermission(user, 'inventory.view_category') && <NavLink className={navLinkClass} to="/categories">
           <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
             <path d="M3 5.5h5l1.5 1.8H17v7.2a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5z" />
             <path d="M3 7.3h14" />
           </svg>
           Categories
-        </NavLink>
+        </NavLink>}
 
-        <NavLink
+        {hasPermission(user, 'inventory.view_equipmenttype') && <NavLink
           to="/equipment-types"
           className={({ isActive }) =>
             `sidebar-link${isActive ? ' sidebar-link-active' : ''}`
@@ -62,9 +61,9 @@ export default function Sidebar() {
             <path d="m3.4 6.6 6.6 3.7 6.6-3.7M10 10.3v6.8" />
           </svg>
           Equipment Types
-        </NavLink>
-        <NavLink
-          to="/"
+        </NavLink>}
+        {hasPermission(user, 'inventory.view_asset') && <NavLink
+          to="/assets"
           end
           className={({ isActive }) =>
             `sidebar-link${isActive ? ' sidebar-link-active' : ''}`
@@ -75,7 +74,7 @@ export default function Sidebar() {
             <path d="M2.5 6.5 4 3h12l1.5 3.5M7 6.5v2h6v-2" />
           </svg>
           Assets
-        </NavLink>
+        </NavLink>}
         <span className="sidebar-link sidebar-link-disabled" aria-disabled="true">
           <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
             <path d="M3 6h12m0 0-2.5-2.5M15 6l-2.5 2.5M17 14H5m0 0 2.5-2.5M5 14l2.5 2.5" />
