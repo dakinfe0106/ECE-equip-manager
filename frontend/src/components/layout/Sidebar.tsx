@@ -75,12 +75,18 @@ export default function Sidebar() {
           </svg>
           Assets
         </NavLink>}
-        <span className="sidebar-link sidebar-link-disabled" aria-disabled="true">
+        <NavLink
+          to="/loans"
+          className={({ isActive }) =>
+            `sidebar-link${isActive ? ' sidebar-link-active' : ''}`
+          }
+        >
           <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
             <path d="M3 6h12m0 0-2.5-2.5M15 6l-2.5 2.5M17 14H5m0 0 2.5-2.5M5 14l2.5 2.5" />
           </svg>
           Loans
-        </span>
+        </NavLink>
+        
         <span className="sidebar-section-label sidebar-section-settings">ADMINISTRATION</span>
         <span className="sidebar-link sidebar-link-disabled" aria-disabled="true">
           <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">

@@ -7,6 +7,7 @@ import CategoriesPage from './pages/CategoriesPage'
 import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
 import RequireAuth from './features/auth/RequireAuth'
+import LendingPage from './pages/LendingPage'
 
 export default function AppRoutes() {
   return (
@@ -19,6 +20,9 @@ export default function AppRoutes() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/assets" element={<AssetsPage />} />
           </Route>
+
+          <Route path="/loans" element={<LendingPage />} />
+          
           <Route element={<RequireAuth permission="inventory.add_asset" />}>
             <Route path="/assets/new" element={<AddAssetForm />} />
           </Route>
