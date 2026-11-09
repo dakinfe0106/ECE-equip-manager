@@ -75,6 +75,17 @@ export default function Sidebar() {
           </svg>
           Assets
         </NavLink>}
+        {hasPermission(user, 'lending.view_borrower') && <NavLink
+          to="/borrowers"
+          className={navLinkClass}
+        >
+          <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M16 17v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 15.5V17" />
+            <circle cx="10" cy="6.5" r="3" />
+            <path d="M16 4a3 3 0 0 1 0 5.8M18 17v-1.5a3.5 3.5 0 0 0-2.5-3.35" />
+          </svg>
+          Borrowers
+        </NavLink>}
         <span className="sidebar-link sidebar-link-disabled" aria-disabled="true">
           <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
             <path d="M3 6h12m0 0-2.5-2.5M15 6l-2.5 2.5M17 14H5m0 0 2.5-2.5M5 14l2.5 2.5" />

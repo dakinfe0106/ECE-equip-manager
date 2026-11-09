@@ -202,7 +202,7 @@ The frontend uses:
 - ESLint
 - Vitest
 
-Tailwind CSS is configured through `@tailwindcss/vite` and `frontend/src/index.css`. React Router uses declarative routing with `BrowserRouter` and `frontend/src/AppRoutes.tsx`. `/login` is public and outside the sidebar layout. `/` and `/assets` show the assets page; `/assets/new`, `/categories`, and `/equipment-types` are also implemented. Application pages require a session; unknown paths show a fallback page.
+Tailwind CSS is configured through `@tailwindcss/vite` and `frontend/src/index.css`. React Router uses declarative routing with `BrowserRouter` and `frontend/src/AppRoutes.tsx`. `/login` is public and outside the sidebar layout. `/` and `/assets` show the assets page; `/assets/new`, `/categories`, and `/equipment-types` are also implemented. `/borrowers` is available to Technicians and Administrators. Application pages require a session; unknown paths show a fallback page.
 
 Frontend code conventions are in [Frontend-Standards.md](Frontend-Standards.md).
 
