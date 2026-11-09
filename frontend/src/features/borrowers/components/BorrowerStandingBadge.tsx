@@ -2,7 +2,6 @@ import type { BorrowerStanding } from '../types'
 
 interface BorrowerStandingBadgeProps {
   standing?: BorrowerStanding
-  isEligible?: boolean
 }
 
 const standingClasses: Record<BorrowerStanding, string> = {
@@ -17,16 +16,7 @@ const labels: Record<BorrowerStanding, string> = {
   'Damage flag': 'Damage flag',
 }
 
-export default function BorrowerStandingBadge({
-  standing,
-  isEligible,
-}: BorrowerStandingBadgeProps) {
-  const eligibilityText = isEligible === undefined
-    ? 'Eligibility unavailable'
-    : isEligible
-      ? 'Eligible to borrow'
-      : 'Not eligible to borrow'
-
+export default function BorrowerStandingBadge({ standing }: BorrowerStandingBadgeProps) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       {standing ? (
@@ -40,7 +30,6 @@ export default function BorrowerStandingBadge({
           Standing unavailable
         </span>
       )}
-      <span className="text-[10px] text-muted">{eligibilityText}</span>
     </div>
   )
 }

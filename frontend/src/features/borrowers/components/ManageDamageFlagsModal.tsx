@@ -127,12 +127,14 @@ export default function ManageDamageFlagsModal({
         aria-modal="true"
         aria-labelledby="manage-damage-flags-title"
         tabIndex={-1}
-        className="w-full max-w-[620px] rounded-[10px] border border-line bg-white shadow-[0_18px_48px_rgb(15_27_45_/_28%)]"
+        className="flex max-h-[min(780px,calc(100dvh-40px))] w-[min(650px,calc(100vw-32px))] flex-col overflow-hidden rounded-[13px] border border-line bg-white shadow-[0_24px_70px_rgb(10_20_35_/_25%)]"
       >
-        <header className="flex items-start justify-between gap-3 border-b border-line px-[18px] pb-3 pt-4">
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-[22px] py-5">
           <div>
-            <p className="mb-1 text-[9px] font-bold tracking-[1px] text-subtle">BORROWER RESTRICTION</p>
-            <h2 id="manage-damage-flags-title" className="m-0 text-[15px] font-[650] text-heading">
+            <p className="mb-[7px] text-[11px] font-[750] uppercase tracking-[0.11em] text-primary">
+              BORROWER RESTRICTION
+            </p>
+            <h2 id="manage-damage-flags-title" className="m-0 text-[14px] font-[650] tracking-[-0.01em] text-heading">
               Manage damage flags
             </h2>
           </div>
@@ -141,53 +143,52 @@ export default function ManageDamageFlagsModal({
             aria-label="Close damage flag management"
             disabled={isSaving}
             onClick={onClose}
-            className="rounded-[5px] border border-input bg-white px-[10px] py-[6px] text-[10px] text-muted focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
+            className="grid place-items-center rounded-lg border-0 bg-transparent p-[7px] text-[18px] leading-none text-muted hover:bg-page focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
           >
             ×
           </button>
         </header>
 
-        <div className="px-[18px] py-[18px]">
-          <div className="mb-4 rounded-[8px] border border-line bg-page p-3">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-[22px] py-[21px]">
+          <div className="rounded-[9px] border border-line bg-page px-[14px] py-1">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.25px] text-muted">Borrower</p>
-                <p className="mt-1 text-[13px] font-semibold text-heading">{borrower.borrower_name}</p>
+                <p className="text-[10px] text-muted">Borrower</p>
+                <p className="mt-1 text-[11px] font-semibold text-body">{borrower.borrower_name}</p>
               </div>
               <div className="text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.25px] text-muted">Unresolved</p>
-                <p className="mt-1 text-[13px] font-semibold text-heading">{displayedUnresolvedCount}</p>
+                <p className="text-[10px] text-muted">Unresolved negligent damage flags</p>
+                <p className="mt-1 text-[11px] font-semibold text-body">{displayedUnresolvedCount}</p>
               </div>
             </div>
-            <div className="mt-3">
+            <div className="border-t border-divider py-3">
               <BorrowerStandingBadge
                 standing={borrower.standing}
-                isEligible={borrower.is_eligible}
               />
             </div>
           </div>
 
-          <p className="mb-4 rounded-[8px] border border-warning bg-warning-soft px-3 py-2 text-[10px] text-warning">
+          <p className="m-0 rounded-[8px] border border-warning/20 bg-warning-soft px-3 py-2 text-[10px] leading-[1.55] text-warning">
             A damaged return is not automatically negligent. Record a flag only after the incident has been reviewed.
           </p>
 
-          <div className="mb-2 flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={isSaving}
-              className="rounded-[5px] border border-primary bg-primary px-[10px] py-[6px] text-[10px] text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px] disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={onRecordDamageFlag}
-            >
-              Record Damage Flag
-            </button>
+          <div className="flag-controls flex justify-between gap-2 max-[620px]:flex-col max-[620px]:[&>button]:w-full">
             <button
               type="button"
               disabled={!selectedFlag || !onResolveFlag || isSaving}
               aria-disabled={!selectedFlag || !onResolveFlag || isSaving}
-              className="rounded-[5px] border border-input bg-white px-[10px] py-[6px] text-[10px] text-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
+              className="inline-flex min-h-[38px] items-center justify-center gap-[7px] whitespace-nowrap rounded-lg border border-input bg-white px-[15px] text-[12px] font-[650] text-body disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
               onClick={handleRequestResolution}
             >
               Resolve Existing Flag
+            </button>
+            <button
+              type="button"
+              disabled={isSaving}
+              className="inline-flex min-h-[38px] items-center justify-center gap-[7px] whitespace-nowrap rounded-lg border border-danger/20 bg-white px-[15px] text-[12px] font-[650] text-danger disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-danger focus-visible:outline-offset-[3px]"
+              onClick={onRecordDamageFlag}
+            >
+              Record Damage Flag
             </button>
           </div>
 
@@ -195,7 +196,7 @@ export default function ManageDamageFlagsModal({
             Select an unresolved incident, choose Resolve Existing Flag, then Save Changes to confirm.
           </p>
 
-          <div className="mb-4 rounded-[8px] border border-line bg-page p-3" aria-live="polite">
+          <div className="rounded-[8px] border border-line bg-page p-3" aria-live="polite">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.25px] text-muted">
               Selected incident
             </p>
@@ -222,21 +223,21 @@ export default function ManageDamageFlagsModal({
         </div>
 
         {errorMessage && (
-          <p role="alert" className="px-[18px] pb-2 text-[10px] text-danger">
+          <p role="alert" className="shrink-0 px-[22px] pb-2 text-[10px] text-danger">
             {errorMessage}
           </p>
         )}
         {successMessage && (
-          <p role="status" className="px-[18px] pb-2 text-[10px] text-success">
+          <p role="status" className="shrink-0 px-[22px] pb-2 text-[10px] text-success">
             {successMessage}
           </p>
         )}
 
-        <footer className="flex justify-end gap-2 border-t border-line px-[18px] py-3">
+        <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-page px-[22px] py-[15px]">
           <button
             type="button"
             disabled={isSaving}
-            className="rounded-[5px] border border-input bg-white px-[10px] py-[6px] text-[10px] text-muted focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-[38px] items-center justify-center gap-[7px] whitespace-nowrap rounded-lg border border-input bg-white px-[15px] text-[12px] font-[650] text-body focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px] disabled:cursor-not-allowed disabled:opacity-45"
             onClick={onClose}
           >
             Cancel
@@ -246,7 +247,7 @@ export default function ManageDamageFlagsModal({
             disabled={!canSave}
             aria-label="Save selected flag resolution"
             title="Save the selected incident resolution"
-            className="rounded-[5px] border border-primary bg-primary px-[10px] py-[6px] text-[10px] text-white disabled:cursor-not-allowed disabled:opacity-70 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
+            className="inline-flex min-h-[38px] items-center justify-center gap-[7px] whitespace-nowrap rounded-lg border border-primary bg-primary px-[15px] text-[12px] font-[650] text-white disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
             onClick={handleSaveChanges}
           >
             {isSaving ? 'Saving…' : 'Save Changes'}
