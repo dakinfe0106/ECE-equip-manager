@@ -7,8 +7,10 @@ without duplicating the Borrower domain or adding a production persistence layer
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Mapping, Sequence
+from datetime import date, datetime
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -24,7 +26,7 @@ class DamageFlagRecord:
     borrower_name: str
     equipment_id: int | None = None
     equipment_name: str | None = None
-    incident_date: date | str | None = None
+    incident_date: date | None = None
     reason: str = ""
     notes: str = ""
     status: str = "unresolved"
@@ -39,13 +41,44 @@ class DamageFlagRecord:
 class DamageFlagDraft:
     borrower_id: int
     borrower_name: str
-    equipment_id: int | None = None
+    equipment_id: int
+    incident_date: date
+    reason: str
     equipment_name: str | None = None
-    incident_date: date | str | None = None
-    reason: str = ""
     notes: str = ""
-    reviewed_by: str | None = None
     reviewed: bool = False
+
+
+def _positive_id(value: Any, field_name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise TypeError(f"{field_name} must be a positive integer.")
+
+    try:
+        parsed_id = int(value.strip()) if isinstance(value, str) else value
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be a positive integer.") from exc
+
+    if parsed_id <= 0 or (isinstance(value, str) and not value.strip()):
+        raise ValueError(f"{field_name} must be a positive integer.")
+    return parsed_id
+
+
+def _incident_date(value: Any) -> date:
+    if isinstance(value, datetime):
+        raise TypeError("Incident date must be a date, not a timestamp.")
+    if isinstance(value, date):
+        return value
+    if not isinstance(value, str):
+        raise TypeError("Incident date is required and must use YYYY-MM-DD format.")
+
+    try:
+        parsed_date = date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError("Incident date must use YYYY-MM-DD format and be a valid date.") from exc
+
+    if parsed_date.isoformat() != value:
+        raise ValueError("Incident date must use YYYY-MM-DD format.")
+    return parsed_date
 
 
 def validate_damage_flag_input(payload: Mapping[str, Any]) -> DamageFlagDraft:
@@ -56,52 +89,41 @@ def validate_damage_flag_input(payload: Mapping[str, Any]) -> DamageFlagDraft:
     incident has been reviewed and confirmed as negligent damage.
     """
 
-    borrower_id = payload.get("borrower_id")
-    if borrower_id in (None, ""):
-        raise ValueError("Borrower is required.")
+    if "reviewed_by" in payload:
+        raise ValueError("Reviewer identity must come from the authenticated server.")
+
+    borrower_id = _positive_id(payload.get("borrower_id"), "Borrower")
 
     borrower_name = payload.get("borrower_name")
     if not isinstance(borrower_name, str) or not borrower_name.strip():
         raise ValueError("Borrower name is required.")
 
-    equipment_id = payload.get("equipment_id")
+    equipment_id = _positive_id(payload.get("equipment_id"), "Equipment")
     equipment_name = payload.get("equipment_name")
-    if equipment_id is not None and equipment_id != "":
-        try:
-            equipment_id = int(equipment_id)
-        except (TypeError, ValueError) as exc:  # pragma: no cover - defensive branch
-            raise ValueError("Equipment selection is invalid.") from exc
-    else:
-        equipment_id = None
+    if equipment_name is not None and not isinstance(equipment_name, str):
+        raise ValueError("Equipment name must be text.")
 
-    incident_date = payload.get("incident_date")
-    if not incident_date:
-        raise ValueError("Incident date is required.")
+    incident_date = _incident_date(payload.get("incident_date"))
 
     reason = payload.get("reason")
     if not isinstance(reason, str) or not reason.strip():
         raise ValueError("Reason is required.")
 
-    notes = payload.get("notes")
-    notes = notes if isinstance(notes, str) else ""
+    notes = payload.get("notes", "")
+    if not isinstance(notes, str):
+        raise TypeError("Notes must be text.")
 
-    reviewed = bool(payload.get("reviewed"))
-    if not reviewed:
+    if payload.get("reviewed") is not True:
         raise ValueError("Negligence review confirmation is required.")
 
-    reviewed_by = payload.get("reviewed_by")
-    if reviewed_by is not None and reviewed_by != "":
-        reviewed_by = str(reviewed_by)
-
     return DamageFlagDraft(
-        borrower_id=int(borrower_id),
+        borrower_id=borrower_id,
         borrower_name=borrower_name.strip(),
         equipment_id=equipment_id,
-        equipment_name=(equipment_name.strip() if isinstance(equipment_name, str) else None),
+        equipment_name=equipment_name.strip() if equipment_name else None,
         incident_date=incident_date,
         reason=reason.strip(),
         notes=notes.strip(),
-        reviewed_by=reviewed_by,
         reviewed=True,
     )
 
@@ -112,7 +134,7 @@ def count_unresolved_flags(flags: Sequence[DamageFlagRecord | Mapping[str, Any]]
     count = 0
     for flag in flags:
         status = flag.get("status") if isinstance(flag, Mapping) else getattr(flag, "status", "")
-        if str(status).lower() != "resolved":
+        if str(status).lower() == "unresolved":
             count += 1
     return count
 
@@ -123,7 +145,10 @@ def resolve_damage_flag(
     resolved_by: str | None = None,
     resolved_at: str | None = None,
 ) -> DamageFlagRecord:
-    """Resolve an existing incident while preserving the original history."""
+    """Resolve an incident and preserve its history.
+
+    ``resolved_by`` must be supplied by the authenticated server context, not request data.
+    """
 
     if flag.status == "resolved":
         return flag
@@ -139,7 +164,7 @@ def resolve_damage_flag(
         notes=flag.notes,
         status="resolved",
         created_at=flag.created_at,
-        resolved_at=resolved_at or flag.resolved_at or "now",
+        resolved_at=resolved_at or flag.resolved_at,
         resolved_by=resolved_by or flag.resolved_by,
         reviewed_by=flag.reviewed_by,
         reviewed=flag.reviewed,
@@ -151,11 +176,13 @@ def create_damage_flag_record(
     *,
     flag_id: str,
     created_at: str | None = None,
+    reviewed_by: str | None = None,
 ) -> DamageFlagRecord:
     """Create a provisional damage-flag record for future persistence.
 
     This intentionally does not write to the database. It preserves all of the
     incident details needed to later integrate with the real Borrower model.
+    ``reviewed_by`` must come from the authenticated server context, not request data.
     """
 
     return DamageFlagRecord(
@@ -168,10 +195,10 @@ def create_damage_flag_record(
         reason=draft.reason,
         notes=draft.notes,
         status="unresolved",
-        created_at=created_at or "now",
+        created_at=created_at,
         resolved_at=None,
         resolved_by=None,
-        reviewed_by=draft.reviewed_by,
+        reviewed_by=reviewed_by,
         reviewed=draft.reviewed,
     )
 
@@ -183,29 +210,26 @@ def damaged_return_does_not_auto_create_flag(
 ) -> bool:
     """Explicitly protect against a damaged return auto-counting as negligence.
 
-    A damaged return is not automatically negligent. A technician must review and
-    record the incident explicitly before the event should affect borrower standing.
+    A damaged return never creates a flag by itself. A technician must separately
+    review and record the incident; the return's condition does not automate that.
     """
 
-    if not reviewed:
-        return True
-
-    return return_status is not None and str(return_status).lower() not in {"damaged", "damaged_return"}
+    return return_status is not None and str(return_status).lower() in {"damaged", "damaged_return"}
 
 
-def borrower_is_eligible(*, standing: str | None = None, is_eligible: bool | None = None) -> bool:
-    """Return whether a borrower is eligible to borrow.
+def borrower_is_eligible(
+    *,
+    standing: str | None = None,
+    is_eligible: bool | None = None,
+) -> bool | None:
+    """Return the system-provided eligibility value without inferring policy.
 
-    Eligibility is intentionally system-controlled and must not be inferred from an
-    unapproved warning policy. If the upstream Borrower feature does not provide an
-    explicit eligibility value, the borrower's eligibility remains unknown and is
-    treated as false.
+    Standing is intentionally unused: warning or restriction thresholds have not
+    been approved. Missing eligibility remains unknown rather than being treated
+    as either eligible or ineligible.
     """
 
-    if is_eligible is not None:
-        return bool(is_eligible)
-
-    return False
+    return is_eligible
 
 
 def can_record_damage_flag(payload: Mapping[str, Any]) -> bool:
@@ -213,6 +237,6 @@ def can_record_damage_flag(payload: Mapping[str, Any]) -> bool:
 
     try:
         validate_damage_flag_input(payload)
-    except ValueError:
+    except (TypeError, ValueError):
         return False
     return True

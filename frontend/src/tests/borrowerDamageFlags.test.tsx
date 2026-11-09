@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,7 +12,7 @@ import type { BorrowerIdentity, DamageFlag } from '../features/borrowers/types'
 const borrower: BorrowerIdentity = {
   borrower_id: 42,
   borrower_name: 'Jordan Smith',
-  standing: 'warning',
+  standing: 'Overdue',
   is_eligible: false,
 }
 
@@ -33,7 +33,6 @@ const flags: DamageFlag[] = [
     status: 'unresolved',
     created_at: '2026-01-12T09:00:00Z',
     reviewed: true,
-    reviewed_by: 'tech-01',
   },
   {
     id: 'flag-2',
@@ -58,7 +57,6 @@ describe('ManageDamageFlagsModal', () => {
         flags={flags}
         unresolvedCount={1}
         onClose={() => {}}
-        onSaveChanges={() => {}}
         onResolveFlag={() => {}}
         onSelectFlag={() => {}}
         onRecordDamageFlag={() => {}}
@@ -71,14 +69,21 @@ describe('ManageDamageFlagsModal', () => {
     expect(screen.getByText(/A damaged return is not automatically negligent/i)).toBeTruthy()
   })
 
-  it('requires explicit selection before resolving and saves the selected incident', async () => {
+  it('only resolves the explicitly selected unresolved incident', async () => {
     const user = userEvent.setup()
-    const onSave = vi.fn()
+    const onResolve = vi.fn()
     const multipleFlags: DamageFlag[] = [
       {
         ...flags[0],
         id: 'flag-1',
       },
+      {
+        ...flags[0],
+        id: 'flag-2',
+        equipment_name: 'Oscilloscope',
+        reason: 'Screen damaged',
+      },
+      flags[1],
       {
         id: 'flag-3',
         borrower_id: 42,
@@ -99,33 +104,119 @@ describe('ManageDamageFlagsModal', () => {
         flags={multipleFlags}
         unresolvedCount={2}
         onClose={() => {}}
-        onSaveChanges={onSave}
-        onResolveFlag={() => {}}
+        onResolveFlag={onResolve}
         onSelectFlag={() => {}}
         onRecordDamageFlag={() => {}}
       />,
     )
 
-    const resolveButton = screen.getByRole('button', { name: /Resolve Existing Flag/i })
-    expect(resolveButton.hasAttribute('disabled')).toBe(true)
-
-    await user.click(screen.getByRole('button', { name: /Laser level/i }))
-
-    expect(screen.getByText('Selected incident')).toBeTruthy()
-    expect(screen.getAllByText('Case cracked after return').length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: /Resolve Existing Flag/i }).hasAttribute('disabled')).toBe(false)
-
+    const resolveButton = screen.getByRole('button', { name: 'Resolve Existing Flag' })
     const saveButton = screen.getByRole('button', { name: /Save selected flag resolution/i })
+    const resolvedIncident = screen.getByRole('button', {
+      name: /Resolved incident: Laser level, Broken case after return/i,
+    })
+    expect(resolveButton.hasAttribute('disabled')).toBe(true)
+    expect(resolvedIncident.hasAttribute('disabled')).toBe(true)
+
+    await user.click(screen.getByRole('button', {
+      name: /Select unresolved incident: Cordless drill, Returned with cracked housing/i,
+    }))
+    await user.click(resolveButton)
+    expect(saveButton.hasAttribute('disabled')).toBe(false)
+
+    await user.click(screen.getByRole('button', {
+      name: /Select unresolved incident: Laser level, Case cracked after return/i,
+    }))
+    expect(saveButton.hasAttribute('disabled')).toBe(true)
+
+    await user.click(resolveButton)
     await user.click(saveButton)
 
-    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(onResolve).toHaveBeenCalledTimes(1)
+    expect(onResolve).toHaveBeenCalledWith('flag-3')
+    expect(screen.getByText(/incident remains in history/i)).toBeTruthy()
+    expect(screen.getByRole('button', {
+      name: /Resolved incident: Laser level, Case cracked after return/i,
+    })).toBeTruthy()
+    expect(screen.getByText('Broken case after return')).toBeTruthy()
+  })
+
+  it('shows asynchronous resolution errors and prevents duplicate saves', async () => {
+    const user = userEvent.setup()
+    let rejectSave: (error: Error) => void = () => {}
+    const onResolve = vi.fn(() => new Promise<void>((_resolve, reject) => {
+      rejectSave = reject
+    }))
+
+    render(
+      <ManageDamageFlagsModal
+        borrower={borrower}
+        flags={[flags[0]]}
+        unresolvedCount={1}
+        onClose={() => {}}
+        onResolveFlag={onResolve}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', {
+      name: /Select unresolved incident: Cordless drill/i,
+    }))
+    await user.click(screen.getByRole('button', { name: 'Resolve Existing Flag' }))
+    const saveButton = screen.getByRole('button', { name: /Save selected flag resolution/i })
+    await user.click(saveButton)
+    await user.click(saveButton)
+
+    expect(onResolve).toHaveBeenCalledTimes(1)
+    expect(saveButton.textContent).toBe('Saving…')
+    expect(saveButton.hasAttribute('disabled')).toBe(true)
+    rejectSave(new Error('Resolution was rejected.'))
+    expect((await screen.findByRole('alert')).textContent).toContain('Resolution was rejected.')
+  })
+
+  it('traps keyboard focus, closes on Escape, and restores focus on unmount', () => {
+    const trigger = document.createElement('button')
+    document.body.append(trigger)
+    trigger.focus()
+    const onClose = vi.fn()
+    const { unmount } = render(
+      <ManageDamageFlagsModal
+        borrower={borrower}
+        flags={[]}
+        unresolvedCount={0}
+        onClose={onClose}
+      />,
+    )
+
+    const closeButton = screen.getByRole('button', { name: 'Close damage flag management' })
+    expect(document.activeElement).toBe(closeButton)
+
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' })
+    cancelButton.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(document.activeElement).toBe(closeButton)
+    closeButton.focus()
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(cancelButton)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    unmount()
+    expect(document.activeElement).toBe(trigger)
+    trigger.remove()
   })
 })
 
 describe('BorrowerStandingBadge', () => {
   it('shows eligibility as unavailable when the value is missing', () => {
-    render(<BorrowerStandingBadge standing="warning" />)
+    render(<BorrowerStandingBadge standing="Overdue" />)
     expect(screen.getByText('Eligibility unavailable')).toBeTruthy()
+    expect(screen.getByText('Overdue')).toBeTruthy()
+  })
+
+  it('shows standing as unavailable when the system has not provided one', () => {
+    render(<BorrowerStandingBadge isEligible={false} />)
+    expect(screen.getByText('Standing unavailable')).toBeTruthy()
+    expect(screen.getByText('Not eligible to borrow')).toBeTruthy()
   })
 })
 
@@ -180,5 +271,39 @@ describe('RecordDamageFlagModal', () => {
         reviewed: true,
       }),
     )
+    expect(onSave.mock.calls[0][0]).not.toHaveProperty('reviewed_by')
+    expect(screen.getByRole('status').textContent).toBe('Damage flag recorded.')
+    await user.click(screen.getByRole('button', { name: 'Saved' }))
+    expect(onSave).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows asynchronous save errors without duplicating submissions', async () => {
+    const user = userEvent.setup()
+    let rejectSave: (error: Error) => void = () => {}
+    const onSave = vi.fn(() => new Promise<void>((_resolve, reject) => {
+      rejectSave = reject
+    }))
+
+    render(
+      <RecordDamageFlagModal
+        borrower={borrower}
+        equipmentOptions={[{ id: 7, name: 'Cordless drill' }]}
+        onCancel={() => {}}
+        onSave={onSave}
+      />,
+    )
+
+    await user.selectOptions(screen.getByRole('combobox'), '7')
+    await user.type(screen.getByLabelText(/Incident date/i), '2026-01-12')
+    await user.type(screen.getByLabelText(/Reason/i), 'Cracked housing after return')
+    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await user.click(screen.getByRole('button', { name: 'Saving…' }))
+
+    expect(onSave).toHaveBeenCalledTimes(1)
+    rejectSave(new Error('Damage flag could not be saved.'))
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('Damage flag could not be saved.')
+    })
   })
 })

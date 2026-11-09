@@ -5,23 +5,22 @@ interface BorrowerStandingBadgeProps {
   isEligible?: boolean
 }
 
-const standingClasses: Record<Exclude<BorrowerStanding, undefined>, string> = {
-  normal: 'bg-[#eaf7ee] text-[#177548]',
-  warning: 'bg-[#fff0d6] text-[#ad6b00]',
-  restricted: 'bg-[#fde2e2] text-[#b42318]',
+const standingClasses: Record<BorrowerStanding, string> = {
+  Good: 'bg-success-soft text-success',
+  Overdue: 'bg-danger-soft text-danger',
+  'Damage flag': 'bg-danger-soft text-danger',
 }
 
-const labels: Record<Exclude<BorrowerStanding, undefined>, string> = {
-  normal: 'Normal',
-  warning: 'Warning',
-  restricted: 'Restricted',
+const labels: Record<BorrowerStanding, string> = {
+  Good: 'Good',
+  Overdue: 'Overdue',
+  'Damage flag': 'Damage flag',
 }
 
 export default function BorrowerStandingBadge({
-  standing = 'normal',
+  standing,
   isEligible,
 }: BorrowerStandingBadgeProps) {
-  const label = labels[standing]
   const eligibilityText = isEligible === undefined
     ? 'Eligibility unavailable'
     : isEligible
@@ -30,12 +29,18 @@ export default function BorrowerStandingBadge({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span
-        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold ${standingClasses[standing]}`}
-      >
-        {label}
-      </span>
-      <span className="text-[10px] text-[#59677a]">{eligibilityText}</span>
+      {standing ? (
+        <span
+          className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold ${standingClasses[standing]}`}
+        >
+          {labels[standing]}
+        </span>
+      ) : (
+        <span className="inline-flex items-center rounded-full bg-neutral-soft px-2.5 py-1 text-[10px] font-semibold text-neutral">
+          Standing unavailable
+        </span>
+      )}
+      <span className="text-[10px] text-muted">{eligibilityText}</span>
     </div>
   )
 }

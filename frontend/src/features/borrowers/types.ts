@@ -1,4 +1,4 @@
-export type BorrowerStanding = 'normal' | 'warning' | 'restricted'
+export type BorrowerStanding = 'Good' | 'Overdue' | 'Damage flag'
 
 export interface BorrowerIdentity {
   borrower_id: number
@@ -23,19 +23,18 @@ export interface DamageFlag {
   resolved_at?: string | null
   resolved_by?: string | null
   reviewed?: boolean
-  reviewed_by?: string | null
+
 }
 
 export interface DamageFlagCreateInput {
   borrower_id: number
   borrower_name: string
-  equipment_id: number | null
+  equipment_id: number
   equipment_name?: string
   incident_date: string
   reason: string
   notes?: string
   reviewed: boolean
-  reviewed_by?: string | null
 }
 
 export interface DamageFlagApiResponse {
