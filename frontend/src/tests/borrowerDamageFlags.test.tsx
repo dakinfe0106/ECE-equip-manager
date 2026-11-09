@@ -51,7 +51,7 @@ const flags: DamageFlag[] = [
 
 describe('ManageDamageFlagsModal', () => {
   it('renders the borrower restriction modal and unresolved count', () => {
-    render(
+    const { container } = render(
       <ManageDamageFlagsModal
         borrower={borrower}
         flags={flags}
@@ -67,6 +67,18 @@ describe('ManageDamageFlagsModal', () => {
     expect(screen.getByText('Jordan Smith')).toBeTruthy()
     expect(screen.getByText('1')).toBeTruthy()
     expect(screen.getByText(/A damaged return is not automatically negligent/i)).toBeTruthy()
+    expect(screen.queryByText(/eligib/i)).toBeNull()
+
+    const resolveButton = screen.getByRole('button', { name: 'Resolve Existing Flag' })
+    const recordButton = screen.getByRole('button', { name: 'Record Damage Flag' })
+    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+    expect(buttons.findIndex((button) => button === resolveButton))
+      .toBeLessThan(buttons.findIndex((button) => button === recordButton))
+    expect(resolveButton.className).toContain('border-input')
+    expect(recordButton.className).toContain('text-danger')
+    expect(container.querySelector('[role="dialog"]')?.className).toContain('max-h-')
+    expect(container.querySelector('[role="dialog"]')?.className).toContain('overflow-hidden')
+    expect(container.querySelector('[role="dialog"] > div')?.className).toContain('overflow-y-auto')
   })
 
   it('only resolves the explicitly selected unresolved incident', async () => {
@@ -207,20 +219,42 @@ describe('ManageDamageFlagsModal', () => {
 })
 
 describe('BorrowerStandingBadge', () => {
-  it('shows eligibility as unavailable when the value is missing', () => {
+  it('shows standing without displaying unsupported eligibility information', () => {
     render(<BorrowerStandingBadge standing="Overdue" />)
-    expect(screen.getByText('Eligibility unavailable')).toBeTruthy()
     expect(screen.getByText('Overdue')).toBeTruthy()
+    expect(screen.queryByText(/eligib/i)).toBeNull()
   })
 
   it('shows standing as unavailable when the system has not provided one', () => {
-    render(<BorrowerStandingBadge isEligible={false} />)
+    render(<BorrowerStandingBadge />)
     expect(screen.getByText('Standing unavailable')).toBeTruthy()
-    expect(screen.getByText('Not eligible to borrow')).toBeTruthy()
+    expect(screen.queryByText(/eligib/i)).toBeNull()
   })
 })
 
 describe('RecordDamageFlagModal', () => {
+  it('keeps its header and actions fixed while the form body scrolls', () => {
+    const { container } = render(
+      <RecordDamageFlagModal
+        borrower={borrower}
+        equipmentOptions={[]}
+        onCancel={() => {}}
+        onSave={() => {}}
+      />,
+    )
+
+    const dialog = container.querySelector('[role="dialog"]')
+    const form = dialog?.querySelector('form')
+    const body = form?.firstElementChild
+    const actions = form?.lastElementChild
+    expect(dialog?.className).toContain('max-h-')
+    expect(dialog?.className).toContain('overflow-hidden')
+    expect(body?.className).toContain('overflow-y-auto')
+    expect(actions?.className).toContain('shrink-0')
+    expect(screen.getByRole('dialog').querySelector('#incident-date')?.parentElement?.className)
+      .not.toContain('grid')
+  })
+
   it('requires inspection review confirmation before saving', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn()
