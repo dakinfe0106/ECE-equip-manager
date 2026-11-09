@@ -7,6 +7,31 @@ export interface BorrowerIdentity {
   is_eligible?: boolean
 }
 
+export interface BorrowerLoanSummary {
+  loan_id: number
+  equipment_name: string
+  asset_identifier?: string
+  checkout_date?: string
+  expected_return_date?: string
+}
+
+export interface BorrowerOverdueEquipment {
+  equipment_name: string
+  asset_identifier?: string
+  expected_return_date?: string
+}
+
+export interface BorrowerDetailsViewModel {
+  borrower_id: number
+  borrower_name: string
+  unb_id: string
+  standing?: BorrowerStanding
+  certifications?: string[]
+  active_loans?: BorrowerLoanSummary[]
+  overdue_equipment?: BorrowerOverdueEquipment[]
+  negligent_damage_flag?: boolean
+}
+
 export type DamageFlagStatus = 'unresolved' | 'resolved'
 
 export interface DamageFlag {
