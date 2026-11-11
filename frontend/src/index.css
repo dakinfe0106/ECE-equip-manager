@@ -17,10 +17,23 @@
   --color-muted: #697586;
   --color-subtle: #929baa;
 
+  --color-role: #416598;
+  --color-role-soft: #edf3fc;
+  --color-avatar: #2759b1;
+  --color-avatar-soft: #e7edfa;
+
   --color-sidebar: #101b2b;
   --color-sidebar-hover: #19283c;
   --color-sidebar-active: #2767d8;
   --color-sidebar-text: #aab5c4;
+  --color-sidebar-muted: #8491a3;
+  --color-sidebar-label: #68778b;
+  --color-sidebar-line: #283447;
+  --color-sidebar-avatar: #263d5d;
+  --color-sidebar-avatar-text: #bcd0ec;
+  --color-sidebar-shadow: #081323;
+  --color-brand-start: #4285f4;
+  --color-brand-end: #2057c8;
 
   --color-success: #087c68;
   --color-success-soft: #e8f7f1;
@@ -30,6 +43,11 @@
   --color-danger-soft: #feebea;
   --color-neutral: #667085;
   --color-neutral-soft: #eef0f3;
+  --color-violet: #7047bf;
+  --color-violet-soft: #f0eafa;
+  --color-chart-available: #2aa580;
+  --color-chart-maintenance: #f2a134;
+  --color-chart-retired: #a5aebb;
 
   --animate-toast-slide-in: toast-slide-in 220ms ease-out both;
   --animate-toast-slide-out: toast-slide-out 300ms ease-in both;
