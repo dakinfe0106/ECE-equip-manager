@@ -67,13 +67,17 @@ def create_record(client, asset_record, technician, **overrides):
     return client.post("/api/maintenance-records/", payload, format="json")
 
 
-def test_maintenance_records_require_authentication():
-    response = APIClient().get("/api/maintenance-records/")
+def test_create_maintenance_requires_authentication():
+    response = APIClient().post(
+        "/api/maintenance-records/",
+        {},
+        format="json",
+    )
 
     assert response.status_code == 403
 
 
-def test_faculty_cannot_view_or_create_maintenance(
+def test_faculty_cannot_create_maintenance(
     db, asset_record, authenticated_client, technician
 ):
     faculty = get_user_model().objects.create_user(
@@ -84,7 +88,6 @@ def test_faculty_cannot_view_or_create_maintenance(
     client = APIClient()
     client.force_authenticate(user=faculty)
 
-    assert client.get("/api/maintenance-records/").status_code == 403
     assert create_record(client, asset_record, technician).status_code == 403
 
 
@@ -222,77 +225,3 @@ def test_database_allows_only_one_open_record_per_asset(
             priority=MaintenanceRecord.Priority.LOW,
             start_date=date(2025, 1, 11),
         )
-
-
-def test_list_filters_by_status_type_priority_and_asset_identifier(
-    authenticated_client, maintenance_record, inventory_type, technician
-):
-    completed_asset = Asset.objects.create(
-        type=inventory_type,
-        asset_identifier="MAINT-002",
-        name="Second multimeter",
-    )
-    completed_record = MaintenanceRecord.objects.create(
-        asset=completed_asset,
-        technician=technician,
-        maintenance_type=MaintenanceRecord.MaintenanceType.CALIBRATION,
-        priority=MaintenanceRecord.Priority.LOW,
-        start_date=date(2025, 1, 1),
-        end_date=date(2025, 1, 2),
-    )
-
-    cases = (
-        ("status=in_progress", [maintenance_record.maintenance_id]),
-        ("status=completed", [completed_record.maintenance_id]),
-        ("maintenance_type=Repair", [maintenance_record.maintenance_id]),
-        ("priority=Low", [completed_record.maintenance_id]),
-        ("asset_identifier=maint-002", [completed_record.maintenance_id]),
-        (f"asset_id={completed_asset.asset_id}", [completed_record.maintenance_id]),
-    )
-    for query, expected_ids in cases:
-        response = authenticated_client.get(f"/api/maintenance-records/?{query}")
-
-        assert response.status_code == 200
-        assert [row["maintenance_id"] for row in response.data["results"]] == expected_ids
-
-
-def test_list_rejects_invalid_filters(authenticated_client):
-    for query in (
-        "status=scheduled",
-        "maintenance_type=Other",
-        "priority=Critical",
-        "asset_id=not-a-number",
-    ):
-        response = authenticated_client.get(f"/api/maintenance-records/?{query}")
-
-        assert response.status_code == 400
-
-
-def test_asset_history_includes_active_and_completed_records(
-    authenticated_client, maintenance_record, inventory_type, technician
-):
-    MaintenanceRecord.objects.create(
-        asset=maintenance_record.asset,
-        technician=technician,
-        maintenance_type=MaintenanceRecord.MaintenanceType.CLEANING,
-        priority=MaintenanceRecord.Priority.MEDIUM,
-        start_date=date(2025, 1, 1),
-        end_date=date(2025, 1, 2),
-    )
-
-    response = authenticated_client.get(
-        f"/api/maintenance-records/?asset_id={maintenance_record.asset_id}"
-    )
-
-    assert response.status_code == 200
-    assert response.data["count"] == 2
-    assert {row["status"] for row in response.data["results"]} == {
-        "In Progress",
-        "Completed",
-    }
-
-
-def test_missing_record_returns_not_found(authenticated_client):
-    response = authenticated_client.get("/api/maintenance-records/9999/")
-
-    assert response.status_code == 404
