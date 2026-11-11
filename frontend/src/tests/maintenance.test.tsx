@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { hasPermission } from '../features/auth/api'
 import AppRoutes from '../AppRoutes'
+import MaintenanceHistory from '../features/maintenance/components/MaintenanceHistory'
 import MaintenanceRecordDialog from '../features/maintenance/components/MaintenanceRecordDialog'
 import MaintenancePage from '../pages/MaintenancePage'
 import { technicianAuth, withAuth } from './authTestUtils'
@@ -20,7 +21,7 @@ describe('Maintenance permissions', () => {
 })
 
 describe('Maintenance page', () => {
-  it('renders the maintenance create entry point', () => {
+  it('renders the maintenance list controls and loading state', () => {
     const html = renderToString(
       <MemoryRouter>
         {withAuth(<MaintenancePage />)}
@@ -29,12 +30,17 @@ describe('Maintenance page', () => {
 
     expect(html).toContain('Maintenance')
     expect(html).toContain('New Maintenance')
-    expect(html).toContain('Start an equipment maintenance record')
+    expect(html).toContain('Search Asset ID')
+    expect(html).toContain('All statuses')
+    expect(html).toContain('Maintenance Type')
+    expect(html).toContain('All priorities')
+    expect(html).toContain('Loading maintenance records')
   })
 
   it('renders the create form with maintenance fields', () => {
     const html = renderToString(
       <MaintenanceRecordDialog
+        mode="create"
         onClose={() => {}}
         onCreated={() => {}}
       />,
@@ -46,6 +52,13 @@ describe('Maintenance page', () => {
     expect(html).toContain('Responsible Technician')
     expect(html).toContain('Start Date')
     expect(html).toContain('Save Maintenance')
+  })
+
+  it('shows loading history for an asset', () => {
+    const html = renderToString(<MaintenanceHistory assetId={12} />)
+
+    expect(html).toContain('Maintenance History')
+    expect(html).toContain('Loading maintenance history')
   })
 
   it('allows technicians to open the route and denies faculty', () => {
@@ -68,8 +81,8 @@ describe('Maintenance page', () => {
       </MemoryRouter>,
     )
 
-    expect(technicianHtml).toContain('New Maintenance')
+    expect(technicianHtml).toContain('Search Asset ID')
     expect(facultyHtml).toContain('Access denied')
-    expect(facultyHtml).not.toContain('New Maintenance')
+    expect(facultyHtml).not.toContain('Search Asset ID')
   })
 })

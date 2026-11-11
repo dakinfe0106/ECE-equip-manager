@@ -476,7 +476,9 @@ All endpoints live under `/api/` and end with a trailing slash.
 | POST | `/api/assets/` | Authenticated. Creates an asset with an active `equipment_type_id`; status starts as `Available`. |
 | GET | `/api/assets/<asset_id>/` | Authenticated. Returns one asset. |
 | PATCH | `/api/assets/<asset_id>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
+| GET | `/api/maintenance-records/` | Technician or Administrator. Lists maintenance history; supports `status` (`all`, `in_progress`, `completed`), `maintenance_type`, `priority`, `asset_identifier`, and `asset_id` filters. |
 | POST | `/api/maintenance-records/` | Technician or Administrator. Creates an open maintenance record and sets the eligible asset to `Under_Maintenance` transactionally. |
+| GET | `/api/maintenance-records/<id>/` | Technician or Administrator. Returns a maintenance record, including completed history. |
 | GET | `/api/maintenance-records/technicians/` | Technician or Administrator. Lists active Technician accounts for assignment. |
 
 The general asset edit endpoint keeps `asset_identifier`, `equipment_type`, and `status` read-only. Status transitions must use their corresponding loan, maintenance, retirement, or reactivation workflow so related records and state changes remain consistent.
