@@ -220,6 +220,129 @@ def test_full_asset_identifier_matches_one_result(
     assert response.data["results"][0]["asset_identifier"] == asset_record.asset_identifier
 
 
+def test_asset_list_search_matches_name_case_insensitively(
+    authenticated_client, asset_record
+):
+    response = authenticated_client.get("/api/assets/", {"search": "  CORDLESS DR  "})
+
+    assert response.status_code == 200
+    assert response.data["count"] == 1
+    assert response.data["results"][0]["asset_id"] == asset_record.asset_id
+
+
+def test_asset_list_search_matches_identifier_or_name(
+    authenticated_client, asset_record, inventory_type
+):
+    Asset.objects.create(
+        type=inventory_type,
+        asset_identifier="SHOP-010",
+        name="Circular saw",
+    )
+
+    by_identifier = authenticated_client.get("/api/assets/", {"search": "shop-010"})
+    by_name = authenticated_client.get("/api/assets/", {"search": "CIRCULAR"})
+
+    assert by_identifier.data["count"] == 1
+    assert by_identifier.data["results"][0]["asset_identifier"] == "SHOP-010"
+    assert by_name.data["count"] == 1
+    assert by_name.data["results"][0]["name"] == "Circular saw"
+
+
+def test_asset_identifier_lookup_does_not_match_names(
+    authenticated_client, asset_record, inventory_type
+):
+    Asset.objects.create(
+        type=inventory_type,
+        asset_identifier="SHOP-010",
+        name="Circular saw",
+    )
+
+    by_name = authenticated_client.get("/api/assets/", {"asset_identifier": "circular"})
+    lookup = authenticated_client.get("/api/assets/lookup/", {"asset_identifier": "saw"})
+
+    assert by_name.status_code == 200
+    assert by_name.data["count"] == 0
+    assert lookup.data["count"] == 0
+
+
+def test_asset_list_combines_search_category_and_equipment_type_filters(
+    authenticated_client, asset_record, inventory_type
+):
+    other_category = Category.objects.create(name="Electronics")
+    other_type = EquipmentType.objects.create(
+        category=other_category,
+        name="Oscilloscope",
+    )
+    Asset.objects.create(
+        type=other_type,
+        asset_identifier="SHOP-002",
+        name="Cordless drill",
+    )
+
+    response = authenticated_client.get(
+        "/api/assets/",
+        {
+            "search": "cordless",
+            "category_id": inventory_type.category_id,
+            "equipment_type_id": inventory_type.type_id,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.data["count"] == 1
+    assert response.data["results"][0]["asset_id"] == asset_record.asset_id
+
+
+def test_asset_list_category_and_equipment_type_filters_work_independently(
+    authenticated_client, asset_record, inventory_type
+):
+    other_type = EquipmentType.objects.create(
+        category=inventory_type.category,
+        name="Hand tools",
+    )
+    other_asset = Asset.objects.create(
+        type=other_type,
+        asset_identifier="SHOP-002",
+        name="Hammer",
+    )
+
+    category_results = authenticated_client.get(
+        "/api/assets/",
+        {"category_id": inventory_type.category_id},
+    )
+    type_results = authenticated_client.get(
+        "/api/assets/",
+        {"equipment_type_id": other_type.type_id},
+    )
+    no_results = authenticated_client.get(
+        "/api/assets/",
+        {"equipment_type_id": 99999},
+    )
+
+    assert category_results.data["count"] == 2
+    assert {row["asset_id"] for row in category_results.data["results"]} == {
+        asset_record.asset_id,
+        other_asset.asset_id,
+    }
+    assert type_results.data["count"] == 1
+    assert type_results.data["results"][0]["asset_id"] == other_asset.asset_id
+    assert no_results.data["count"] == 0
+
+
+@pytest.mark.parametrize(
+    ("query", "field"),
+    [
+        ({"category_id": "not-an-id"}, "category_id"),
+        ({"equipment_type_id": "not-an-id"}, "equipment_type_id"),
+    ],
+)
+def test_asset_list_rejects_invalid_filter_ids(authenticated_client, query, field):
+    response = authenticated_client.get("/api/assets/", query)
+
+    assert response.status_code == 400
+    assert field in response.data
+
+
 @pytest.mark.parametrize("deleted_record", ["asset", "equipment_type", "category"])
 def test_asset_list_hides_soft_deleted_inventory(
     authenticated_client, asset_record, deleted_record
@@ -929,3 +1052,141 @@ def test_category_equipment_types_returns_404_for_an_unknown_category(api_client
     response = api_client.get(reverse("category-equipment-type-list", args=[999999]))
 
     assert response.status_code == 404
+
+
+@pytest.fixture
+def faculty_client(db):
+    user = get_user_model().objects.create_user(
+        role="FACULTY",
+        username="faculty-viewer",
+        password="test-password",
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+    return client
+
+
+def test_technician_creates_category_with_trimmed_name(authenticated_client):
+    response = authenticated_client.post(
+        "/api/categories/", {"name": "  Test Equipment  "}, format="json"
+    )
+
+    assert response.status_code == 201
+    assert response.data["name"] == "Test Equipment"
+    assert Category.objects.get(category_id=response.data["category_id"]).name == "Test Equipment"
+
+
+def test_category_create_rejects_duplicates_ignoring_case_and_archived(
+    authenticated_client, inventory_type
+):
+    Category.objects.create(name="Archived Gear", is_deleted=True)
+
+    active_duplicate = authenticated_client.post(
+        "/api/categories/", {"name": "tools"}, format="json"
+    )
+    archived_duplicate = authenticated_client.post(
+        "/api/categories/", {"name": "ARCHIVED GEAR"}, format="json"
+    )
+
+    assert active_duplicate.status_code == 400
+    assert active_duplicate.data["name"] == ["A category with this name already exists."]
+    assert archived_duplicate.status_code == 400
+
+
+def test_category_create_rejects_blank_name(authenticated_client):
+    response = authenticated_client.post("/api/categories/", {"name": "   "}, format="json")
+
+    assert response.status_code == 400
+    assert "name" in response.data
+
+
+def test_technician_creates_equipment_type_in_category(authenticated_client, inventory_type):
+    category = inventory_type.category
+
+    response = authenticated_client.post(
+        "/api/equipment-types/",
+        {"name": "  Hand tools ", "category_id": category.category_id},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["name"] == "Hand tools"
+    assert response.data["category_id"] == category.category_id
+    assert response.data["category"] == {"category_id": category.category_id, "name": "Tools"}
+    assert response.data["description"] == ""
+
+
+def test_equipment_type_create_rejects_duplicate_name_in_same_category_only(
+    authenticated_client, inventory_type
+):
+    other_category = Category.objects.create(name="Meters")
+
+    same_category = authenticated_client.post(
+        "/api/equipment-types/",
+        {"name": "POWER TOOLS", "category_id": inventory_type.category.category_id},
+        format="json",
+    )
+    other_category_response = authenticated_client.post(
+        "/api/equipment-types/",
+        {"name": "Power tools", "category_id": other_category.category_id},
+        format="json",
+    )
+
+    assert same_category.status_code == 400
+    assert same_category.data["name"] == [
+        "An equipment type with this name already exists in this category."
+    ]
+    assert other_category_response.status_code == 201
+
+
+def test_equipment_type_create_requires_an_active_category(authenticated_client):
+    archived = Category.objects.create(name="Old Gear", is_deleted=True)
+
+    missing = authenticated_client.post(
+        "/api/equipment-types/", {"name": "Probes"}, format="json"
+    )
+    archived_category = authenticated_client.post(
+        "/api/equipment-types/",
+        {"name": "Probes", "category_id": archived.category_id},
+        format="json",
+    )
+
+    assert missing.status_code == 400
+    assert "category_id" in missing.data
+    assert archived_category.status_code == 400
+    assert "category_id" in archived_category.data
+
+
+def test_faculty_cannot_create_categories_or_equipment_types(faculty_client, inventory_type):
+    category_response = faculty_client.post(
+        "/api/categories/", {"name": "Faculty Gear"}, format="json"
+    )
+    type_response = faculty_client.post(
+        "/api/equipment-types/",
+        {"name": "Faculty type", "category_id": inventory_type.category.category_id},
+        format="json",
+    )
+
+    assert category_response.status_code == 403
+    assert type_response.status_code == 403
+    assert not Category.objects.filter(name="Faculty Gear").exists()
+
+
+def test_category_and_type_create_require_authentication(db):
+    client = APIClient()
+
+    assert client.post("/api/categories/", {"name": "Anon"}, format="json").status_code == 403
+    assert client.post("/api/equipment-types/", {"name": "Anon"}, format="json").status_code == 403
+
+
+def test_category_create_enforces_csrf_for_session_users(db):
+    user = get_user_model().objects.create_user(
+        role="TECHNICIAN", username="csrf-tech", password="test-password"
+    )
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(user)
+
+    response = client.post("/api/categories/", {"name": "No Token"}, format="json")
+
+    assert response.status_code == 403
+    assert not Category.objects.filter(name="No Token").exists()
