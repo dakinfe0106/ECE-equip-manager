@@ -134,11 +134,18 @@ export async function createAsset(asset: AssetCreation): Promise<AssetRecord> {
   return response.json()
 }
 
-export async function fetchAssets(page = 1, assetIdentifier = ''): Promise<PaginatedAssets> {
+export async function fetchAssets(
+  page = 1,
+  assetIdentifier = '',
+  status?: AssetStatus,
+): Promise<PaginatedAssets> {
   const params = new URLSearchParams({ page: page.toString() })
   const trimmedIdentifier = assetIdentifier.trim()
   if (trimmedIdentifier) {
     params.set('asset_identifier', trimmedIdentifier)
+  }
+  if (status) {
+    params.set('status', status)
   }
   const response = await sessionFetch(`${apiBaseUrl}/assets/?${params}`, {
     credentials: 'include',

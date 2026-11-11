@@ -5,6 +5,7 @@ import AddAssetForm from './features/assets/components/AddAssetForm'
 import AssetsPage from './pages/AssetsPage'
 import CategoriesPage from './pages/CategoriesPage'
 import DashboardPage from './pages/DashboardPage'
+import MaintenancePage from './pages/MaintenancePage'
 import LoginPage from './pages/LoginPage'
 import RequireAuth from './features/auth/RequireAuth'
 
@@ -27,6 +28,9 @@ export default function AppRoutes() {
           </Route>
           <Route element={<RequireAuth permission="inventory.view_category" />}>
             <Route path="/categories" element={<CategoriesPage />} />
+          </Route>
+          <Route element={<RequireAuth permission="maintenance.view_maintenancerecord" />}>
+            <Route path="/maintenance" element={<MaintenancePage />} />
           </Route>
         </Route>
       </Route>

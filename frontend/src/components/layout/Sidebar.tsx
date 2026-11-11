@@ -75,6 +75,15 @@ export default function Sidebar() {
           </svg>
           Assets
         </NavLink>}
+        {hasPermission(user, 'maintenance.view_maintenancerecord') && <NavLink
+          to="/maintenance"
+          className={navLinkClass}
+        >
+          <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M14.4 3.2a4.2 4.2 0 0 0-5.3 5.3l-5.8 5.8a1.8 1.8 0 0 0 2.5 2.5l5.8-5.8a4.2 4.2 0 0 0 5.3-5.3l-2.6 2.6-2.6-2.6z" />
+          </svg>
+          Maintenance
+        </NavLink>}
         <span className="sidebar-link sidebar-link-disabled" aria-disabled="true">
           <svg className="nav-icon" viewBox="0 0 20 20" aria-hidden="true">
             <path d="M3 6h12m0 0-2.5-2.5M15 6l-2.5 2.5M17 14H5m0 0 2.5-2.5M5 14l2.5 2.5" />

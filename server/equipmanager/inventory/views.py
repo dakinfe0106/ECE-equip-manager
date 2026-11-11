@@ -123,6 +123,12 @@ class AssetListCreateAPIView(generics.ListCreateAPIView):
             assets = assets.annotate(
                 normalized_asset_identifier=Lower(Trim("asset_identifier"))
             ).filter(normalized_asset_identifier__contains=asset_identifier.lower())
+
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            if status_filter not in Asset.Status.values:
+                raise ValidationError({"status": "Select a valid asset status."})
+            assets = assets.filter(status=status_filter)
         return assets
 
     def get_serializer_class(self):

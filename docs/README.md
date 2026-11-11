@@ -472,10 +472,14 @@ All endpoints live under `/api/` and end with a trailing slash.
 | GET | `/api/categories/summary/` | Authenticated. Lists categories for the Categories page, ordered by `category_id`, with `is_deleted` and `equipment_type_count`. Supports `search` (name contains) and `deleted` (`false` by default, `true`, or `all`). |
 | GET | `/api/categories/<id>/equipment-types/` | Authenticated. Lists a category's active equipment types, ordered by `type_id`, for the Categories page popup. Returns `404` for an unknown category. |
 | GET | `/api/equipment-types/` | Authenticated. Lists equipment types whose category is active, ordered by `type_id`. Supports `category_id` and `deleted` (`false` by default, `true`, or `all`). |
-| GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search. `/api/assets/lookup/` is an alias. |
+| GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search and a `status` filter using the stored asset status values. `/api/assets/lookup/` is an alias. |
 | POST | `/api/assets/` | Authenticated. Creates an asset with an active `equipment_type_id`; status starts as `Available`. |
 | GET | `/api/assets/<asset_id>/` | Authenticated. Returns one asset. |
 | PATCH | `/api/assets/<asset_id>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
+| GET | `/api/maintenance-records/` | Technician or Administrator. Lists maintenance history; supports `status` (`all`, `in_progress`, `completed`), `maintenance_type`, `priority`, `asset_identifier`, and `asset_id` filters. |
+| POST | `/api/maintenance-records/` | Technician or Administrator. Creates an open maintenance record and sets the eligible asset to `Under_Maintenance` transactionally. |
+| GET | `/api/maintenance-records/<id>/` | Technician or Administrator. Returns a maintenance record, including completed history. |
+| GET | `/api/maintenance-records/technicians/` | Technician or Administrator. Lists active Technician accounts for assignment. |
 
 The general asset edit endpoint keeps `asset_identifier`, `equipment_type`, and `status` read-only. Status transitions must use their corresponding loan, maintenance, retirement, or reactivation workflow so related records and state changes remain consistent.
 

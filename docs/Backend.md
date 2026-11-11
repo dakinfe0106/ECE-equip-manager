@@ -17,7 +17,7 @@ If this guide conflicts with `database.md` or `Architecture.md`, raise the confl
 ## 1. Current state
 
 - `inventory` provides authenticated category and equipment-type lookups, paginated asset listing/search, asset creation, asset detail/update endpoints, and a category summary list and per-category equipment-type list for the Categories page. Asset status remains server-controlled; newly created assets start as `Available`.
-- The `lending` and `maintenance` apps are mounted under `/api/` but do not yet expose business endpoints.
+- The `lending` app is mounted under `/api/` but does not yet expose business endpoints. `maintenance` provides authenticated maintenance record list/create/detail endpoints and an active-technician lookup; maintenance creation updates asset status transactionally.
 - `users.User(AbstractUser)` is the custom `AUTH_USER_MODEL`; its required `role` stores `TECHNICIAN`, `FACULTY`, or `ADMINISTRATOR`. Django admin creation/edit forms expose the role, and `createsuperuser` prompts for it through `REQUIRED_FIELDS`. Existing accounts receive `ADMINISTRATOR` in migration `users.0002`; new accounts have no default role. Role assignment does not grant staff/superuser flags or Django permissions.
 - DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Inventory endpoints enforce the role policy in [database.md section 5](database.md#5-permissions-scope). Pagination is configured for the asset list; filtering is implemented for Asset ID search.
 - `/api/health/` is a plain Django view, so DRF authentication does not apply to it.
