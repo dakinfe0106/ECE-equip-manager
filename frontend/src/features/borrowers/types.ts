@@ -61,6 +61,14 @@ export interface DamageFlagCreateInput {
   reviewed: boolean
 }
 
+export interface DamageFlagUpdateInput {
+  equipment_id: number
+  equipment_name?: string
+  incident_date: string
+  reason: string
+  notes?: string
+}
+
 export interface DamageFlagEquipmentOption {
   id: number
   name: string

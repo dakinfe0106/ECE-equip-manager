@@ -91,6 +91,40 @@ describe('ManageDamageFlagsModal', () => {
     expect(container.querySelector('.flag-controls')?.className).toContain('max-[760px]:flex-col')
   })
 
+  it('requires an incident selection for editing and permits resolution only for unresolved incidents', async () => {
+    const user = userEvent.setup()
+    const onEditFlag = vi.fn()
+    const onResolveFlag = vi.fn()
+
+    render(
+      <ManageDamageFlagsModal
+        borrower={borrower}
+        dataState={{ status: 'loaded', flags }}
+        onClose={() => {}}
+        onEditFlag={onEditFlag}
+        onResolveFlag={onResolveFlag}
+      />,
+    )
+
+    const editButton = screen.getByRole('button', { name: 'Edit Damage Flag' })
+    const resolveButton = screen.getByRole('button', { name: 'Resolve Existing Flag' })
+    expect(editButton.hasAttribute('disabled')).toBe(true)
+    expect(resolveButton.hasAttribute('disabled')).toBe(true)
+
+    await user.click(screen.getByRole('button', {
+      name: /Select resolved incident: Laser level, Broken case after return/i,
+    }))
+    expect(editButton.hasAttribute('disabled')).toBe(false)
+    expect(resolveButton.hasAttribute('disabled')).toBe(true)
+    await user.click(editButton)
+    expect(onEditFlag).toHaveBeenCalledWith('flag-2')
+
+    await user.click(screen.getByRole('button', {
+      name: /Select unresolved incident: Cordless drill, Returned with cracked housing/i,
+    }))
+    expect(resolveButton.hasAttribute('disabled')).toBe(false)
+  })
+
   it('only resolves the explicitly selected unresolved incident', async () => {
     const user = userEvent.setup()
     const onResolve = vi.fn()
@@ -134,10 +168,10 @@ describe('ManageDamageFlagsModal', () => {
     const resolveButton = screen.getByRole('button', { name: 'Resolve Existing Flag' })
     const saveButton = screen.getByRole('button', { name: /Save selected flag resolution/i })
     const resolvedIncident = screen.getByRole('button', {
-      name: /Resolved incident: Laser level, Broken case after return/i,
+      name: /Select resolved incident: Laser level, Broken case after return/i,
     })
     expect(resolveButton.hasAttribute('disabled')).toBe(true)
-    expect(resolvedIncident.hasAttribute('disabled')).toBe(true)
+    expect(resolvedIncident.hasAttribute('disabled')).toBe(false)
 
     await user.click(screen.getByRole('button', {
       name: /Select unresolved incident: Cordless drill, Returned with cracked housing/i,
@@ -157,7 +191,7 @@ describe('ManageDamageFlagsModal', () => {
     expect(onResolve).toHaveBeenCalledWith('flag-3')
     expect(screen.getByText(/incident remains in history/i)).toBeTruthy()
     expect(screen.getByRole('button', {
-      name: /Resolved incident: Laser level, Case cracked after return/i,
+      name: /Select resolved incident: Laser level, Case cracked after return/i,
     })).toBeTruthy()
     expect(screen.getByText('Broken case after return')).toBeTruthy()
   })

@@ -128,6 +128,7 @@ Rules from [database.md section 4](database.md#4-operating-rules) live in `servi
 - Write services as functions with keyword-only arguments.
 - Use `@transaction.atomic` on every service that writes more than one row.
 - Lock the rows being checked with `select_for_update()` inside the transaction.
+- When persistent damage-incident editing is implemented, record the authenticated technician, server-generated edit timestamp, and changed fields in audit history in the same transaction as the incident update. Do not accept the editor identity or timestamp from the client.
 - Services do not use HTTP-layer exceptions. DRF `ValidationError` and `Http404` are only converted to responses inside DRF views, so admin actions and imports would get a `500` or an unhandled traceback. Instead:
   - _Proposed:_ raise `BusinessRuleError` for rule violations. It is a small exception class in `equipmanager/exceptions.py` (shared configuration, not a business app) that carries a field-to-messages dict.
   - Let `Model.DoesNotExist` propagate for a missing record.

@@ -9,9 +9,10 @@ import type {
   DamageFlagCreateInput,
   DamageFlagEquipmentOption,
   DamageFlagLoadState,
+  DamageFlagUpdateInput,
 } from '../types'
 
-type WorkflowStage = 'details' | 'damageFlags' | 'recordDamageFlag' | 'closed'
+type WorkflowStage = 'details' | 'damageFlags' | 'recordDamageFlag' | 'editDamageFlag' | 'closed'
 
 interface BorrowerDetailsWorkflowProps {
   borrower: BorrowerDetailsViewModel
@@ -20,6 +21,7 @@ interface BorrowerDetailsWorkflowProps {
   onLoadDamageFlags?: (borrowerId: number) => Promise<DamageFlag[]>
   onCreateDamageFlag?: (payload: DamageFlagCreateInput) => Promise<DamageFlag>
   onResolveDamageFlag?: (flagId: string) => Promise<DamageFlag>
+  onUpdateDamageFlag?: (flagId: string, payload: DamageFlagUpdateInput) => Promise<DamageFlag>
   equipmentOptions?: DamageFlagEquipmentOption[]
 }
 
@@ -47,6 +49,7 @@ export default function BorrowerDetailsWorkflow({
   onLoadDamageFlags,
   onCreateDamageFlag,
   onResolveDamageFlag,
+  onUpdateDamageFlag,
   equipmentOptions,
 }: BorrowerDetailsWorkflowProps) {
   const [stage, setStage] = useState<WorkflowStage>('details')
@@ -54,6 +57,7 @@ export default function BorrowerDetailsWorkflow({
     status: 'unavailable',
   })
   const [loadedBorrowerId, setLoadedBorrowerId] = useState<number | undefined>()
+  const [selectedDamageFlagId, setSelectedDamageFlagId] = useState<string | undefined>()
   const loadRequestId = useRef(0)
   const currentBorrowerId = useRef(borrower.borrower_id)
   const [stageBorrowerId, setStageBorrowerId] = useState(borrower.borrower_id)
@@ -185,8 +189,44 @@ export default function BorrowerDetailsWorkflow({
     return resolvedFlag
   }
 
+  const handleUpdateDamageFlag = async (
+    flagId: string,
+    payload: DamageFlagUpdateInput,
+  ): Promise<DamageFlag> => {
+    if (!onUpdateDamageFlag) throw new Error('Damage flag editing is unavailable.')
+    const selectedFlag = damageFlagState.status === 'loaded'
+      ? damageFlagState.flags.find((flag) => flag.id === flagId)
+      : undefined
+    if (!selectedFlag || !isForBorrower(selectedFlag, borrower)) {
+      throw new Error('The selected incident is unavailable for this borrower.')
+    }
+
+    const updatedFlag = await onUpdateDamageFlag(flagId, payload)
+    if (
+      updatedFlag.id !== selectedFlag.id
+      || !isForBorrower(updatedFlag, borrower)
+      || updatedFlag.status !== selectedFlag.status
+      || updatedFlag.reviewed !== selectedFlag.reviewed
+    ) {
+      throw new Error('The service did not preserve the selected incident identity and status.')
+    }
+
+    setDamageFlagState((current) => {
+      if (current.status !== 'loaded' || loadedBorrowerId !== borrower.borrower_id) return current
+      return {
+        status: 'loaded',
+        flags: current.flags.map((flag) => flag.id === flagId ? updatedFlag : flag),
+      }
+    })
+    setSelectedDamageFlagId(flagId)
+    return updatedFlag
+  }
+
   const borrowerIdentity = toBorrowerIdentity(borrower)
   const canRecordDamageFlag = Boolean(onCreateDamageFlag && equipmentOptions)
+  const selectedDamageFlag = damageFlagState.status === 'loaded'
+    ? damageFlagState.flags.find((flag) => flag.id === selectedDamageFlagId)
+    : undefined
   const activeStage = stageBorrowerId === borrower.borrower_id ? stage : 'details'
 
   return (
@@ -214,6 +254,18 @@ export default function BorrowerDetailsWorkflow({
           onRetry={() => {
             void loadFlags()
           }}
+          initialSelectedFlagId={selectedDamageFlagId}
+          onSelectFlag={setSelectedDamageFlagId}
+          onEditFlag={onUpdateDamageFlag && equipmentOptions
+            ? (flagId) => {
+              const flag = damageFlagState.status === 'loaded'
+                ? damageFlagState.flags.find((item) => item.id === flagId)
+                : undefined
+              if (!flag) return
+              setSelectedDamageFlagId(flagId)
+              transitionTo('editDamageFlag')
+            }
+            : undefined}
           onResolveFlag={onResolveDamageFlag ? handleResolveDamageFlag : undefined}
           onRecordDamageFlag={canRecordDamageFlag
             ? () => transitionTo('recordDamageFlag')
@@ -228,6 +280,18 @@ export default function BorrowerDetailsWorkflow({
           equipmentOptions={equipmentOptions}
           onCancel={() => transitionTo('damageFlags')}
           onSave={handleCreateDamageFlag}
+          restoreFocusOnUnmount={false}
+        />
+      )}
+      {activeStage === 'editDamageFlag' && selectedDamageFlag && onUpdateDamageFlag && equipmentOptions && (
+        <RecordDamageFlagModal
+          key={`edit-${borrower.borrower_id}-${selectedDamageFlag.id}`}
+          mode="edit"
+          borrower={borrowerIdentity}
+          equipmentOptions={equipmentOptions}
+          editingFlag={selectedDamageFlag}
+          onCancel={() => transitionTo('damageFlags')}
+          onUpdate={handleUpdateDamageFlag}
           restoreFocusOnUnmount={false}
         />
       )}

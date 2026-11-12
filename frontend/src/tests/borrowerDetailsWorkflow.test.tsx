@@ -9,6 +9,7 @@ import type {
   BorrowerDetailsViewModel,
   DamageFlag,
   DamageFlagCreateInput,
+  DamageFlagUpdateInput,
 } from '../features/borrowers/types'
 
 const borrower: BorrowerDetailsViewModel = {
@@ -37,6 +38,14 @@ const secondFlag: DamageFlag = {
   equipment_id: 8,
   equipment_name: 'Laser level',
   reason: 'Broken case after return',
+}
+
+const resolvedFlag: DamageFlag = {
+  ...secondFlag,
+  notes: 'Original incident notes',
+  status: 'resolved',
+  resolved_at: '2026-02-01T10:00:00Z',
+  resolved_by: 'technician-2',
 }
 
 const createdFlag: DamageFlag = {
@@ -137,6 +146,205 @@ describe('BorrowerDetailsWorkflow', () => {
     expect(screen.getByText('0000142')).toBeTruthy()
   })
 
+  it('edits an explicitly selected unresolved incident in place without changing its count', async () => {
+    const user = userEvent.setup()
+    const updateInput: DamageFlagUpdateInput = {
+      equipment_id: 9,
+      equipment_name: 'Oscilloscope',
+      incident_date: '2026-03-15',
+      reason: 'Corrected description',
+      notes: 'Corrected note',
+    }
+    const onUpdateDamageFlag = vi.fn(async (flagId: string, input: DamageFlagUpdateInput) => ({
+      ...firstFlag,
+      ...input,
+      id: flagId,
+    }))
+    renderWorkflow({
+      onLoadDamageFlags: async () => [firstFlag, resolvedFlag],
+      onUpdateDamageFlag,
+      equipmentOptions: [
+        { id: 7, name: 'Cordless drill' },
+        { id: 8, name: 'Laser level' },
+        { id: 9, name: 'Oscilloscope' },
+      ],
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Manage Damage Flags' }))
+    await user.click(screen.getByRole('button', {
+      name: /Select unresolved incident: Cordless drill/,
+    }))
+    await user.click(screen.getByRole('button', { name: 'Edit Damage Flag' }))
+
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByRole('dialog', { name: 'Edit damage flag' })).toBeTruthy()
+    expect(screen.getByRole('combobox', { name: 'Equipment' })).toHaveProperty('value', '7')
+    expect(screen.getByLabelText(/Incident date/i)).toHaveProperty('value', firstFlag.incident_date)
+    expect(screen.getByLabelText('Reason')).toHaveProperty('value', firstFlag.reason)
+    expect(screen.getByLabelText(/Notes/i)).toHaveProperty('value', '')
+    expect(screen.queryByRole('checkbox')).toBeNull()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Equipment' }), '9')
+    await user.clear(screen.getByLabelText(/Incident date/i))
+    await user.type(screen.getByLabelText(/Incident date/i), updateInput.incident_date)
+    await user.clear(screen.getByLabelText('Reason'))
+    await user.type(screen.getByLabelText('Reason'), updateInput.reason)
+    await user.type(screen.getByLabelText(/Notes/i), updateInput.notes!)
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    await waitFor(() => expect(onUpdateDamageFlag).toHaveBeenCalledWith(
+      firstFlag.id,
+      updateInput,
+    ))
+    expect(screen.getByRole('status').textContent).toBe('Damage flag updated.')
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByRole('dialog', { name: 'Manage damage flags' })).toBeTruthy()
+    expect(screen.getByText('1')).toBeTruthy()
+    expect(screen.getByRole('button', {
+      name: /Select unresolved incident: Oscilloscope, Corrected description/,
+    })).toBeTruthy()
+    expect(screen.getByText(/Corrected note/)).toBeTruthy()
+    expect(screen.getByRole('button', {
+      name: /Select resolved incident: Laser level, Broken case after return/,
+    })).toBeTruthy()
+    expect(onUpdateDamageFlag).toHaveBeenCalledOnce()
+  })
+
+  it('prepopulates resolved incidents and preserves their ID, borrower, review state, and status', async () => {
+    const user = userEvent.setup()
+    const onUpdateDamageFlag = vi.fn(async (flagId: string, input: DamageFlagUpdateInput) => ({
+      ...resolvedFlag,
+      ...input,
+      id: flagId,
+    }))
+    renderWorkflow({
+      onLoadDamageFlags: async () => [firstFlag, resolvedFlag],
+      onUpdateDamageFlag,
+      equipmentOptions: [
+        { id: 7, name: 'Cordless drill' },
+        { id: 8, name: 'Laser level' },
+      ],
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Manage Damage Flags' }))
+    await user.click(screen.getByRole('button', {
+      name: /Select resolved incident: Laser level, Broken case after return/,
+    }))
+    await user.click(screen.getByRole('button', { name: 'Edit Damage Flag' }))
+
+    expect(screen.getByRole('combobox', { name: 'Equipment' })).toHaveProperty('value', '8')
+    expect(screen.getByLabelText(/Incident date/i)).toHaveProperty('value', resolvedFlag.incident_date)
+    expect(screen.getByLabelText('Reason')).toHaveProperty('value', resolvedFlag.reason)
+    expect(screen.getByLabelText(/Notes/i)).toHaveProperty('value', resolvedFlag.notes)
+
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() => expect(onUpdateDamageFlag).toHaveBeenCalledWith(
+      resolvedFlag.id,
+      expect.objectContaining({
+        equipment_id: resolvedFlag.equipment_id,
+        incident_date: resolvedFlag.incident_date,
+        reason: resolvedFlag.reason,
+        notes: resolvedFlag.notes,
+      }),
+    ))
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+
+    expect(screen.getByText('1')).toBeTruthy()
+    expect(screen.getByRole('button', {
+      name: /Select resolved incident: Laser level, Broken case after return/,
+    })).toBeTruthy()
+    expect(screen.getByRole('button', {
+      name: /Select resolved incident: Laser level, Broken case after return/,
+    }).getAttribute('aria-pressed')).toBe('true')
+    const updatedFlag = onUpdateDamageFlag.mock.results[0].value
+    await expect(updatedFlag).resolves.toMatchObject({
+      id: resolvedFlag.id,
+      borrower_id: borrower.borrower_id,
+      borrower_name: borrower.borrower_name,
+      reviewed: resolvedFlag.reviewed,
+      status: 'resolved',
+    })
+  })
+
+  it('keeps the original incident on update failure and supports Back, Close, and Escape without saving', async () => {
+    const user = userEvent.setup()
+    const onUpdateDamageFlag = vi.fn().mockRejectedValue(new Error('Update failed.'))
+    renderWorkflow({
+      onLoadDamageFlags: async () => [firstFlag],
+      onUpdateDamageFlag,
+      equipmentOptions: [{ id: 7, name: 'Cordless drill' }],
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Manage Damage Flags' }))
+    await user.click(screen.getByRole('button', {
+      name: /Select unresolved incident: Cordless drill/,
+    }))
+    await user.click(screen.getByRole('button', { name: 'Edit Damage Flag' }))
+    await user.clear(screen.getByLabelText('Reason'))
+    await user.type(screen.getByLabelText('Reason'), 'Unsaved correction')
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Update failed.')
+    expect(screen.queryByText('Damage flag updated.')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+    expect(screen.getByRole('button', {
+      name: /Select unresolved incident: Cordless drill, Returned with cracked housing/,
+    })).toBeTruthy()
+    expect(screen.getByText('1')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', {
+      name: /Select unresolved incident: Cordless drill/,
+    }))
+    await user.click(screen.getByRole('button', { name: 'Edit Damage Flag' }))
+    await user.click(screen.getByRole('button', { name: 'Close edit damage flag' }))
+    expect(screen.getByRole('dialog', { name: 'Manage damage flags' })).toBeTruthy()
+    expect(onUpdateDamageFlag).toHaveBeenCalledOnce()
+
+    await user.click(screen.getByRole('button', {
+      name: /Select unresolved incident: Cordless drill/,
+    }))
+    await user.click(screen.getByRole('button', { name: 'Edit Damage Flag' }))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.getByRole('dialog', { name: 'Manage damage flags' })).toBeTruthy()
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(onUpdateDamageFlag).toHaveBeenCalledOnce()
+  })
+
+  it('validates required correction fields and traps keyboard focus in edit mode', async () => {
+    const user = userEvent.setup()
+    const onUpdateDamageFlag = vi.fn()
+    renderWorkflow({
+      onLoadDamageFlags: async () => [firstFlag],
+      onUpdateDamageFlag,
+      equipmentOptions: [{ id: 7, name: 'Cordless drill' }],
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Manage Damage Flags' }))
+    await user.click(screen.getByRole('button', {
+      name: /Select unresolved incident: Cordless drill/,
+    }))
+    await user.click(screen.getByRole('button', { name: 'Edit Damage Flag' }))
+    const closeButton = screen.getByRole('button', { name: 'Close edit damage flag' })
+    expect(document.activeElement).toBe(closeButton)
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Equipment' }), '')
+    await user.clear(screen.getByLabelText(/Incident date/i))
+    await user.clear(screen.getByLabelText('Reason'))
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    expect(screen.getByText('Equipment is required.')).toBeTruthy()
+    expect(screen.getByText('Incident date is required.')).toBeTruthy()
+    expect(screen.getByText('Reason is required.')).toBeTruthy()
+    expect(onUpdateDamageFlag).not.toHaveBeenCalled()
+
+    const saveButton = screen.getByRole('button', { name: 'Save Changes' })
+    saveButton.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(document.activeElement).toBe(closeButton)
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+  })
+
   it('does not show counts or empty history while loading, and shows empty only after success', async () => {
     const user = userEvent.setup()
     let finishLoading: (flags: DamageFlag[]) => void = () => {}
@@ -213,7 +421,7 @@ describe('BorrowerDetailsWorkflow', () => {
     await waitFor(() => expect(onResolveDamageFlag).toHaveBeenCalledWith(secondFlag.id))
     expect(await screen.findByText(/incident remains in history/i)).toBeTruthy()
     expect(screen.getByRole('button', {
-      name: /Resolved incident: Laser level, Broken case after return/,
+      name: /Select resolved incident: Laser level, Broken case after return/,
     })).toBeTruthy()
     expect(screen.getByRole('button', {
       name: /Select unresolved incident: Cordless drill, Returned with cracked housing/,

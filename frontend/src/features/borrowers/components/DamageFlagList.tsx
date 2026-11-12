@@ -28,7 +28,7 @@ export default function DamageFlagList({
   const resolvedFlags = flags.filter((flag) => flag.status === 'resolved')
 
   const renderFlag = (flag: DamageFlag, isResolved = false) => {
-    const isSelected = !isResolved && selectedFlagId === flag.id
+    const isSelected = selectedFlagId === flag.id
 
     return (
       <div
@@ -38,13 +38,12 @@ export default function DamageFlagList({
         <div className="flex items-start gap-3">
           <button
             type="button"
-            disabled={isResolved}
             onClick={() => {
-              if (!isResolved) onSelectFlag?.(flag.id)
+              onSelectFlag?.(flag.id)
             }}
             className="flex-1 text-left"
             aria-pressed={isSelected}
-            aria-label={`${isResolved ? 'Resolved incident' : 'Select unresolved incident'}: ${flag.equipment_name ?? 'Unknown equipment'}, ${flag.reason}`}
+            aria-label={`Select ${isResolved ? 'resolved' : 'unresolved'} incident: ${flag.equipment_name ?? 'Unknown equipment'}, ${flag.reason}`}
           >
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.25px] text-muted">

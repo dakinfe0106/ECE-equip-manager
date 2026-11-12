@@ -9,9 +9,11 @@ interface ManageDamageFlagsModalProps {
   dataState: DamageFlagLoadState
   onClose: () => void
   onResolveFlag?: (flagId: string) => DamageFlag | void | Promise<DamageFlag | void>
-  onSelectFlag?: (flagId: string) => void
+  onSelectFlag?: (flagId: string | undefined) => void
+  onEditFlag?: (flagId: string) => void
   onRecordDamageFlag?: () => void
   onRetry?: () => void
+  initialSelectedFlagId?: string
   restoreFocusOnUnmount?: boolean
 }
 
@@ -21,13 +23,15 @@ export default function ManageDamageFlagsModal({
   onClose,
   onResolveFlag,
   onSelectFlag,
+  onEditFlag,
   onRecordDamageFlag,
   onRetry,
+  initialSelectedFlagId,
   restoreFocusOnUnmount = true,
 }: ManageDamageFlagsModalProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null)
   const savingRef = useRef(false)
-  const [selectedFlagId, setSelectedFlagId] = useState<string | undefined>(undefined)
+  const [selectedFlagId, setSelectedFlagId] = useState(initialSelectedFlagId)
   const [pendingResolutionId, setPendingResolutionId] = useState<string | undefined>(undefined)
   const [resolvedFlagIds, setResolvedFlagIds] = useState<string[]>([])
   const [isSaving, setIsSaving] = useState(false)
@@ -38,7 +42,11 @@ export default function ManageDamageFlagsModal({
     () => dataState.status === 'loaded' ? dataState.flags : [],
     [dataState],
   )
-  const selectedFlag = useMemo(
+  const selectedIncident = useMemo(
+    () => flags.find((flag) => flag.id === selectedFlagId),
+    [flags, selectedFlagId],
+  )
+  const selectedUnresolvedFlag = useMemo(
     () => flags.find(
       (flag) => flag.id === selectedFlagId
         && flag.status === 'unresolved'
@@ -67,7 +75,7 @@ export default function ManageDamageFlagsModal({
   }, restoreFocusOnUnmount)
 
   const handleSelectFlag = (flagId: string) => {
-    if (!flags.some((flag) => flag.id === flagId && flag.status === 'unresolved')) return
+    if (!flags.some((flag) => flag.id === flagId)) return
 
     setErrorMessage('')
     setSuccessMessage('')
@@ -77,21 +85,21 @@ export default function ManageDamageFlagsModal({
   }
 
   const handleRequestResolution = () => {
-    if (!selectedFlag) {
+    if (!selectedUnresolvedFlag) {
       setErrorMessage('Select an unresolved incident before resolving it.')
       return
     }
 
-    setPendingResolutionId(selectedFlag.id)
+    setPendingResolutionId(selectedUnresolvedFlag.id)
     setErrorMessage('')
     setSuccessMessage('Selected incident marked for resolution. Save Changes to confirm.')
   }
 
   const handleSaveChanges = async () => {
     if (
-      !selectedFlag ||
+      !selectedUnresolvedFlag ||
       !pendingResolutionId ||
-      pendingResolutionId !== selectedFlag.id
+      pendingResolutionId !== selectedUnresolvedFlag.id
     ) {
       setErrorMessage('Select an unresolved incident and mark it for resolution before saving.')
       return
@@ -112,6 +120,7 @@ export default function ManageDamageFlagsModal({
       await onResolveFlag(pendingResolutionId)
       setResolvedFlagIds((current) => [...new Set([...current, pendingResolutionId])])
       setSelectedFlagId(undefined)
+      onSelectFlag?.(undefined)
       setPendingResolutionId(undefined)
       setSuccessMessage('Damage flag resolved. The incident remains in history.')
     } catch (error: unknown) {
@@ -126,9 +135,9 @@ export default function ManageDamageFlagsModal({
 
   const canSave = Boolean(
     dataState.status === 'loaded'
-      && selectedFlag
+      && selectedUnresolvedFlag
       && pendingResolutionId
-      && pendingResolutionId === selectedFlag.id
+      && pendingResolutionId === selectedUnresolvedFlag.id
       && !isSaving,
   )
 
@@ -228,8 +237,19 @@ export default function ManageDamageFlagsModal({
           <div className="flag-controls flex justify-between gap-2 max-[760px]:flex-col max-[760px]:[&>button]:w-full">
             <button
               type="button"
-              disabled={!selectedFlag || !onResolveFlag || isSaving}
-              aria-disabled={!selectedFlag || !onResolveFlag || isSaving}
+              disabled={!selectedIncident || !onEditFlag || isSaving}
+              aria-disabled={!selectedIncident || !onEditFlag || isSaving}
+              className="inline-flex min-h-[38px] items-center justify-center gap-[7px] whitespace-nowrap rounded-lg border border-input bg-white px-[15px] text-[12px] font-[650] text-body disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
+              onClick={() => {
+                if (selectedIncident) onEditFlag?.(selectedIncident.id)
+              }}
+            >
+              Edit Damage Flag
+            </button>
+            <button
+              type="button"
+              disabled={!selectedUnresolvedFlag || !onResolveFlag || isSaving}
+              aria-disabled={!selectedUnresolvedFlag || !onResolveFlag || isSaving}
               className="inline-flex min-h-[38px] items-center justify-center gap-[7px] whitespace-nowrap rounded-lg border border-input bg-white px-[15px] text-[12px] font-[650] text-body disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
               onClick={handleRequestResolution}
             >
@@ -247,24 +267,24 @@ export default function ManageDamageFlagsModal({
           </div>
 
           <p className="mb-4 text-[10px] text-muted" aria-live="polite">
-            Select an unresolved incident, choose Resolve Existing Flag, then Save Changes to confirm.
+            Select an incident to edit, or select an unresolved incident to resolve it.
           </p>
 
           <div className="rounded-[8px] border border-line bg-page p-3" aria-live="polite">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.25px] text-muted">
               Selected incident
             </p>
-            {selectedFlag ? (
+            {selectedIncident ? (
               <div className="space-y-1 text-[11px] text-body">
-                <p className="font-semibold">{selectedFlag.equipment_name ?? 'Unknown equipment'}</p>
-                <p>{selectedFlag.reason}</p>
+                <p className="font-semibold">{selectedIncident.equipment_name ?? 'Unknown equipment'}</p>
+                <p>{selectedIncident.reason}</p>
                 <p className="text-muted">
-                  {selectedFlag.incident_date} • {selectedFlag.reviewed ? 'Reviewed' : 'Pending review'}
+                  {selectedIncident.incident_date} • {selectedIncident.reviewed ? 'Reviewed' : 'Pending review'}
                 </p>
               </div>
             ) : (
               <p className="text-[11px] text-muted">
-                No unresolved incident selected.
+                No incident selected.
               </p>
             )}
           </div>

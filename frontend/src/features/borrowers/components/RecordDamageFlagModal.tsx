@@ -3,16 +3,32 @@ import useModalAccessibility from '../hooks/useModalAccessibility'
 import type {
   BorrowerIdentity,
   DamageFlagCreateInput,
+  DamageFlag,
   DamageFlagEquipmentOption,
+  DamageFlagUpdateInput,
 } from '../types'
 
-interface RecordDamageFlagModalProps {
+interface RecordDamageFlagModalBaseProps {
   borrower: BorrowerIdentity
   equipmentOptions: DamageFlagEquipmentOption[]
   onCancel: () => void
-  onSave: (payload: DamageFlagCreateInput) => void | Promise<unknown>
   restoreFocusOnUnmount?: boolean
 }
+
+type RecordDamageFlagModalProps = RecordDamageFlagModalBaseProps & (
+  | {
+    mode?: 'create'
+    onSave: (payload: DamageFlagCreateInput) => void | Promise<unknown>
+    editingFlag?: never
+    onUpdate?: never
+  }
+  | {
+    mode: 'edit'
+    editingFlag: DamageFlag
+    onUpdate: (flagId: string, payload: DamageFlagUpdateInput) => Promise<DamageFlag>
+    onSave?: never
+  }
+)
 
 const emptyErrors = {
   equipment: '',
@@ -21,20 +37,18 @@ const emptyErrors = {
   review: '',
 }
 
-export default function RecordDamageFlagModal({
-  borrower,
-  equipmentOptions,
-  onCancel,
-  onSave,
-  restoreFocusOnUnmount = true,
-}: RecordDamageFlagModalProps) {
+export default function RecordDamageFlagModal(props: RecordDamageFlagModalProps) {
+  const { borrower, equipmentOptions, onCancel, restoreFocusOnUnmount = true } = props
+  const editingFlag = props.mode === 'edit' ? props.editingFlag : undefined
   const dialogRef = useRef<HTMLDivElement | null>(null)
   const savingRef = useRef(false)
-  const [equipmentId, setEquipmentId] = useState<number | ''>('')
-  const [incidentDate, setIncidentDate] = useState('')
-  const [reason, setReason] = useState('')
-  const [notes, setNotes] = useState('')
-  const [reviewed, setReviewed] = useState(false)
+  const [equipmentId, setEquipmentId] = useState<number | ''>(
+    typeof editingFlag?.equipment_id === 'number' ? editingFlag.equipment_id : '',
+  )
+  const [incidentDate, setIncidentDate] = useState(editingFlag?.incident_date ?? '')
+  const [reason, setReason] = useState(editingFlag?.reason ?? '')
+  const [notes, setNotes] = useState(editingFlag?.notes ?? '')
+  const [reviewed, setReviewed] = useState(editingFlag?.reviewed ?? false)
   const [errors, setErrors] = useState(emptyErrors)
   const [isSaving, setIsSaving] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
@@ -44,10 +58,23 @@ export default function RecordDamageFlagModal({
     if (!savingRef.current) onCancel()
   }, restoreFocusOnUnmount)
 
-  const selectedEquipment = useMemo(
-    () => equipmentOptions.find((equipment) => equipment.id === equipmentId),
-    [equipmentId, equipmentOptions],
-  )
+  const equipmentChoices = useMemo(() => {
+    if (
+      !editingFlag
+      || typeof editingFlag.equipment_id !== 'number'
+      || equipmentOptions.some((equipment) => equipment.id === editingFlag.equipment_id)
+    ) {
+      return equipmentOptions
+    }
+
+    return [
+      {
+        id: editingFlag.equipment_id,
+        name: editingFlag.equipment_name ?? 'Current equipment (unavailable)',
+      },
+      ...equipmentOptions,
+    ]
+  }, [editingFlag, equipmentOptions])
 
   const validate = () => {
     const nextErrors = { ...emptyErrors }
@@ -55,7 +82,9 @@ export default function RecordDamageFlagModal({
     if (!equipmentId) nextErrors.equipment = 'Equipment is required.'
     if (!incidentDate) nextErrors.date = 'Incident date is required.'
     if (!reason.trim()) nextErrors.reason = 'Reason is required.'
-    if (!reviewed) nextErrors.review = 'Negligence review confirmation is required.'
+    if (!editingFlag && !reviewed) {
+      nextErrors.review = 'Negligence review confirmation is required.'
+    }
 
     setErrors(nextErrors)
     return !nextErrors.equipment && !nextErrors.date && !nextErrors.reason && !nextErrors.review
@@ -70,19 +99,29 @@ export default function RecordDamageFlagModal({
     setIsSaving(true)
     setSaveError('')
     try {
-      await onSave({
-        borrower_id: borrower.borrower_id,
-        borrower_name: borrower.borrower_name,
+      const updateInput: DamageFlagUpdateInput = {
         equipment_id: Number(equipmentId),
-        equipment_name: selectedEquipment?.name,
+        equipment_name: equipmentOptions.find((equipment) => equipment.id === equipmentId)?.name,
         incident_date: incidentDate,
         reason,
         notes,
-        reviewed,
-      })
+      }
+
+      if (props.mode === 'edit') {
+        await props.onUpdate(props.editingFlag.id, updateInput)
+      } else {
+        await props.onSave({
+          borrower_id: borrower.borrower_id,
+          borrower_name: borrower.borrower_name,
+          ...updateInput,
+          reviewed,
+        })
+      }
       setIsSaved(true)
     } catch (error: unknown) {
-      setSaveError(error instanceof Error ? error.message : 'Could not save the damage flag.')
+      setSaveError(error instanceof Error
+        ? error.message
+        : `Could not ${editingFlag ? 'update' : 'save'} the damage flag.`)
     } finally {
       savingRef.current = false
       setIsSaving(false)
@@ -105,12 +144,12 @@ export default function RecordDamageFlagModal({
               BORROWER RESTRICTION
             </p>
             <h2 id="record-damage-flag-title" className="m-0 text-[14px] font-[650] tracking-[-0.01em] text-[#202a38]">
-              Record damage flag
+              {editingFlag ? 'Edit damage flag' : 'Record damage flag'}
             </h2>
           </div>
           <button
             type="button"
-            aria-label="Close record damage flag"
+            aria-label={editingFlag ? 'Close edit damage flag' : 'Close record damage flag'}
             disabled={isSaving}
             onClick={onCancel}
             className="grid place-items-center rounded-lg border-0 bg-transparent p-[7px] text-[#637083] hover:bg-[#eef2f7] focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
@@ -153,7 +192,7 @@ export default function RecordDamageFlagModal({
                 }}
               >
                 <option value="">Select equipment</option>
-                {equipmentOptions.map((equipment) => (
+                {equipmentChoices.map((equipment) => (
                   <option key={equipment.id} value={equipment.id}>
                     {equipment.name}
                   </option>
@@ -218,7 +257,7 @@ export default function RecordDamageFlagModal({
               />
             </div>
 
-            <label className="flex items-start gap-2 rounded-[8px] border border-input bg-page p-3">
+            {!editingFlag && <label className="flex items-start gap-2 rounded-[8px] border border-input bg-page p-3">
               <input
                 type="checkbox"
                 checked={reviewed}
@@ -231,11 +270,15 @@ export default function RecordDamageFlagModal({
               <span className="text-[10px] text-body">
                 I reviewed the return and confirm the negligence issue was verified.
               </span>
-            </label>
-            {errors.review && <p className="text-[10px] text-danger">{errors.review}</p>}
+            </label>}
+            {!editingFlag && errors.review && <p className="text-[10px] text-danger">{errors.review}</p>}
 
             {saveError && <p role="alert" className="text-[10px] text-danger">{saveError}</p>}
-            {isSaved && <p role="status" className="text-[10px] text-success">Damage flag recorded.</p>}
+            {isSaved && (
+              <p role="status" className="text-[10px] text-success">
+                {editingFlag ? 'Damage flag updated.' : 'Damage flag recorded.'}
+              </p>
+            )}
           </div>
           <div className="flex shrink-0 justify-end gap-[9px] border-t border-[#e8ebf0] bg-[#fafbfc] px-[22px] py-[15px] max-[520px]:[&>button]:flex-1">
             <button
@@ -244,14 +287,14 @@ export default function RecordDamageFlagModal({
               className="inline-flex min-h-[38px] items-center justify-center gap-[7px] whitespace-nowrap rounded-lg border border-input bg-white px-[15px] text-[12px] font-[650] text-body focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px] disabled:cursor-not-allowed disabled:opacity-45"
               onClick={onCancel}
             >
-              Cancel
+              {editingFlag ? 'Back' : 'Cancel'}
             </button>
             <button
               type="submit"
               disabled={isSaving || isSaved}
               className="inline-flex min-h-[38px] items-center justify-center gap-[7px] whitespace-nowrap rounded-lg border border-primary bg-primary px-[15px] text-[12px] font-[650] text-white focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px] disabled:cursor-not-allowed disabled:opacity-45"
             >
-              {isSaving ? 'Saving…' : isSaved ? 'Saved' : 'Save'}
+              {isSaving ? 'Saving…' : isSaved ? 'Saved' : editingFlag ? 'Save Changes' : 'Save'}
             </button>
           </div>
         </form>
