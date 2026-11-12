@@ -4,12 +4,14 @@ import Panel from '../components/ui/Panel'
 import BorrowerPagination from '../features/borrowers/components/BorrowerPagination'
 import BorrowerSearchToolbar from '../features/borrowers/components/BorrowerSearchToolbar'
 import BorrowerTable from '../features/borrowers/components/BorrowerTable'
+import BorrowerEditDialog from '../features/borrowers/components/BorrowerEditDialog'
 import useBorrowers from '../features/borrowers/hooks/useBorrowers'
 
 export default function BorrowersPage() {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [selectedBorrowerId, setSelectedBorrowerId] = useState<number | null>(null)
   const {
     borrowers,
     errorMessage,
@@ -17,6 +19,7 @@ export default function BorrowersPage() {
     pageCount,
     pageSize,
     totalCount,
+    refresh,
   } = useBorrowers(currentPage, appliedSearch)
 
   const searchBorrowers = (event: FormEvent<HTMLFormElement>) => {
@@ -72,6 +75,7 @@ export default function BorrowersPage() {
           borrowers={borrowers}
           errorMessage={errorMessage}
           isLoading={isLoading}
+          onSelect={(borrower) => setSelectedBorrowerId(borrower.borrower_id)}
         />
         <BorrowerPagination
           currentPage={currentPage}
@@ -82,6 +86,14 @@ export default function BorrowersPage() {
           totalCount={totalCount}
         />
       </Panel>
+      {selectedBorrowerId !== null && (
+        <BorrowerEditDialog
+          key={selectedBorrowerId}
+          borrowerId={selectedBorrowerId}
+          onClose={() => setSelectedBorrowerId(null)}
+          onSaved={refresh}
+        />
+      )}
     </section>
   )
 }

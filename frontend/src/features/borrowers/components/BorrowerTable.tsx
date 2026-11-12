@@ -10,6 +10,7 @@ interface BorrowerTableProps {
   borrowers: BorrowerRecord[]
   errorMessage: string
   isLoading: boolean
+  onSelect: (borrower: BorrowerRecord) => void
 }
 
 export default function BorrowerTable({
@@ -17,6 +18,7 @@ export default function BorrowerTable({
   borrowers,
   errorMessage,
   isLoading,
+  onSelect,
 }: BorrowerTableProps) {
   return (
     <div className="min-h-0 flex-1 overflow-auto">
@@ -35,7 +37,14 @@ export default function BorrowerTable({
                 {borrower.unb_id}
               </td>
               <td className={`${cellClassName} font-[650] text-body`}>
-                {[borrower.first_name, borrower.last_name].filter(Boolean).join(' ')}
+                <button
+                  type="button"
+                  className="cursor-pointer rounded-sm text-left font-semibold text-body hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  aria-label={`Edit borrower ${[borrower.first_name, borrower.last_name].filter(Boolean).join(' ')} (UNB ID ${borrower.unb_id})`}
+                  onClick={() => onSelect(borrower)}
+                >
+                  {[borrower.first_name, borrower.last_name].filter(Boolean).join(' ')}
+                </button>
               </td>
               <td className={cellClassName}>
                 <Badge tone="neutral">
