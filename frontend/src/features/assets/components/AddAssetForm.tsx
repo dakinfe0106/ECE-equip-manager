@@ -3,15 +3,24 @@ import { Link, useNavigate } from 'react-router'
 import {
   AssetLookupError,
   createAsset,
+  createCategory,
+  createEquipmentType,
   fetchCategories,
   fetchEquipmentTypes,
   type CategoryOption,
+  type AssetRecord,
   type EquipmentTypeOption,
 } from '../api'
 import './AddAssetForm.css'
 
+// Dropdown value for the "+ Create New …" options.
+const createNew = '__new__'
+
 interface AddAssetFormProps {
   onCancel?: () => void
+  onCreated?: (asset: AssetRecord) => void
+  onSubmittingChange?: (isSubmitting: boolean) => void
+  isModal?: boolean
 }
 
 function getErrorMessage(error: unknown): string {
@@ -27,13 +36,20 @@ function getErrorMessage(error: unknown): string {
   return 'Could not connect to equipment records. Please try again.'
 }
 
-export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
+export default function AddAssetForm({
+  onCancel,
+  onCreated,
+  onSubmittingChange,
+  isModal = false,
+}: AddAssetFormProps) {
   const navigate = useNavigate()
   const [assetIdentifier, setAssetIdentifier] = useState('')
   const [name, setName] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [equipmentTypeId, setEquipmentTypeId] = useState('')
   const [acquisitionDate, setAcquisitionDate] = useState('')
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [newTypeName, setNewTypeName] = useState('')
   const [categories, setCategories] = useState<CategoryOption[]>([])
   const [equipmentTypes, setEquipmentTypes] = useState<EquipmentTypeOption[]>([])
   const [isLoadingCategories, setIsLoadingCategories] = useState(true)
@@ -41,6 +57,9 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const isCreatingCategory = categoryId === createNew
+  // A new category has no equipment types yet, so it always needs a new one too.
+  const isCreatingType = isCreatingCategory || equipmentTypeId === createNew
 
   useEffect(() => {
     let isCurrent = true
@@ -61,7 +80,7 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
   }, [])
 
   useEffect(() => {
-    if (!categoryId) {
+    if (!categoryId || categoryId === createNew) {
       return
     }
 
@@ -87,19 +106,45 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
     setError('')
     setSuccessMessage('')
 
-    if (!assetIdentifier.trim() || !name.trim() || !categoryId || !equipmentTypeId) {
+    const hasCategory = isCreatingCategory ? newCategoryName.trim() : categoryId
+    const hasType = isCreatingType ? newTypeName.trim() : equipmentTypeId
+    if (!assetIdentifier.trim() || !name.trim() || !hasCategory || !hasType) {
       setError('Please complete all required fields.')
       return
     }
 
     setIsSubmitting(true)
+    onSubmittingChange?.(true)
     try {
+      // Create the new category and type first. Each one is selected as soon as it exists,
+      // so if a later step fails, trying again reuses it instead of creating a duplicate.
+      let selectedCategoryId = Number(categoryId)
+      if (isCreatingCategory) {
+        const category = await createCategory(newCategoryName.trim())
+        selectedCategoryId = category.category_id
+        setCategories((current) => [...current, category])
+        setCategoryId(String(category.category_id))
+        setNewCategoryName('')
+      }
+      let selectedTypeId = Number(equipmentTypeId)
+      if (isCreatingType) {
+        const equipmentType = await createEquipmentType(newTypeName.trim(), selectedCategoryId)
+        selectedTypeId = equipmentType.type_id
+        setEquipmentTypes((current) => [...current, equipmentType])
+        setEquipmentTypeId(String(equipmentType.type_id))
+        setNewTypeName('')
+      }
+
       const asset = await createAsset({
         asset_identifier: assetIdentifier.trim(),
         name: name.trim(),
-        equipment_type_id: Number(equipmentTypeId),
+        equipment_type_id: selectedTypeId,
         acquisition_date: acquisitionDate || null,
       })
+      if (onCreated) {
+        onCreated(asset)
+        return
+      }
       setSuccessMessage(`Asset ${asset.asset_identifier} was added successfully.`)
       setAssetIdentifier('')
       setName('')
@@ -107,21 +152,37 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
       setEquipmentTypeId('')
       setEquipmentTypes([])
       setAcquisitionDate('')
+      setNewCategoryName('')
+      setNewTypeName('')
     } catch (submitError: unknown) {
       setError(getErrorMessage(submitError))
     } finally {
       setIsSubmitting(false)
+      onSubmittingChange?.(false)
     }
   }
 
   return (
-    <section className="add-asset" aria-labelledby="add-asset-title">
+    <section className={`add-asset${isModal ? ' add-asset--modal' : ''}`} aria-labelledby="add-asset-title">
       <header className="add-asset__header">
-        <p className="add-asset__eyebrow">Equipment Management</p>
-        <h1 id="add-asset-title">Add New Asset</h1>
-        <p className="add-asset__description">
-          Enter the details below to register an equipment asset.
-        </p>
+        <div>
+          <p className="add-asset__eyebrow">New record</p>
+          {isModal
+            ? <h2 id="add-asset-title">Add Asset</h2>
+            : <h1 id="add-asset-title">Add New Asset</h1>}
+          <p className="add-asset__description">
+            Enter the details below to register an equipment asset.
+          </p>
+        </div>
+        {isModal && onCancel && (
+          <button
+            className="add-asset__close"
+            type="button"
+            aria-label="Close add asset dialog"
+            disabled={isSubmitting}
+            onClick={onCancel}
+          >×</button>
+        )}
       </header>
 
       <form className="add-asset__form" onSubmit={handleSubmit} noValidate>
@@ -135,6 +196,7 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
               onChange={(event) => setAssetIdentifier(event.target.value)}
               placeholder="e.g. ECE-001"
               maxLength={100}
+              autoFocus={isModal}
               required
             />
           </div>
@@ -163,10 +225,10 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
                 setCategoryId(nextCategoryId)
                 setEquipmentTypes([])
                 setEquipmentTypeId('')
-                setIsLoadingTypes(Boolean(nextCategoryId))
+                setIsLoadingTypes(Boolean(nextCategoryId) && nextCategoryId !== createNew)
                 setError('')
               }}
-              disabled={isLoadingCategories || categories.length === 0}
+              disabled={isLoadingCategories}
               required
             >
               <option value="">
@@ -177,33 +239,78 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
                   {category.name}
                 </option>
               ))}
+              <option value={createNew}>+ Create New Category</option>
             </select>
           </div>
 
-          <div className="add-asset__field">
-            <label htmlFor="equipment-type">Equipment type <span>*</span></label>
-            <select
-              id="equipment-type"
-              name="equipment_type_id"
-              value={equipmentTypeId}
-              onChange={(event) => setEquipmentTypeId(event.target.value)}
-              disabled={!categoryId || isLoadingTypes || equipmentTypes.length === 0}
-              required
-            >
-              <option value="">
-                {!categoryId
-                  ? 'Select a category first'
-                  : isLoadingTypes
-                    ? 'Loading equipment types…'
-                    : 'Select an equipment type'}
-              </option>
-              {equipmentTypes.map((equipmentType) => (
-                <option key={equipmentType.type_id} value={equipmentType.type_id}>
-                  {equipmentType.name}
+          {isCreatingCategory && (
+            <div className="add-asset__field">
+              <label htmlFor="new-category-name">Category name <span>*</span></label>
+              <input
+                id="new-category-name"
+                name="new_category_name"
+                value={newCategoryName}
+                onChange={(event) => {
+                  setNewCategoryName(event.target.value)
+                  setError('')
+                }}
+                placeholder="e.g. Test Equipment"
+                maxLength={255}
+                required
+              />
+            </div>
+          )}
+
+          {!isCreatingCategory && (
+            <div className="add-asset__field">
+              <label htmlFor="equipment-type">Equipment type <span>*</span></label>
+              <select
+                id="equipment-type"
+                name="equipment_type_id"
+                value={equipmentTypeId}
+                onChange={(event) => {
+                  setEquipmentTypeId(event.target.value)
+                  setError('')
+                }}
+                disabled={!categoryId || isLoadingTypes}
+                required
+              >
+                <option value="">
+                  {!categoryId
+                    ? 'Select a category first'
+                    : isLoadingTypes
+                      ? 'Loading equipment types…'
+                      : 'Select an equipment type'}
                 </option>
-              ))}
-            </select>
-          </div>
+                {equipmentTypes.map((equipmentType) => (
+                  <option key={equipmentType.type_id} value={equipmentType.type_id}>
+                    {equipmentType.name}
+                  </option>
+                ))}
+                {categoryId && !isLoadingTypes && (
+                  <option value={createNew}>+ Create New Equipment Type</option>
+                )}
+              </select>
+            </div>
+          )}
+
+          {isCreatingType && (
+            <div className="add-asset__field">
+              <label htmlFor="new-type-name">Equipment type name <span>*</span></label>
+              <input
+                id="new-type-name"
+                name="new_equipment_type_name"
+                value={newTypeName}
+                onChange={(event) => {
+                  setNewTypeName(event.target.value)
+                  setError('')
+                }}
+                placeholder="e.g. Digital Multimeter"
+                maxLength={255}
+                required
+              />
+            </div>
+          )}
 
           <div className="add-asset__field">
             <label htmlFor="acquisition-date">Acquisition date</label>
@@ -222,12 +329,12 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
         </p>
         {!isLoadingCategories && categories.length === 0 && !error && (
           <p className="add-asset__message add-asset__message--error" role="status">
-            No active categories are set up yet. Ask an administrator to add categories and equipment types.
+            No categories yet. Choose “+ Create New Category” to add the first one.
           </p>
         )}
-        {categoryId && !isLoadingTypes && equipmentTypes.length === 0 && !error && (
+        {categoryId && !isCreatingCategory && !isLoadingTypes && equipmentTypes.length === 0 && !error && (
           <p className="add-asset__message" role="status">
-            No active equipment types are available for this category.
+            This category has no equipment types yet. Choose “+ Create New Equipment Type”.
           </p>
         )}
         {error && <p className="add-asset__message add-asset__message--error" role="alert">{error}</p>}
@@ -242,6 +349,7 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
             <button
               className="add-asset__button add-asset__button--secondary"
               type="button"
+              disabled={isSubmitting}
               onClick={onCancel}
             >
               Cancel
@@ -250,6 +358,7 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
             <button
               className="add-asset__button add-asset__button--secondary"
               type="button"
+              disabled={isSubmitting}
               onClick={() => navigate('/assets')}
             >
               Cancel
@@ -258,9 +367,9 @@ export default function AddAssetForm({ onCancel }: AddAssetFormProps) {
           <button
             className="add-asset__button add-asset__button--primary"
             type="submit"
-            disabled={isSubmitting || isLoadingCategories || categories.length === 0}
+            disabled={isSubmitting || isLoadingCategories}
           >
-            {isSubmitting ? 'Submitting…' : 'Submit Asset'}
+            {isSubmitting ? 'Saving…' : isModal ? 'Save Asset' : 'Submit Asset'}
           </button>
         </div>
       </form>

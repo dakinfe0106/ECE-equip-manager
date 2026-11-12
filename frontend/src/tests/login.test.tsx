@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
@@ -7,7 +7,6 @@ import { setupServer } from 'msw/node'
 import { MemoryRouter, useLocation } from 'react-router'
 import AppRoutes from '../AppRoutes'
 import AuthProvider from '../features/auth/AuthProvider'
-import { safeReturnPath } from '../features/auth/safeReturnPath'
 import { apiBaseUrl } from '../api'
 import { SESSION_CHECK_EVENT, sessionFetch } from '../features/auth/sessionFetch'
 
@@ -118,8 +117,8 @@ describe('Login and session flow', () => {
     server.use(http.get(`${apiBaseUrl}/auth/me/`, () => HttpResponse.json({ ...user, role, role_label })))
     renderApp('/assets')
     expect(await screen.findByText('Test Technician')).toBeTruthy()
-    expect(screen.getByText(role_label)).toBeTruthy()
-    expect(screen.getByText('TT')).toBeTruthy()
+    expect(within(screen.getByRole('complementary')).getByText(role_label)).toBeTruthy()
+    expect(within(screen.getByRole('complementary')).getByText('TE')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy()
   })
 
@@ -128,13 +127,14 @@ describe('Login and session flow', () => {
     server.use(http.get(`${apiBaseUrl}/auth/me/`, () => HttpResponse.json({ ...user, first_name: '', last_name: '' })))
     renderApp('/assets')
     expect(await screen.findByText('shoptech')).toBeTruthy()
-    expect(screen.getByText('S')).toBeTruthy()
+    expect(within(screen.getByRole('complementary')).getByText('SH')).toBeTruthy()
   })
 
   it('renders the standalone design with required fields and autofill', async () => {
     renderApp()
     expect(await screen.findByRole('heading', { name: 'Sign in to your workspace' })).toBeTruthy()
     expect(screen.queryByRole('navigation')).toBeNull()
+    expect(screen.queryByRole('banner')).toBeNull()
     expect(screen.getByLabelText('Username').getAttribute('autocomplete')).toBe('username')
     expect(screen.getByLabelText('Password').getAttribute('autocomplete')).toBe('current-password')
     expect(screen.getByLabelText('Password').getAttribute('type')).toBe('password')
@@ -142,12 +142,12 @@ describe('Login and session flow', () => {
     expect(loginRequests).toBe(0)
   })
 
-  it('logs in by keyboard, preserves password whitespace, refreshes CSRF and returns to the requested page', async () => {
-    renderApp('/categories')
+  it('logs in by keyboard, preserves password whitespace, refreshes CSRF and opens the dashboard', async () => {
+    renderApp('/assets')
     const keyboard = await fillLogin()
     await keyboard.keyboard('{Enter}')
-    expect(await screen.findByRole('heading', { name: 'Categories' })).toBeTruthy()
-    expect(screen.getByLabelText('Current URL').textContent).toBe('/categories')
+    expect(await screen.findByRole('heading', { name: 'Equipment operations' })).toBeTruthy()
+    expect(screen.getByLabelText('Current URL').textContent).toBe('/')
     expect(receivedPassword).toBe(' password ')
     expect(csrfRequests).toBe(2)
     expect(loginRequests).toBe(1)
@@ -250,6 +250,7 @@ describe('Login and session flow', () => {
     expect(await screen.findByLabelText('Username')).toBeTruthy()
     expect(signedIn).toBe(false)
     expect(screen.queryByRole('navigation')).toBeNull()
+    expect(screen.queryByRole('banner')).toBeNull()
   })
 
   it('keeps the session visible when logout fails and allows retry', async () => {
@@ -291,11 +292,19 @@ describe('Login and session flow', () => {
   })
 })
 
-describe('Return destination validation', () => {
-  it.each(['https://example.com', '//example.com', '/\\example.com', '/login', '/login/', '/a/../login', '/\n/example.com'])('rejects %s', (path) => {
-    expect(safeReturnPath(path)).toBe('/')
+describe('Dashboard login destination', () => {
+  it.each(['/assets', '/users', '/assets?page=2#row', 'https://example.com', '//example.com', '/login'])('ignores a stored return destination of %s after sign-in', async (from) => {
+    renderApp('/login', { from })
+    const keyboard = await fillLogin()
+    await keyboard.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(await screen.findByRole('heading', { name: 'Equipment operations' })).toBeTruthy()
+    expect(screen.getByLabelText('Current URL').textContent).toBe('/')
   })
-  it('preserves internal paths, query strings and fragments', () => {
-    expect(safeReturnPath('/assets?page=2#row')).toBe('/assets?page=2#row')
+
+  it('keeps an already signed-in user on the protected page they open', async () => {
+    signedIn = true
+    renderApp('/assets')
+    expect(await screen.findByRole('heading', { name: 'Assets' })).toBeTruthy()
+    expect(screen.getByLabelText('Current URL').textContent).toBe('/assets')
   })
 })

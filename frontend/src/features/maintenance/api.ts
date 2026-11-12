@@ -172,7 +172,10 @@ export function fetchMaintenanceTechnicians(): Promise<MaintenanceTechnician[]> 
 export async function fetchAvailableMaintenanceAssets(
   assetIdentifier = '',
 ): Promise<AssetRecord[]> {
-  const response = await fetchAssets(1, assetIdentifier, 'Available')
+  const response = await fetchAssets(1, '', {
+    assetIdentifier,
+    status: 'Available',
+  })
   return response.results
 }
 

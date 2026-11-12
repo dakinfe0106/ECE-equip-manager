@@ -69,6 +69,37 @@ class CategorySummarySerializer(CategorySerializer):
         read_only_fields = ("is_deleted",)
 
 
+class CategoryCreateSerializer(CategorySerializer):
+    def validate_name(self, value):
+        # Names stay reserved after soft deletion, so archived categories count too.
+        if Category.objects.filter(name__iexact=value).exists():
+            raise serializers.ValidationError("A category with this name already exists.")
+        return value
+
+
+class EquipmentTypeCreateSerializer(serializers.ModelSerializer):
+    category_id = serializers.PrimaryKeyRelatedField(
+        source="category",
+        queryset=Category.objects.filter(is_deleted=False),
+    )
+    description = serializers.CharField(required=False, allow_blank=True, default="")
+
+    class Meta:
+        model = EquipmentType
+        fields = ("type_id", "name", "description", "category_id")
+        read_only_fields = ("type_id",)
+
+    def validate(self, attrs):
+        if EquipmentType.objects.filter(
+            category=attrs["category"],
+            name__iexact=attrs["name"],
+        ).exists():
+            raise serializers.ValidationError(
+                {"name": "An equipment type with this name already exists in this category."}
+            )
+        return attrs
+
+
 class AssetCreateSerializer(serializers.ModelSerializer):
     equipment_type_id = serializers.PrimaryKeyRelatedField(
         source="type",
