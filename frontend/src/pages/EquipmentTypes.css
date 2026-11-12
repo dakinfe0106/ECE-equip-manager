@@ -1,0 +1,79 @@
+.equipment-types-page {
+  max-width: 1200px;
+  margin: 40px auto;
+  padding: 0 24px 48px;
+  text-align: left;
+}
+
+.equipment-types-header {
+  margin-bottom: 24px;
+}
+
+.equipment-types-header h1 {
+  margin: 0;
+  font-size: 38px;
+  font-weight: 800;
+  color: #0b2345;
+}
+
+.equipment-types-header p {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 16px;
+}
+
+.equipment-types-card {
+  background: #0f2747;
+  border: 1px solid #23476f;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 10px 28px rgba(15, 39, 71, 0.18);
+}
+
+.equipment-types-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.equipment-types-table th,
+.equipment-types-table td {
+  padding: 18px 22px;
+  text-align: left;
+}
+
+.equipment-types-table th {
+  background: #163a68;
+  color: #ffffff;
+  font-size: 15px;
+  letter-spacing: 0.2px;
+}
+
+.equipment-types-table td {
+  color: #dbe7f5;
+  border-top: 1px solid #2a4f79;
+  font-size: 16px;
+}
+
+.equipment-types-table tbody tr:hover {
+  background: #173657;
+}
+
+.category-badge {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #1d4f84;
+  color: #eaf3ff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.equipment-types-message {
+  margin: 0;
+  padding: 24px;
+  color: #dbe7f5;
+}
+
+.equipment-types-error {
+  color: #fca5a5;
+}

@@ -1,29 +1,18 @@
-import { useState } from 'react'
+import { Outlet } from 'react-router'
+import Sidebar from './components/layout/Sidebar'
+import Header from './components/layout/Header'
 import './App.css'
 
 function App() {
-  const [message, setMessage] = useState('')
-
-  const fetchHealthCheck = async () => {
-    try {
-      // Coordinate with your backend lead on the exact URL they are building
-      const response = await fetch('http://localhost:8000/api/health/')
-      const data = await response.json()
-      setMessage(JSON.stringify(data))
-    } catch (error) {
-      setMessage('Error connecting to backend: ' + error)
-    }
-  }
-
-   return (
-    <div>
-      <h1>Frontend is Running!</h1>
-
-      <button onClick={fetchHealthCheck}>
-        Test Backend Connection
-      </button>
-
-      <p>Response: {message}</p>
+  return (
+    <div className="ems-shell">
+      <Sidebar />
+      <div className="main-content flex flex-col">
+        <Header />
+        <main className="min-h-0 flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
     </div>
   )
 }

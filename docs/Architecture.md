@@ -36,10 +36,12 @@ The project uses a monorepo.
 
 ```text
 ECE-equip-manager/
+├── .github/        # CI workflow and PR template
 ├── frontend/
 ├── server/
 ├── docs/
 ├── .gitignore
+├── AGENTS.md       # Workflow rules for developers and coding agents
 └── README.md
 ```
 
@@ -97,22 +99,24 @@ git switch -c feature/equipment-search
 
 Make changes and commit them:
 
+Use brief, clear commit messages that describe the change, such as `Add equipment search`. Stage only intended files.
+
 ```bash
 git status
-git add .
+git add <intended-files>
 git commit -m "Add equipment search endpoint"
 ```
 
-Before opening or updating a pull request, update your branch with the latest `main`:
+After completing branch work and before pushing, fetch and merge the latest `main` while on the feature branch:
 
 ```bash
 git fetch origin
 git merge origin/main
 ```
 
-If conflicts occur, resolve them deliberately, run the relevant checks again, then commit the conflict resolution.
+If conflicts occur, the agent explains the competing changes and proposes a resolution. Obtain explicit user approval before editing conflicted files or completing the resolution. After integration, rerun affected checks and review the diff before pushing.
 
-Push the branch:
+Push the branch when authorized by the user or approved workflow:
 
 ```bash
 git push -u origin feature/equipment-search
@@ -124,7 +128,7 @@ After the first push:
 git push
 ```
 
-Open a pull request into `main`.
+The user creates the pull request into `main` in GitHub. The agent supplies a suggested title, change summary, validation results, and remaining actions rather than creating the PR automatically.
 
 The pull request should explain:
 
@@ -144,6 +148,8 @@ git branch -d feature/equipment-search
 
 ### Merge strategy
 
+Use the [PR template](../.github/pull_request_template.md) to record validation and dependencies. Follow [Quality.md](Quality.md) for planning approval, split feature work, acceptance testing, and the Definition of Done. CI and code review are merge gates; the parent feature is Done only after integration, passing acceptance tests, and Product Owner acceptance.
+
 Use squash merge for pull requests.
 
 This keeps `main` easier to read by turning the work from one feature branch into one meaningful commit.
@@ -162,7 +168,7 @@ their version
 
 Do not remove conflict markers blindly.
 
-Understand both versions, decide what the final code should be, remove the markers, then run tests and linting before committing the resolution.
+Understand both versions and propose the final behavior. After the user approves the resolution, remove the markers, run affected tests and linting, and commit with a brief, clear message.
 
 ### Team communication
 
@@ -196,6 +202,10 @@ The frontend uses:
 - ESLint
 - Vitest
 
+Tailwind CSS is configured through `@tailwindcss/vite` and `frontend/src/index.css`. React Router uses declarative routing with `BrowserRouter` and `frontend/src/AppRoutes.tsx`. `/login` is public and outside the sidebar layout. `/` shows the dashboard and `/assets` shows the assets page; `/assets/new` remains the asset creation route. `/loans`, `/borrowers`, `/maintenance`, `/analytics`, `/import-export`, and `/users` are role-guarded in-progress pages. `/categories` and `/equipment-types` are no longer frontend routes; the backend lookups remain available. Application pages require a session and use the shared sidebar and header in `App.tsx`. The header shows the route name, backend role label, the first two letters of the display name (falling back to username), and a disabled notification placeholder. The page body scrolls below it. Unknown paths show a fallback page. The dashboard keeps inventory summaries and availability live, while clearly labelled synthetic lending previews fill the unfinished dashboard sections for Technicians and Administrators. These samples are frontend-only and do not create or query lending records.
+
+Frontend code conventions are in [Frontend-Standards.md](Frontend-Standards.md).
+
 ### State management
 
 The frontend will initially use React's built-in state management.
@@ -213,21 +223,17 @@ The server remains the source of truth for EMS data such as equipment, borrowers
 
 ### Styling
 
-Tailwind CSS is used for styling.
+Use Tailwind utility classes for component styling. Existing global CSS is kept in the base layer in `frontend/src/index.css`, so utility classes can override it.
 
 Reusable UI components should be created when the same pattern appears repeatedly, but we should avoid creating unnecessary abstractions for very small pieces of UI.
 
 ### Routing
 
-React Router manages frontend navigation.
+React Router manages frontend navigation. Add routes in `frontend/src/AppRoutes.tsx` and use `Link` or `NavLink` for internal navigation. The frontend host must serve `index.html` for client-side routes on direct requests; API requests must still reach Django.
 
-Example routes may include:
+In-progress routes (without business API integration) include:
 
 ```text
-/login
-/dashboard
-/equipment
-/equipment/:id
 /borrowers
 /loans
 /maintenance
@@ -235,6 +241,7 @@ Example routes may include:
 ```
 
 The final route structure can evolve with the application.
+The planned pages and routes follow the approved UI design. See the route map in [UI-Design.md](UI-Design.md#2-pages-and-routes).
 
 ### Frontend checks
 
@@ -242,7 +249,7 @@ Developers should be able to run the same checks locally that CI runs:
 
 ```bash
 npm run lint
-npm test
+npm test -- --run
 npm run build
 ```
 
@@ -265,6 +272,8 @@ The backend uses:
 The local Python environment is created with `.venv`.
 
 The virtual environment must not be committed.
+
+Backend code conventions are in [Backend.md](Backend.md). The database schema and business rules are in [database.md](database.md).
 
 ---
 
@@ -371,7 +380,7 @@ Use standard HTTP methods according to their normal meaning:
 | `POST` | Create a resource |
 | `PATCH` | Partially update a resource |
 | `PUT` | Replace a resource when a full replacement is actually needed |
-| `DELETE` | Delete a resource |
+| `DELETE` | Soft-delete a resource (see section 10) |
 
 `PATCH` will usually be preferred over `PUT` when only a few fields are changing.
 
@@ -383,9 +392,9 @@ Example:
 
 ```json
 {
-  "id": 42,
+  "asset_id": 42,
   "name": "Oscilloscope",
-  "status": "available"
+  "status": "Available"
 }
 ```
 
@@ -393,7 +402,7 @@ Example:
 
 API endpoints should use appropriate HTTP status codes and Django REST Framework's standard error structures instead of inventing a different error format for each feature.
 
-Example: missing resource
+Example: missing resource (the `detail` messages below are illustrative; DRF's default wording may differ)
 
 ```http
 GET /api/equipment/42/
@@ -417,7 +426,7 @@ POST /api/equipment/
 
 ```json
 {
-  "serial_number": "OSC-001"
+  "asset_identifier": "OSC-001"
 }
 ```
 
@@ -433,10 +442,10 @@ POST /api/equipment/
 }
 ```
 
-Example: unauthenticated request
+Example: unauthenticated request to a protected DRF endpoint using the configured session authentication
 
 ```http
-401 Unauthorized
+403 Forbidden
 ```
 
 ```json
@@ -444,6 +453,8 @@ Example: unauthenticated request
   "detail": "Authentication credentials were not provided."
 }
 ```
+
+Session authentication returns `403` for unauthenticated requests with the current settings. Other authentication schemes may return `401`. A URL without a configured endpoint returns `404`.
 
 Example: authenticated but not allowed
 
@@ -481,6 +492,12 @@ The application will initially use application-managed authentication through Dj
 
 Django session-based authentication will be used initially.
 
+The `users` app implements `/api/auth/csrf/`, `/api/auth/login/`, `/api/auth/logout/`, and `/api/auth/me/`. Credentials are checked by Django and sessions use its cookies. The frontend stores neither passwords nor authentication tokens in browser storage. Login and logout are CSRF-protected, including anonymous requests; the frontend refreshes its CSRF token after login.
+
+React's `AuthProvider` checks the current user on startup and shares session state. `RequireAuth` holds protected routes behind the session check, redirects anonymous visitors to `/login`, and keeps permission checks on protected pages. Successful login always opens Dashboard (`/`), including after a visitor first opens another protected page. Stored return destinations are ignored; signed-in visitors to `/login` also go to Dashboard. Users with an existing valid session can still open other permitted pages directly. Session-check failures offer retry rather than assuming the visitor is signed out.
+
+The login and current-user responses include read-only `role` (the stored uppercase value) and `role_label` (its display label). The sidebar shows the current user's name or username, its first two letters, and backend-provided role label, and ends the server session on sign-out. Roles are assigned in Django admin; role labels do not grant Django permissions or staff/superuser access. API `403` responses trigger a background session check: expired sessions return to login, while permission failures retain their page feedback. Failed writes are never automatically replayed. Route protection supports the user experience; Django remains responsible for enforcing API access.
+
 Conceptually:
 
 ```text
@@ -513,15 +530,9 @@ The backend is always the final authority for authorization.
 
 The React frontend may hide or disable controls based on a user's permissions, but Django must still enforce permissions on protected API operations.
 
-Initial user groups are expected to include:
+The approved roles are Technician, Faculty, and Administrator. Transient staff, such as co-op students in the Shop, may also need access, which must be revocable. The working permission policy is in [database.md section 5](database.md#5-permissions-scope).
 
-- Shop Technicians
-- authorized ECE Faculty
-- transient staff if their access requirements are confirmed
-
-Authorization should be based on roles and permissions rather than repeatedly hard-coding role names throughout the application.
-
-The exact permission matrix should be finalized with project stakeholders.
+Authorization uses the application role stored on `users.User.role`, with backend checks applying the policy in [database.md section 5](database.md#5-permissions-scope). Current inventory endpoints allow all roles to read; only Technicians and Administrators may create, change, or delete. Django remains the final authority even when React hides unavailable actions. Application roles do not grant Django admin staff or superuser access.
 
 ---
 
@@ -534,13 +545,12 @@ For records that need to be recoverable, use soft deletion instead of immediatel
 Example:
 
 ```text
-id: 42
+asset_id: 42
 name: Oscilloscope
 is_deleted: true
-deleted_at: 2026-10-01 14:30
 ```
 
-Restoring the record would return it to its active state.
+Restoring the record would return it to its active state. Soft-deletable tables have only the `is_deleted` flag; see [database.md](database.md) for which tables are soft-deleted.
 
 Conceptually:
 
@@ -558,7 +568,7 @@ Record becomes active again
 
 Permanent deletion should only happen through a clearly defined process when requirements justify it.
 
-The retention period and final permanent-deletion policy should be confirmed later rather than invented now.
+The current development policy is to retain records indefinitely. The retention period and final permanent-deletion policy must be confirmed before production use rather than invented now (see [database.md section 4](database.md#import-reporting-retention)).
 
 ---
 
@@ -570,14 +580,14 @@ The EMS uses PostgreSQL 18.
 
 ### Environments
 
-The project currently distinguishes between local development and a future/shared staging environment.
+Developers use individual local PostgreSQL databases. Deployed instances use the shared database.
 
 ```text
 Local development
 → each developer uses local PostgreSQL
 
 Shared / staging
-→ used for integrated testing once configured
+→ used by deployed instances for integrated testing
 
 Production
 → not set up yet
@@ -706,6 +716,8 @@ python manage.py migrate
 
 This can be automated later once deployment is stable and understood by the team.
 
+The deployment owner applies committed migrations to the shared database during deployment. Merging into `main` does not apply migrations automatically.
+
 ---
 
 ## 13. Continuous Integration
@@ -783,18 +795,13 @@ flowchart TD
     BT --> PASS
 ```
 
-### Initial-project CI behavior
+### Required projects and test discovery
 
-During initial scaffolding, CI temporarily allows the frontend and backend to have no tests.
+The frontend and backend are permanent parts of the repository. Both CI jobs always run; missing project files cause failures rather than skipped jobs.
 
-Once real tests have been added:
+Frontend tests run with `npm test -- --run`, and backend tests run with `python -m pytest`. Both commands fail when no tests are discovered. CI does not override pytest exit code 5 or allow an empty frontend suite to pass.
 
-- remove frontend `--passWithNoTests`
-- remove the backend pytest no-tests exception
-
-The project-detection job can also be removed once `frontend/` and `server/` are permanent parts of the repository.
-
-At that point, their absence should be treated as an error rather than skipped.
+This catches missing tests and broken test discovery. It does not establish sufficient feature coverage by itself: each implementation still needs meaningful tests for its behavior.
 
 ---
 
@@ -839,8 +846,8 @@ Architecture should explain not only what we chose, but enough of the reasoning 
 | Backend directory | `server/` |
 | Frontend framework | React + TypeScript |
 | Build tool | Vite |
-| Styling | Tailwind CSS |
-| Routing | React Router |
+| Styling | Tailwind CSS with shared CSS in the base layer |
+| Routing | React Router in declarative mode |
 | Frontend state | React built-in state initially |
 | Node | 24 |
 | Package manager | npm |
@@ -861,7 +868,7 @@ Architecture should explain not only what we chose, but enough of the reasoning 
 | Deletion | Soft deletion for recoverable records |
 | Database | PostgreSQL 18 |
 | Local DB | Local PostgreSQL per developer |
-| Staging DB | Shared hosted PostgreSQL once configured |
+| Staging DB | Shared PostgreSQL used by deployed instances |
 | Production | Not configured yet |
 | Schema changes | Django migrations |
 | CI | GitHub Actions |
