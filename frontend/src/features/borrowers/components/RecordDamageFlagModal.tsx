@@ -1,17 +1,17 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react'
 import useModalAccessibility from '../hooks/useModalAccessibility'
-import type { BorrowerIdentity, DamageFlagCreateInput } from '../types'
-
-interface EquipmentOption {
-  id: number
-  name: string
-}
+import type {
+  BorrowerIdentity,
+  DamageFlagCreateInput,
+  DamageFlagEquipmentOption,
+} from '../types'
 
 interface RecordDamageFlagModalProps {
   borrower: BorrowerIdentity
-  equipmentOptions: EquipmentOption[]
+  equipmentOptions: DamageFlagEquipmentOption[]
   onCancel: () => void
-  onSave: (payload: DamageFlagCreateInput) => void | Promise<void>
+  onSave: (payload: DamageFlagCreateInput) => void | Promise<unknown>
+  restoreFocusOnUnmount?: boolean
 }
 
 const emptyErrors = {
@@ -26,6 +26,7 @@ export default function RecordDamageFlagModal({
   equipmentOptions,
   onCancel,
   onSave,
+  restoreFocusOnUnmount = true,
 }: RecordDamageFlagModalProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null)
   const savingRef = useRef(false)
@@ -41,7 +42,7 @@ export default function RecordDamageFlagModal({
 
   useModalAccessibility(dialogRef, () => {
     if (!savingRef.current) onCancel()
-  })
+  }, restoreFocusOnUnmount)
 
   const selectedEquipment = useMemo(
     () => equipmentOptions.find((equipment) => equipment.id === equipmentId),

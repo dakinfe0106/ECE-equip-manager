@@ -48,7 +48,6 @@ export interface DamageFlag {
   resolved_at?: string | null
   resolved_by?: string | null
   reviewed?: boolean
-
 }
 
 export interface DamageFlagCreateInput {
@@ -61,6 +60,17 @@ export interface DamageFlagCreateInput {
   notes?: string
   reviewed: boolean
 }
+
+export interface DamageFlagEquipmentOption {
+  id: number
+  name: string
+}
+
+export type DamageFlagLoadState =
+  | { status: 'loading' }
+  | { status: 'unavailable' }
+  | { status: 'error'; message: string }
+  | { status: 'loaded'; flags: DamageFlag[] }
 
 export interface DamageFlagApiResponse {
   data: DamageFlag[]

@@ -54,8 +54,7 @@ describe('ManageDamageFlagsModal', () => {
     const { container } = render(
       <ManageDamageFlagsModal
         borrower={borrower}
-        flags={flags}
-        unresolvedCount={1}
+        dataState={{ status: 'loaded', flags }}
         onClose={() => {}}
         onResolveFlag={() => {}}
         onSelectFlag={() => {}}
@@ -113,8 +112,7 @@ describe('ManageDamageFlagsModal', () => {
     render(
       <ManageDamageFlagsModal
         borrower={borrower}
-        flags={multipleFlags}
-        unresolvedCount={2}
+        dataState={{ status: 'loaded', flags: multipleFlags }}
         onClose={() => {}}
         onResolveFlag={onResolve}
         onSelectFlag={() => {}}
@@ -163,8 +161,7 @@ describe('ManageDamageFlagsModal', () => {
     render(
       <ManageDamageFlagsModal
         borrower={borrower}
-        flags={[flags[0]]}
-        unresolvedCount={1}
+        dataState={{ status: 'loaded', flags: [flags[0]] }}
         onClose={() => {}}
         onResolveFlag={onResolve}
       />,
@@ -193,8 +190,7 @@ describe('ManageDamageFlagsModal', () => {
     const { unmount } = render(
       <ManageDamageFlagsModal
         borrower={borrower}
-        flags={[]}
-        unresolvedCount={0}
+        dataState={{ status: 'loaded', flags: [] }}
         onClose={onClose}
       />,
     )

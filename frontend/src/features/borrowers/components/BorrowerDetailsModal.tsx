@@ -8,6 +8,7 @@ interface BorrowerDetailsModalProps {
   onClose: () => void
   onViewBorrowingRecords: (borrowerId: number) => void
   onManageDamageFlags: (borrowerId: number) => void
+  restoreFocusOnUnmount?: boolean
 }
 
 export default function BorrowerDetailsModal({
@@ -15,10 +16,11 @@ export default function BorrowerDetailsModal({
   onClose,
   onViewBorrowingRecords,
   onManageDamageFlags,
+  restoreFocusOnUnmount = true,
 }: BorrowerDetailsModalProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null)
 
-  useModalAccessibility(dialogRef, onClose)
+  useModalAccessibility(dialogRef, onClose, restoreFocusOnUnmount)
 
   const closeOnBackdropClick = (event: MouseEvent<HTMLDivElement>) => {
     if (event.target === event.currentTarget) onClose()

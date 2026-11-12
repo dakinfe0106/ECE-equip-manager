@@ -2,26 +2,28 @@ import { useMemo, useRef, useState } from 'react'
 import DamageFlagList from './DamageFlagList'
 import BorrowerStandingBadge from './BorrowerStandingBadge'
 import useModalAccessibility from '../hooks/useModalAccessibility'
-import type { BorrowerIdentity, DamageFlag } from '../types'
+import type { BorrowerIdentity, DamageFlag, DamageFlagLoadState } from '../types'
 
 interface ManageDamageFlagsModalProps {
   borrower: BorrowerIdentity
-  flags: DamageFlag[]
-  unresolvedCount: number
+  dataState: DamageFlagLoadState
   onClose: () => void
-  onResolveFlag?: (flagId: string) => void | Promise<void>
+  onResolveFlag?: (flagId: string) => DamageFlag | void | Promise<DamageFlag | void>
   onSelectFlag?: (flagId: string) => void
   onRecordDamageFlag?: () => void
+  onRetry?: () => void
+  restoreFocusOnUnmount?: boolean
 }
 
 export default function ManageDamageFlagsModal({
   borrower,
-  flags,
-  unresolvedCount,
+  dataState,
   onClose,
   onResolveFlag,
   onSelectFlag,
   onRecordDamageFlag,
+  onRetry,
+  restoreFocusOnUnmount = true,
 }: ManageDamageFlagsModalProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null)
   const savingRef = useRef(false)
@@ -32,6 +34,10 @@ export default function ManageDamageFlagsModal({
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
 
+  const flags = useMemo(
+    () => dataState.status === 'loaded' ? dataState.flags : [],
+    [dataState],
+  )
   const selectedFlag = useMemo(
     () => flags.find(
       (flag) => flag.id === selectedFlagId
@@ -46,16 +52,19 @@ export default function ManageDamageFlagsModal({
     )),
     [flags, resolvedFlagIds],
   )
-  const displayedUnresolvedCount = Math.max(
-    0,
-    unresolvedCount - resolvedFlagIds.filter(
-      (flagId) => flags.some((flag) => flag.id === flagId && flag.status === 'unresolved'),
-    ).length,
-  )
+  const displayedUnresolvedCount = dataState.status === 'loaded'
+    ? Math.max(
+      0,
+      flags.filter((flag) => flag.status === 'unresolved').length
+        - resolvedFlagIds.filter(
+          (flagId) => flags.some((flag) => flag.id === flagId && flag.status === 'unresolved'),
+        ).length,
+    )
+    : undefined
 
   useModalAccessibility(dialogRef, () => {
     if (!savingRef.current) onClose()
-  })
+  }, restoreFocusOnUnmount)
 
   const handleSelectFlag = (flagId: string) => {
     if (!flags.some((flag) => flag.id === flagId && flag.status === 'unresolved')) return
@@ -116,7 +125,11 @@ export default function ManageDamageFlagsModal({
   }
 
   const canSave = Boolean(
-    selectedFlag && pendingResolutionId && pendingResolutionId === selectedFlag.id && !isSaving,
+    dataState.status === 'loaded'
+      && selectedFlag
+      && pendingResolutionId
+      && pendingResolutionId === selectedFlag.id
+      && !isSaving,
   )
 
   return (
@@ -149,7 +162,35 @@ export default function ManageDamageFlagsModal({
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-[22px] py-[21px]">
+        <div className="min-h-0 flex-1 overflow-y-auto px-[22px] py-[21px]">
+          {dataState.status === 'loading' && (
+            <p role="status" className="rounded-[8px] border border-line bg-page p-4 text-[11px] text-muted">
+              Loading damage flag information…
+            </p>
+          )}
+          {dataState.status === 'unavailable' && (
+            <p role="status" className="rounded-[8px] border border-line bg-page p-4 text-[11px] text-muted">
+              Damage flag information is unavailable because no data service was provided.
+            </p>
+          )}
+          {dataState.status === 'error' && (
+            <div className="space-y-3 rounded-[8px] border border-danger/20 bg-danger-soft p-4">
+              <p role="alert" className="m-0 text-[11px] text-danger">
+                Unable to load damage flags: {dataState.message}
+              </p>
+              {onRetry && (
+                <button
+                  type="button"
+                  className="inline-flex min-h-[38px] items-center justify-center rounded-lg border border-input bg-white px-[15px] text-[12px] font-[650] text-body focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
+                  onClick={onRetry}
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          )}
+          {dataState.status === 'loaded' && (
+            <div className="space-y-4">
           <div className="rounded-[9px] border border-line bg-page px-[14px] py-1">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -184,7 +225,8 @@ export default function ManageDamageFlagsModal({
             </button>
             <button
               type="button"
-              disabled={isSaving}
+              disabled={isSaving || !onRecordDamageFlag}
+              title={!onRecordDamageFlag ? 'Recording damage flags is unavailable.' : undefined}
               className="inline-flex min-h-[38px] items-center justify-center gap-[7px] whitespace-nowrap rounded-lg border border-danger/20 bg-white px-[15px] text-[12px] font-[650] text-danger disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-danger focus-visible:outline-offset-[3px]"
               onClick={onRecordDamageFlag}
             >
@@ -220,14 +262,16 @@ export default function ManageDamageFlagsModal({
             selectedFlagId={selectedFlagId}
             onSelectFlag={handleSelectFlag}
           />
+            </div>
+          )}
         </div>
 
-        {errorMessage && (
+        {dataState.status === 'loaded' && errorMessage && (
           <p role="alert" className="shrink-0 px-[22px] pb-2 text-[10px] text-danger">
             {errorMessage}
           </p>
         )}
-        {successMessage && (
+        {dataState.status === 'loaded' && successMessage && (
           <p role="status" className="shrink-0 px-[22px] pb-2 text-[10px] text-success">
             {successMessage}
           </p>
@@ -242,7 +286,7 @@ export default function ManageDamageFlagsModal({
           >
             Cancel
           </button>
-          <button
+          {dataState.status === 'loaded' && <button
             type="button"
             disabled={!canSave}
             aria-label="Save selected flag resolution"
@@ -251,7 +295,7 @@ export default function ManageDamageFlagsModal({
             onClick={handleSaveChanges}
           >
             {isSaving ? 'Saving…' : 'Save Changes'}
-          </button>
+          </button>}
         </footer>
       </div>
     </div>

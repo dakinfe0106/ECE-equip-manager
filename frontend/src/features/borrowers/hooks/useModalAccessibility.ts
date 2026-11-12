@@ -3,6 +3,7 @@ import { useEffect, useRef, type RefObject } from 'react'
 export default function useModalAccessibility(
   dialogRef: RefObject<HTMLElement | null>,
   onClose: () => void,
+  restoreFocusOnUnmount = true,
 ) {
   const onCloseRef = useRef(onClose)
 
@@ -65,7 +66,7 @@ export default function useModalAccessibility(
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
-      previouslyFocused?.focus()
+      if (restoreFocusOnUnmount) previouslyFocused?.focus()
     }
-  }, [dialogRef])
+  }, [dialogRef, restoreFocusOnUnmount])
 }
