@@ -202,7 +202,7 @@ The frontend uses:
 - ESLint
 - Vitest
 
-Tailwind CSS is configured through `@tailwindcss/vite` and `frontend/src/index.css`. React Router uses declarative routing with `BrowserRouter` and `frontend/src/AppRoutes.tsx`. The initial `/` route shows the health-check page; unknown paths show a fallback page.
+Tailwind CSS is configured through `@tailwindcss/vite` and `frontend/src/index.css`. React Router uses declarative routing with `BrowserRouter` and `frontend/src/AppRoutes.tsx`. `/login` is public and outside the sidebar layout. `/` shows the dashboard and `/assets` shows the assets page; `/assets/new` remains the asset creation route. `/loans`, `/borrowers`, `/maintenance`, `/analytics`, `/import-export`, and `/users` are role-guarded in-progress pages. `/categories` and `/equipment-types` are no longer frontend routes; the backend lookups remain available. Application pages require a session and use the shared sidebar and header in `App.tsx`. The header shows the route name, backend role label, the first two letters of the display name (falling back to username), and a disabled notification placeholder. The page body scrolls below it. Unknown paths show a fallback page. The dashboard keeps inventory summaries and availability live, while clearly labelled synthetic lending previews fill the unfinished dashboard sections for Technicians and Administrators. These samples are frontend-only and do not create or query lending records.
 
 Frontend code conventions are in [Frontend-Standards.md](Frontend-Standards.md).
 
@@ -231,13 +231,9 @@ Reusable UI components should be created when the same pattern appears repeatedl
 
 React Router manages frontend navigation. Add routes in `frontend/src/AppRoutes.tsx` and use `Link` or `NavLink` for internal navigation. The frontend host must serve `index.html` for client-side routes on direct requests; API requests must still reach Django.
 
-Future business routes may include (these are not implemented yet):
+In-progress routes (without business API integration) include:
 
 ```text
-/login
-/dashboard
-/equipment
-/equipment/:id
 /borrowers
 /loans
 /maintenance
@@ -245,6 +241,7 @@ Future business routes may include (these are not implemented yet):
 ```
 
 The final route structure can evolve with the application.
+The planned pages and routes follow the approved UI design. See the route map in [UI-Design.md](UI-Design.md#2-pages-and-routes).
 
 ### Frontend checks
 
@@ -429,7 +426,7 @@ POST /api/equipment/
 
 ```json
 {
-  "serial_number": "OSC-001"
+  "asset_identifier": "OSC-001"
 }
 ```
 
@@ -495,6 +492,12 @@ The application will initially use application-managed authentication through Dj
 
 Django session-based authentication will be used initially.
 
+The `users` app implements `/api/auth/csrf/`, `/api/auth/login/`, `/api/auth/logout/`, and `/api/auth/me/`. Credentials are checked by Django and sessions use its cookies. The frontend stores neither passwords nor authentication tokens in browser storage. Login and logout are CSRF-protected, including anonymous requests; the frontend refreshes its CSRF token after login.
+
+React's `AuthProvider` checks the current user on startup and shares session state. `RequireAuth` holds protected routes behind the session check, redirects anonymous visitors to `/login`, and keeps permission checks on protected pages. Successful login always opens Dashboard (`/`), including after a visitor first opens another protected page. Stored return destinations are ignored; signed-in visitors to `/login` also go to Dashboard. Users with an existing valid session can still open other permitted pages directly. Session-check failures offer retry rather than assuming the visitor is signed out.
+
+The login and current-user responses include read-only `role` (the stored uppercase value) and `role_label` (its display label). The sidebar shows the current user's name or username, its first two letters, and backend-provided role label, and ends the server session on sign-out. Roles are assigned in Django admin; role labels do not grant Django permissions or staff/superuser access. API `403` responses trigger a background session check: expired sessions return to login, while permission failures retain their page feedback. Failed writes are never automatically replayed. Route protection supports the user experience; Django remains responsible for enforcing API access.
+
 Conceptually:
 
 ```text
@@ -529,7 +532,7 @@ The React frontend may hide or disable controls based on a user's permissions, b
 
 The approved roles are Technician, Faculty, and Administrator. Transient staff, such as co-op students in the Shop, may also need access, which must be revocable. The working permission policy is in [database.md section 5](database.md#5-permissions-scope).
 
-Authorization should be based on roles and permissions rather than repeatedly hard-coding role names throughout the application. How roles map to Django permissions is a pending decision in [Backend.md](Backend.md#9-pending-decisions).
+Authorization uses the application role stored on `users.User.role`, with backend checks applying the policy in [database.md section 5](database.md#5-permissions-scope). Current inventory endpoints allow all roles to read; only Technicians and Administrators may create, change, or delete. Django remains the final authority even when React hides unavailable actions. Application roles do not grant Django admin staff or superuser access.
 
 ---
 

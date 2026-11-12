@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { AssetRecord } from '../features/assets/api'
 import AssetDetails from '../features/assets/components/AssetDetails'
 import AssetTable from '../features/assets/components/AssetTable'
+import { technicianAuth, withAuth } from './authTestUtils'
 
 function makeAsset(overrides: Partial<AssetRecord> = {}): AssetRecord {
   return {
@@ -26,7 +27,7 @@ const noop = () => {}
 describe('AssetDetails modal', () => {
   it('shows every field required by the acceptance criteria', () => {
     const html = renderToString(
-      <AssetDetails asset={makeAsset()} onAssetUpdated={noop} onClose={noop} />,
+      withAuth(<AssetDetails asset={makeAsset()} onAssetUpdated={noop} onClose={noop} />),
     )
 
     expect(html).toContain('<dialog')
@@ -59,11 +60,11 @@ describe('AssetDetails modal', () => {
 
   it('says when the acquisition date is missing', () => {
     const html = renderToString(
-      <AssetDetails
+      withAuth(<AssetDetails
         asset={makeAsset({ acquisition_date: null })}
         onAssetUpdated={noop}
         onClose={noop}
-      />,
+      />),
     )
     
     // In edit mode, we verify the date input exists and handles null values
@@ -81,7 +82,7 @@ describe('AssetDetails modal', () => {
       { certification_id: 2, name: 'High Voltage' },
     ]
     const html = renderToString(
-      <AssetDetails asset={asset} onAssetUpdated={noop} onClose={noop} />,
+      withAuth(<AssetDetails asset={asset} onAssetUpdated={noop} onClose={noop} />),
     )
 
     expect(html).toContain('Required Certifications')
@@ -92,7 +93,7 @@ describe('AssetDetails modal', () => {
     const asset = makeAsset()
     asset.equipment_type.required_certifications = []
     const html = renderToString(
-      <AssetDetails asset={asset} onAssetUpdated={noop} onClose={noop} />,
+      withAuth(<AssetDetails asset={asset} onAssetUpdated={noop} onClose={noop} />),
     )
 
     expect(html).toContain('Required Certifications')
@@ -103,7 +104,7 @@ describe('AssetDetails modal', () => {
 
   it('hides the certifications row until the API provides it', () => {
     const html = renderToString(
-      <AssetDetails asset={makeAsset()} onAssetUpdated={noop} onClose={noop} />,
+      withAuth(<AssetDetails asset={makeAsset()} onAssetUpdated={noop} onClose={noop} />),
     )
     expect(html).not.toContain('Required certifications')
   })
@@ -117,6 +118,7 @@ describe('AssetTable', () => {
         assets={[makeAsset()]}
         errorMessage=""
         isLoading={false}
+        hasActiveFilters={false}
         onSelectAsset={noop}
         selectedAssetId={1}
       />,
@@ -125,5 +127,23 @@ describe('AssetTable', () => {
     expect(html).toContain('aria-haspopup="dialog"')
     expect(html).toContain('row-selected')
     expect(html).not.toContain('EQUIPMENT RECORD')
+  })
+
+  it('hides asset editing from a view-only user', () => {
+    const viewOnly = {
+      ...technicianAuth,
+      user: {
+        ...technicianAuth.user!,
+        role: 'FACULTY' as const,
+        role_label: 'Faculty',
+      },
+    }
+    const html = renderToString(
+      withAuth(
+        <AssetDetails asset={makeAsset()} onAssetUpdated={noop} onClose={noop} />,
+        viewOnly,
+      ),
+    )
+    expect(html).not.toContain('Edit information')
   })
 })

@@ -1,24 +1,20 @@
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
-import AppRoutes from '../AppRoutes'
+import CategoriesPage from '../pages/CategoriesPage'
 import type { Category, EquipmentType } from '../features/categories/api'
 import CategoryTable from '../features/categories/components/CategoryTable'
 import CategoryTypesDialog from '../features/categories/components/CategoryTypesDialog'
 import EquipmentTypeTable from '../features/categories/components/EquipmentTypeTable'
+import { withAuth } from './authTestUtils'
 
-function renderAt(path: string): string {
-  return renderToString(
-    <MemoryRouter initialEntries={[path]}>
-      <AppRoutes />
-    </MemoryRouter>,
+// The demo no longer routes to this page; retain coverage for its reusable UI.
+describe('Categories page components', () => {
+  const html = renderToString(
+    <MemoryRouter>{withAuth(<CategoriesPage />)}</MemoryRouter>,
   )
-}
 
-describe('Categories page', () => {
-  const html = renderAt('/categories')
-
-  it('shows the screen from the mockup: heading, Show filter and search box', () => {
+  it('shows the heading, record filter and search box', () => {
     expect(html).toContain('>Categories</h1>')
     expect(html).toContain('Show:')
     expect(html).toContain('Active Records')
@@ -27,24 +23,8 @@ describe('Categories page', () => {
     expect(html).toContain('placeholder="Search categories..."')
   })
 
-  it('shows the Add Category button but keeps it switched off', () => {
+  it('keeps the unfinished Add Category action disabled', () => {
     expect(html).toMatch(/<button[^>]*disabled[^>]*title="Coming soon"[^>]*>.*Add Category/s)
-  })
-
-  it('renders inside the shared sidebar layout with Categories highlighted', () => {
-    expect(html).toContain('ECE Equipment')
-    expect(html).toMatch(/<a[^>]*aria-current="page"[^>]*href="\/categories"/)
-    expect(html.match(/aria-current="page"/g)).toHaveLength(1)
-  })
-})
-
-describe('Assets page navigation', () => {
-  it('highlights Assets, not Categories, at the root and links to Categories', () => {
-    const html = renderAt('/')
-
-    expect(html).toMatch(/<a[^>]*aria-current="page"[^>]*href="\/"/)
-    expect(html).toContain('href="/categories"')
-    expect(html.match(/aria-current="page"/g)).toHaveLength(1)
   })
 })
 
@@ -58,6 +38,8 @@ describe('CategoryTable', () => {
     renderToString(
       <CategoryTable
         categories={list}
+        canChange
+        canDelete
         emptyMessage="There are no categories yet."
         errorMessage={errorMessage}
         isLoading={false}
@@ -104,6 +86,22 @@ describe('CategoryTable', () => {
     for (const button of actionButtons) {
       expect(button).toContain('disabled')
     }
+  })
+
+  it('does not show mutation actions to a view-only user', () => {
+    const html = renderToString(
+      <CategoryTable
+        categories={categories}
+        canChange={false}
+        canDelete={false}
+        emptyMessage="There are no categories yet."
+        errorMessage=""
+        isLoading={false}
+        onSelectCategory={() => {}}
+      />,
+    )
+    expect(html).not.toContain('aria-label="Edit Tools (coming soon)"')
+    expect(html).not.toContain('aria-label="Delete Tools (coming soon)"')
   })
 
   it('shows the empty message when there are no categories', () => {

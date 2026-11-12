@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiBaseUrl } from '../api'
+import { sessionFetch } from '../features/auth/sessionFetch'
 
 type Category = {
   category_id: number
@@ -28,7 +29,7 @@ function EquipmentTypes() {
   useEffect(() => {
     const fetchEquipmentTypes = async () => {
       try {
-        const response = await fetch(
+        const response = await sessionFetch(
           `${apiBaseUrl}/equipment-types/?deleted=all`,
           {
             credentials: 'include',
