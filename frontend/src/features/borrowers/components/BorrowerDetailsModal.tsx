@@ -28,7 +28,7 @@ export default function BorrowerDetailsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-sidebar/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgb(9_18_32_/_48%)] p-5 backdrop-blur-[2px]"
       onMouseDown={closeOnBackdropClick}
     >
       <section
@@ -37,16 +37,16 @@ export default function BorrowerDetailsModal({
         aria-modal="true"
         aria-labelledby="borrower-details-title"
         tabIndex={-1}
-        className="flex max-h-[min(780px,calc(100dvh-40px))] w-[min(650px,calc(100vw-32px))] flex-col overflow-hidden rounded-[13px] border border-line bg-white shadow-[0_24px_70px_rgb(10_20_35_/_25%)]"
+        className="flex max-h-[min(780px,calc(100dvh-40px))] w-[min(650px,calc(100vw-40px))] flex-col overflow-hidden rounded-[13px] border border-line bg-white shadow-[0_24px_70px_rgb(10_20_35_/_25%)]"
       >
-        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-[22px] py-5">
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[#e8ebf0] px-[22px] py-5">
           <div>
             <p className="mb-[7px] text-[11px] font-[750] uppercase tracking-[0.11em] text-primary">
               Borrower details · UNB ID {borrower.unb_id}
             </p>
             <h2
               id="borrower-details-title"
-              className="m-0 text-[14px] font-[650] tracking-[-0.01em] text-heading"
+              className="m-0 text-[14px] font-[650] tracking-[-0.01em] text-[#202a38]"
             >
               {borrower.borrower_name}
             </h2>
@@ -55,9 +55,21 @@ export default function BorrowerDetailsModal({
             type="button"
             aria-label="Close borrower details"
             onClick={onClose}
-            className="grid place-items-center rounded-lg border-0 bg-transparent p-[7px] text-[18px] leading-none text-muted hover:bg-page focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
+            className="grid place-items-center rounded-lg border-0 bg-transparent p-[7px] text-[#637083] hover:bg-[#eef2f7] focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
           >
-            ×
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
           </button>
         </header>
 
@@ -211,7 +223,7 @@ export default function BorrowerDetailsModal({
           </button>
         </div>
 
-        <footer className="flex shrink-0 items-center gap-2 border-t border-line bg-page px-[22px] py-[15px] max-[520px]:flex-wrap">
+        <footer className="flex min-h-[70px] shrink-0 items-center gap-[9px] border-t border-[#e8ebf0] bg-[#fafbfc] px-[22px] py-[15px] max-[520px]:flex-wrap">
           <button
             type="button"
             onClick={() => onManageDamageFlags(borrower.borrower_id)}

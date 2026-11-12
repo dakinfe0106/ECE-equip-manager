@@ -90,21 +90,21 @@ export default function RecordDamageFlagModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-sidebar/50 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgb(9_18_32_/_48%)] p-5 backdrop-blur-[2px]">
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="record-damage-flag-title"
         tabIndex={-1}
-        className="flex max-h-[min(780px,calc(100dvh-40px))] w-[min(520px,calc(100vw-32px))] flex-col overflow-hidden rounded-[13px] border border-line bg-white shadow-[0_24px_70px_rgb(10_20_35_/_25%)]"
+        className="flex max-h-[min(780px,calc(100dvh-40px))] w-[min(520px,calc(100vw-40px))] flex-col overflow-hidden rounded-[13px] border border-line bg-white shadow-[0_24px_70px_rgb(10_20_35_/_25%)]"
       >
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-[22px] py-5">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[#e8ebf0] px-[22px] py-5">
           <div>
             <p className="mb-[7px] text-[11px] font-[750] uppercase tracking-[0.11em] text-primary">
               BORROWER RESTRICTION
             </p>
-            <h2 id="record-damage-flag-title" className="m-0 text-[14px] font-[650] tracking-[-0.01em] text-heading">
+            <h2 id="record-damage-flag-title" className="m-0 text-[14px] font-[650] tracking-[-0.01em] text-[#202a38]">
               Record damage flag
             </h2>
           </div>
@@ -113,9 +113,21 @@ export default function RecordDamageFlagModal({
             aria-label="Close record damage flag"
             disabled={isSaving}
             onClick={onCancel}
-            className="grid place-items-center rounded-lg border-0 bg-transparent p-[7px] text-[18px] leading-none text-muted hover:bg-page focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
+            className="grid place-items-center rounded-lg border-0 bg-transparent p-[7px] text-[#637083] hover:bg-[#eef2f7] focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
           >
-            ×
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
@@ -225,7 +237,7 @@ export default function RecordDamageFlagModal({
             {saveError && <p role="alert" className="text-[10px] text-danger">{saveError}</p>}
             {isSaved && <p role="status" className="text-[10px] text-success">Damage flag recorded.</p>}
           </div>
-          <div className="flex shrink-0 justify-end gap-2 border-t border-line bg-page px-[22px] py-[15px] max-[520px]:[&>button]:flex-1">
+          <div className="flex shrink-0 justify-end gap-[9px] border-t border-[#e8ebf0] bg-[#fafbfc] px-[22px] py-[15px] max-[520px]:[&>button]:flex-1">
             <button
               type="button"
               disabled={isSaving}

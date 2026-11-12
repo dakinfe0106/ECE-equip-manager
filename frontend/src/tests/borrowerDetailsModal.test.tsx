@@ -140,6 +140,12 @@ describe('BorrowerDetailsModal', () => {
 
     const closeButton = screen.getByRole('button', { name: 'Close borrower details' })
     expect(document.activeElement).toBe(closeButton)
+    expect(closeButton.querySelector('svg path')?.getAttribute('d')).toBe('M18 6L6 18M6 6l12 12')
+    expect(closeButton.className).toContain('text-[#637083]')
+    expect(closeButton.className).toContain('hover:bg-[#eef2f7]')
+    expect(closeButton.closest('[role="dialog"]')?.parentElement?.className).toContain('p-5')
+    expect(closeButton.closest('[role="dialog"]')?.parentElement?.className).toContain('backdrop-blur-[2px]')
+    expect(screen.getByRole('dialog').querySelector('footer')?.className).toContain('min-h-[70px]')
 
     const cancelButton = screen.getByRole('button', { name: 'Cancel' })
     cancelButton.focus()
