@@ -4,8 +4,8 @@
 **Target Role:** Equipment Manager / Shop Technician / Administrator  
 **Environment:** Local Full-Stack (`http://localhost:5173` & `http://localhost:8000`)  
 **Reviewer:** `Juanita-Christene Adigwe`  
-**Date Executed:** `28/10/2026`  
-**Branch Tested:** `feature/asset-details-modal`  
+**Date Executed:**   
+**Branch Tested:** 
 
 ---
 
