@@ -9,10 +9,11 @@ interface DamageFlagListProps {
 function formatDate(dateValue: string): string {
   if (!dateValue) return 'Unknown date'
 
-  const date = new Date(dateValue)
+  const date = new Date(`${dateValue}T00:00:00Z`)
   if (Number.isNaN(date.getTime())) return dateValue
 
   return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC',
     month: 'short',
     day: 'numeric',
     year: 'numeric',

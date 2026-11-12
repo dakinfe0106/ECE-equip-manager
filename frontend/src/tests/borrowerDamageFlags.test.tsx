@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import BorrowerStandingBadge from '../features/borrowers/components/BorrowerStandingBadge'
+import DamageFlagList from '../features/borrowers/components/DamageFlagList'
 import ManageDamageFlagsModal from '../features/borrowers/components/ManageDamageFlagsModal'
 import RecordDamageFlagModal from '../features/borrowers/components/RecordDamageFlagModal'
 import type { BorrowerIdentity, DamageFlag } from '../features/borrowers/types'
@@ -48,6 +49,28 @@ const flags: DamageFlag[] = [
     reviewed: true,
   },
 ]
+
+describe('DamageFlagList', () => {
+  it('formats date-only incident dates consistently across timezones', () => {
+    const dateOnlyFlag: DamageFlag = {
+      ...flags[0],
+      incident_date: '2026-10-19',
+    }
+
+    try {
+      for (const timezone of ['America/Los_Angeles', 'Pacific/Kiritimati']) {
+        vi.stubEnv('TZ', timezone)
+        const { unmount } = render(<DamageFlagList flags={[dateOnlyFlag]} />)
+
+        expect(screen.getByText('Oct 19, 2026 • Reviewed')).toBeTruthy()
+        unmount()
+      }
+    } finally {
+      cleanup()
+      vi.unstubAllEnvs()
+    }
+  })
+})
 
 describe('ManageDamageFlagsModal', () => {
   it('renders the borrower restriction modal and unresolved count', () => {
