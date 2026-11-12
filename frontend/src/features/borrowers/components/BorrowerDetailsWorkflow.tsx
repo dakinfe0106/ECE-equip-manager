@@ -123,6 +123,12 @@ export default function BorrowerDetailsWorkflow({
     onClose()
   }
 
+  const viewBorrowingRecords = (borrowerId: number) => {
+    if (borrowerId !== borrower.borrower_id) return
+    closeWorkflow()
+    onViewBorrowingRecords(borrowerId)
+  }
+
   const handleCreateDamageFlag = async (payload: DamageFlagCreateInput) => {
     if (!onCreateDamageFlag) throw new Error('Damage flag recording is unavailable.')
     if (
@@ -189,7 +195,7 @@ export default function BorrowerDetailsWorkflow({
         <BorrowerDetailsModal
           borrower={borrower}
           onClose={closeWorkflow}
-          onViewBorrowingRecords={onViewBorrowingRecords}
+          onViewBorrowingRecords={viewBorrowingRecords}
           onManageDamageFlags={(borrowerId) => {
             if (borrowerId !== borrower.borrower_id) return
             void loadFlags()

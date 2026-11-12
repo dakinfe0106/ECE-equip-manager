@@ -67,6 +67,24 @@ afterEach(() => {
 })
 
 describe('BorrowerDetailsWorkflow', () => {
+  it('closes before navigating to borrowing records for the selected borrower', async () => {
+    const user = userEvent.setup()
+    const calls: string[] = []
+    const onClose = vi.fn(() => calls.push('close'))
+    const onViewBorrowingRecords = vi.fn((borrowerId: number) => {
+      calls.push(`navigate:${borrowerId}`)
+    })
+    renderWorkflow({ onClose, onViewBorrowingRecords })
+
+    await user.click(screen.getByRole('button', { name: 'View Borrowing Records' }))
+
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(onViewBorrowingRecords).toHaveBeenCalledOnce()
+    expect(onViewBorrowingRecords).toHaveBeenCalledWith(borrower.borrower_id)
+    expect(calls).toEqual(['close', `navigate:${borrower.borrower_id}`])
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
   it('keeps borrower identity consistent while navigating and recording an incident', async () => {
     const user = userEvent.setup()
     const onLoadDamageFlags = vi.fn().mockResolvedValue([firstFlag])
@@ -75,17 +93,13 @@ describe('BorrowerDetailsWorkflow', () => {
       borrower_id: input.borrower_id,
       borrower_name: input.borrower_name,
     }))
-    const onViewBorrowingRecords = vi.fn()
     renderWorkflow({
       onLoadDamageFlags,
       onCreateDamageFlag,
       equipmentOptions: [{ id: 9, name: 'Oscilloscope' }],
-      onViewBorrowingRecords,
     })
 
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    await user.click(screen.getByRole('button', { name: 'View Borrowing Records' }))
-    expect(onViewBorrowingRecords).toHaveBeenCalledWith(borrower.borrower_id)
 
     await user.click(screen.getByRole('button', { name: 'Manage Damage Flags' }))
     expect(onLoadDamageFlags).toHaveBeenCalledWith(borrower.borrower_id)
