@@ -32,6 +32,7 @@ function renderTable(props: Partial<Parameters<typeof AssetTable>[0]> = {}) {
       assets={[makeAsset()]}
       errorMessage=""
       isLoading={false}
+      hasActiveFilters={false}
       onSelectAsset={noop}
       selectedAssetId={null}
       {...props}
@@ -68,14 +69,21 @@ describe('AssetTable layout', () => {
     }
   })
 
-  it('shows the empty, no-match, and error messages', () => {
+  it('shows the empty and no-match messages', () => {
     expect(renderTable({ assets: [] })).toContain('No active assets are available.')
     expect(renderTable({ assets: [], appliedSearch: 'X-1' })).toContain(
-      'No matching asset was found.',
+      'No assets match the current search and filters.',
     )
-    expect(renderTable({ assets: [], errorMessage: 'Could not connect' })).toContain(
-      'The asset list could not be loaded.',
+    expect(renderTable({ assets: [], hasActiveFilters: true })).toContain(
+      'No assets match the current search and filters.',
     )
+  })
+
+  it('leaves the error to the page instead of showing an empty message', () => {
+    const html = renderTable({ assets: [], errorMessage: 'Could not connect' })
+
+    expect(html).not.toContain('No active assets')
+    expect(html).not.toContain('could not be loaded')
   })
 
   it('does not show the empty message while loading', () => {
@@ -84,7 +92,7 @@ describe('AssetTable layout', () => {
 })
 
 describe('Assets page controls', () => {
-  it('shows a disabled Filters button next to the Asset ID search', () => {
+  it('shows enabled search and filters controls', () => {
     const html = renderToString(
       <AssetSearchToolbar
         assetIdentifier=""
@@ -92,11 +100,19 @@ describe('Assets page controls', () => {
         onAssetIdentifierChange={noop}
         onClear={noop}
         onSearch={noop}
+        categories={[{ category_id: 1, name: 'Tools' }]}
+        equipmentTypes={[]}
+        filters={{}}
+        isLoadingOptions={false}
+        filterError=""
+        onApplyFilters={noop}
+        onResetFilters={noop}
       />,
     )
 
     expect(html).toContain('Search asset ID or name...')
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*title="Filtering is not available yet"/)
+    expect(html).toMatch(/<button[^>]*aria-haspopup="dialog"/)
+    expect(html).not.toContain('Filtering is not available yet')
     expect(html).toContain('Filters')
   })
 
@@ -107,11 +123,13 @@ describe('Assets page controls', () => {
     expect(html).toMatch(/<input[^>]*type="checkbox"[^>]*disabled=""/)
   })
 
-  it('shows View by with List selected and disabled', () => {
-    const html = renderToString(<AssetViewBy />)
+  it('shows View by with the List, Category, and Equipment Type options', () => {
+    const html = renderToString(<AssetViewBy value="category" onChange={noop} />)
 
     expect(html).toContain('View by')
-    expect(html).toMatch(/<select[^>]*disabled=""/)
-    expect(html).toContain('<option value="List" selected="">List</option>')
+    expect(html).not.toMatch(/<select[^>]*disabled=""/)
+    expect(html).toContain('<option value="list">List</option>')
+    expect(html).toContain('<option value="category" selected="">Category</option>')
+    expect(html).toContain('<option value="type">Equipment Type</option>')
   })
 })

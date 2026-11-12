@@ -1,23 +1,20 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Navigate, useLocation } from 'react-router'
+import { Navigate } from 'react-router'
 import { useAuth } from '../features/auth/useAuth'
 import { describeAuthError } from '../features/auth/api'
 import { SessionStatus } from '../features/auth/RequireAuth'
-import { safeReturnPath } from '../features/auth/safeReturnPath'
 
 export default function LoginPage() {
   const { user, status, login } = useAuth()
-  const location = useLocation()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const from: unknown = (location.state as { from?: unknown } | null)?.from
 
   if (status !== 'ready') return <SessionStatus />
-  if (user) return <Navigate to={safeReturnPath(from)} replace />
+  if (user) return <Navigate to="/" replace />
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
