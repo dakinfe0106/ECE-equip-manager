@@ -1,85 +1,56 @@
 import { apiBaseUrl } from '../../api'
 import { sessionFetch } from '../auth/sessionFetch'
-import type { DamageFlag, DamageFlagApiResponse, DamageFlagCreateInput } from './types'
 
-/**
- * Provisional API contract for the damage-flag feature.
- * This is intentionally not treated as the final production contract until the
- * Borrower and checkout work lands. It will be replaced once the upstream API is
- * defined by the owning feature teams.
- */
-const DAMAGE_FLAG_ENDPOINT = `${apiBaseUrl}/borrowers/damage-flags/`
+export interface BorrowerRecord {
+  borrower_id: number
+  unb_id: string
+  first_name: string
+  last_name: string
+}
 
-async function parseErrorMessage(response: Response, action: string): Promise<string> {
-  try {
-    const body: unknown = await response.json()
-    if (typeof body === 'object' && body !== null) {
-      const messages = Object.values(body).flatMap((value) => {
-        if (Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === 'string')
-        return typeof value === 'string' ? [value] : []
-      })
-      const [firstMessage] = messages
-      if (firstMessage) return firstMessage
+export interface PaginatedBorrowers {
+  count: number
+  next: string | null
+  previous: string | null
+  results: BorrowerRecord[]
+}
+
+export class BorrowerRequestError extends Error {
+  readonly status: number
+
+  constructor(status: number) {
+    super(`Borrower request failed (${status})`)
+    this.name = 'BorrowerRequestError'
+    this.status = status
+  }
+}
+
+export function describeBorrowerError(error: unknown): string {
+  if (error instanceof BorrowerRequestError) {
+    if (error.status === 403) {
+      return 'Your account does not have permission to view borrowers, or your session has expired.'
     }
-  } catch {
-    // Ignore JSON parsing failures; use the default HTTP message below.
+    return `Could not load borrowers (error ${error.status}).`
   }
-
-  return `${action} failed (${response.status}).`
+  return 'Could not reach the server to load borrowers.'
 }
 
-export async function fetchDamageFlags(): Promise<DamageFlag[]> {
-  const response = await sessionFetch(DAMAGE_FLAG_ENDPOINT, { credentials: 'include' })
-  if (!response.ok) {
-    throw new Error(await parseErrorMessage(response, 'Damage flag lookup'))
+export async function fetchBorrowers(
+  page = 1,
+  search = '',
+  signal?: AbortSignal,
+): Promise<PaginatedBorrowers> {
+  const params = new URLSearchParams({ page: page.toString() })
+  if (search.trim()) {
+    params.set('search', search.trim())
   }
 
-  const body = (await response.json()) as DamageFlagApiResponse | DamageFlag[]
-  if (Array.isArray(body)) return body
-  return body.data ?? []
-}
-
-export async function createDamageFlag(payload: DamageFlagCreateInput): Promise<DamageFlag> {
-  const csrfToken = document.cookie
-    .split('; ')
-    .find((cookie) => cookie.startsWith('csrftoken='))
-    ?.slice('csrftoken='.length)
-
-  const response = await sessionFetch(DAMAGE_FLAG_ENDPOINT, {
-    method: 'POST',
+  const response = await sessionFetch(`${apiBaseUrl}/borrowers/?${params}`, {
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(csrfToken ? { 'X-CSRFToken': decodeURIComponent(csrfToken) } : {}),
-    },
-    body: JSON.stringify(payload),
+    signal,
   })
-
   if (!response.ok) {
-    throw new Error(await parseErrorMessage(response, 'Damage flag creation'))
+    throw new BorrowerRequestError(response.status)
   }
-
-  return response.json() as Promise<DamageFlag>
-}
-
-export async function resolveDamageFlag(flagId: string): Promise<DamageFlag> {
-  const csrfToken = document.cookie
-    .split('; ')
-    .find((cookie) => cookie.startsWith('csrftoken='))
-    ?.slice('csrftoken='.length)
-
-  const response = await sessionFetch(`${DAMAGE_FLAG_ENDPOINT}${flagId}/resolve/`, {
-    method: 'PATCH',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(csrfToken ? { 'X-CSRFToken': decodeURIComponent(csrfToken) } : {}),
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error(await parseErrorMessage(response, 'Damage flag resolution'))
-  }
-
-  return response.json() as Promise<DamageFlag>
+  return response.json() as Promise<PaginatedBorrowers>
 }

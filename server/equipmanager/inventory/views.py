@@ -1,6 +1,5 @@
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
-from django.db.models.functions import Lower, Trim
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import generics, status
@@ -15,8 +14,10 @@ from .models import Asset, Category, EquipmentType
 from .serializers import (
     AssetCreateSerializer,
     AssetSerializer,
+    CategoryCreateSerializer,
     CategorySerializer,
     CategorySummarySerializer,
+    EquipmentTypeCreateSerializer,
     EquipmentTypeLookupSerializer,
     EquipmentTypeSerializer,
 )
@@ -55,20 +56,65 @@ class Dashboard(APIView):
 
 DELETED_FILTER_VALUES = ("false", "true", "all")
 
+
+def save_or_raise_duplicate(serializer, constraint, message):
+    """Save, turning a race on the unique name constraint into a 400 like the serializer's own check."""
+    try:
+        with transaction.atomic():
+            return serializer.save()
+    except IntegrityError as exc:
+        constraint_name = getattr(getattr(exc.__cause__, "diag", None), "constraint_name", None)
+        if constraint_name != constraint:
+            raise
+        raise ValidationError({"name": message}) from exc
+
 @method_decorator(ensure_csrf_cookie, name="dispatch")
-class CategoryLookupList(generics.ListAPIView):
+class CategoryLookupList(generics.ListCreateAPIView):
     queryset = Category.objects.filter(is_deleted=False).order_by(
         "name", "category_id"
     )
     serializer_class = CategorySerializer
     permission_classes = (InventoryRolePermissions,)
 
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return CategoryCreateSerializer
+        return CategorySerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        category = save_or_raise_duplicate(
+            serializer,
+            "inventory_category_name_ci_unique",
+            "A category with this name already exists.",
+        )
+        return Response(CategorySerializer(category).data, status=status.HTTP_201_CREATED)
+
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
-class EquipmentTypeLookupList(generics.ListAPIView):
+class EquipmentTypeLookupList(generics.ListCreateAPIView):
     queryset = EquipmentType.objects.all()
     serializer_class = EquipmentTypeLookupSerializer
     permission_classes = (InventoryRolePermissions,)
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return EquipmentTypeCreateSerializer
+        return EquipmentTypeLookupSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        equipment_type = save_or_raise_duplicate(
+            serializer,
+            "inventory_equipment_type_category_name_ci_unique",
+            "An equipment type with this name already exists in this category.",
+        )
+        return Response(
+            EquipmentTypeLookupSerializer(equipment_type).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     def get_queryset(self):
         deleted = self.request.query_params.get("deleted", "false").lower()
@@ -118,11 +164,38 @@ class AssetListCreateAPIView(generics.ListCreateAPIView):
             .order_by("asset_id")
         )
 
+        search = self.request.query_params.get("search", "").strip()
+        if search:
+            assets = assets.filter(
+                Q(asset_identifier__icontains=search) | Q(name__icontains=search)
+            )
+
+        # The older Asset ID lookup keeps matching identifiers only.
         asset_identifier = self.request.query_params.get("asset_identifier", "").strip()
         if asset_identifier:
-            assets = assets.annotate(
-                normalized_asset_identifier=Lower(Trim("asset_identifier"))
-            ).filter(normalized_asset_identifier__contains=asset_identifier.lower())
+            assets = assets.filter(asset_identifier__icontains=asset_identifier)
+
+        category_id = self.request.query_params.get("category_id", "").strip()
+        if category_id:
+            try:
+                category_id = int(category_id)
+            except ValueError as exc:
+                raise ValidationError(
+                    {"category_id": "Must be a valid category ID."}
+                ) from exc
+            assets = assets.filter(type__category_id=category_id)
+
+        equipment_type_id = self.request.query_params.get(
+            "equipment_type_id", ""
+        ).strip()
+        if equipment_type_id:
+            try:
+                equipment_type_id = int(equipment_type_id)
+            except ValueError as exc:
+                raise ValidationError(
+                    {"equipment_type_id": "Must be a valid equipment type ID."}
+                ) from exc
+            assets = assets.filter(type_id=equipment_type_id)
         return assets
 
     def get_serializer_class(self):
