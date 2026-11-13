@@ -79,6 +79,7 @@ describe('BorrowerTable', () => {
         borrowers={borrowers}
         errorMessage={options.errorMessage ?? ''}
         isLoading={false}
+        onSelect={() => {}}
       />,
     )
   }
@@ -90,6 +91,12 @@ describe('BorrowerTable', () => {
     expect(html).toContain('Ada Lovelace')
     expect(html).toContain('aria-label="Standing not available"')
     expect(html).toContain('Not available')
+  })
+
+  it('renders a selection action with the borrower name and UNB ID', () => {
+    expect(renderTable([borrower])).toContain(
+      'aria-label="Edit borrower Ada Lovelace (UNB ID 0000101)"',
+    )
   })
 
   it('shows a distinct empty message for a search with no matches', () => {

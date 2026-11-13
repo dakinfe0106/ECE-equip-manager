@@ -31,7 +31,7 @@ The sidebar has a **Workspace** group and, for Administrators only, an **Adminis
 | Dashboard | `/` | Everyone | Implemented inventory summary at `/api/dashboard/`. |
 | Assets | `/assets` | Everyone; Faculty read-only | `assets/`, `categories/`, `equipment-types/` |
 | Lending | `/loans` | Technician, Administrator | `loans/` |
-| Borrowers | `/borrowers` | Technician, Administrator | Active borrower list with search by UNB ID/name; standing and deactivated borrowers with outstanding loans remain pending Loan integration. |
+| Borrowers | `/borrowers` | Technician, Administrator | Active borrower list with search by UNB ID/name; selecting a borrower opens a detail dialog where only `first_name` is editable. Standing and deactivated borrowers with outstanding loans remain pending Loan integration. |
 | Maintenance | `/maintenance` | Technician, Administrator | `maintenance-records/` |
 | Analytics | `/analytics` | Everyone | Pending ([Backend.md §9](Backend.md#9-pending-decisions)) |
 | Import & Export | `/import-export` | Technician, Administrator | Pending |

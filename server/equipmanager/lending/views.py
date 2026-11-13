@@ -6,7 +6,7 @@ from rest_framework.pagination import PageNumberPagination
 
 from .models import Borrower
 from .permissions import BorrowerListPermissions
-from .serializers import BorrowerListSerializer
+from .serializers import BorrowerDetailSerializer, BorrowerListSerializer
 
 
 class BorrowerPagination(PageNumberPagination):
@@ -36,3 +36,10 @@ class BorrowerList(generics.ListAPIView):
                 | Q(full_name__icontains=search)
             )
         return borrowers.order_by("borrower_id")
+
+
+class BorrowerDetail(generics.RetrieveUpdateAPIView):
+    queryset = Borrower.objects.filter(is_deleted=False)
+    serializer_class = BorrowerDetailSerializer
+    permission_classes = (BorrowerListPermissions,)
+    http_method_names = ("get", "patch", "head", "options")

@@ -8,6 +8,7 @@ import {
 const pageSize = 20
 
 export default function useBorrowers(page: number, search: string) {
+  const [refreshVersion, setRefreshVersion] = useState(0)
   const [result, setResult] = useState<{
     borrowers: BorrowerRecord[]
     errorMessage: string
@@ -45,7 +46,7 @@ export default function useBorrowers(page: number, search: string) {
     )
 
     return () => controller.abort()
-  }, [page, search])
+  }, [page, search, refreshVersion])
 
   const current = result?.page === page && result.search === search ? result : null
   const borrowers = current?.borrowers ?? []
@@ -58,5 +59,6 @@ export default function useBorrowers(page: number, search: string) {
     pageCount: Math.max(1, Math.ceil(totalCount / pageSize)),
     pageSize,
     totalCount,
+    refresh: () => setRefreshVersion((version) => version + 1),
   }
 }
