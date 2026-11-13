@@ -3,6 +3,7 @@ import App from './App'
 import AddAssetForm from './features/assets/components/AddAssetForm'
 import AssetsPage from './pages/AssetsPage'
 import DashboardPage from './pages/DashboardPage'
+import BorrowersPage from './pages/BorrowersPage'
 import LoginPage from './pages/LoginPage'
 import RequireAuth from './features/auth/RequireAuth'
 import InProgressPage from './pages/InProgressPage'
@@ -21,6 +22,9 @@ export default function AppRoutes() {
           </Route>
           <Route element={<RequireAuth permission="inventory.add_asset" />}>
             <Route path="/assets/new" element={<AddAssetForm />} />
+          </Route>
+          <Route element={<RequireAuth permission="lending.view_borrower" />}>
+            <Route path="/borrowers" element={<BorrowersPage />} />
           </Route>
           {navigationItems.filter((item) => item.inProgress).map((item) => (
             <Route key={item.path} element={<RequireAuth roles={item.roles} />}>
