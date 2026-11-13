@@ -4,6 +4,7 @@ import ManageDamageFlagsModal from './ManageDamageFlagsModal'
 import RecordDamageFlagModal from './RecordDamageFlagModal'
 import type {
   BorrowerDetailsViewModel,
+  BorrowerDetailsLoadState,
   BorrowerIdentity,
   DamageFlag,
   DamageFlagCreateInput,
@@ -17,6 +18,8 @@ type WorkflowStage = 'details' | 'damageFlags' | 'recordDamageFlag' | 'editDamag
 interface BorrowerDetailsWorkflowProps {
   borrower: BorrowerDetailsViewModel
   onClose: () => void
+  detailsLoadState?: BorrowerDetailsLoadState
+  onRetryDetails?: () => void
   onViewBorrowingRecords?: (borrowerId: number) => void
   onLoadDamageFlags?: (borrowerId: number) => Promise<DamageFlag[]>
   onCreateDamageFlag?: (payload: DamageFlagCreateInput) => Promise<DamageFlag>
@@ -45,6 +48,8 @@ function isForBorrower(flag: DamageFlag, borrower: BorrowerDetailsViewModel): bo
 export default function BorrowerDetailsWorkflow({
   borrower,
   onClose,
+  detailsLoadState,
+  onRetryDetails,
   onViewBorrowingRecords,
   onLoadDamageFlags,
   onCreateDamageFlag,
@@ -236,6 +241,8 @@ export default function BorrowerDetailsWorkflow({
           borrower={borrower}
           onClose={closeWorkflow}
           onViewBorrowingRecords={onViewBorrowingRecords ? viewBorrowingRecords : undefined}
+          detailsLoadState={detailsLoadState}
+          onRetryDetails={onRetryDetails}
           onManageDamageFlags={(borrowerId) => {
             if (borrowerId !== borrower.borrower_id) return
             void loadFlags()

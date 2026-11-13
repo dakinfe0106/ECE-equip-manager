@@ -8,6 +8,10 @@ export interface BorrowerRecord {
   last_name: string
 }
 
+export interface BorrowerDetailsRecord extends BorrowerRecord {
+  negligent_damage_flag: boolean
+}
+
 export interface PaginatedBorrowers {
   count: number
   next: string | null
@@ -35,6 +39,19 @@ export function describeBorrowerError(error: unknown): string {
   return 'Could not reach the server to load borrowers.'
 }
 
+export function describeBorrowerDetailsError(error: unknown): string {
+  if (error instanceof BorrowerRequestError) {
+    if (error.status === 403) {
+      return 'Your account does not have permission to view borrower details, or your session has expired.'
+    }
+    if (error.status === 404) {
+      return 'This borrower is no longer available.'
+    }
+    return `Could not load borrower details (error ${error.status}).`
+  }
+  return 'Could not reach the server to load borrower details.'
+}
+
 export async function fetchBorrowers(
   page = 1,
   search = '',
@@ -53,4 +70,18 @@ export async function fetchBorrowers(
     throw new BorrowerRequestError(response.status)
   }
   return response.json() as Promise<PaginatedBorrowers>
+}
+
+export async function fetchBorrowerDetails(
+  borrowerId: number,
+  signal?: AbortSignal,
+): Promise<BorrowerDetailsRecord> {
+  const response = await sessionFetch(`${apiBaseUrl}/borrowers/${borrowerId}/`, {
+    credentials: 'include',
+    signal,
+  })
+  if (!response.ok) {
+    throw new BorrowerRequestError(response.status)
+  }
+  return response.json() as Promise<BorrowerDetailsRecord>
 }

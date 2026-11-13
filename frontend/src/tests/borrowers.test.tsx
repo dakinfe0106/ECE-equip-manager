@@ -1,24 +1,37 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppRoutes from '../AppRoutes'
-import type { BorrowerRecord } from '../features/borrowers/api'
+import {
+  BorrowerRequestError,
+  type BorrowerDetailsRecord,
+  type BorrowerRecord,
+} from '../features/borrowers/api'
 import BorrowerPagination from '../features/borrowers/components/BorrowerPagination'
 import BorrowerTable from '../features/borrowers/components/BorrowerTable'
 import BorrowersPage from '../pages/BorrowersPage'
 import { technicianAuth, withAuth } from './authTestUtils'
 
-const { useBorrowersMock } = vi.hoisted(() => ({
+const { useBorrowersMock, fetchBorrowerDetailsMock } = vi.hoisted(() => ({
   useBorrowersMock: vi.fn(),
+  fetchBorrowerDetailsMock: vi.fn(),
 }))
 
 vi.mock('../features/borrowers/hooks/useBorrowers', () => ({
   default: useBorrowersMock,
 }))
+
+vi.mock('../features/borrowers/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../features/borrowers/api')>()
+  return {
+    ...actual,
+    fetchBorrowerDetails: fetchBorrowerDetailsMock,
+  }
+})
 
 const defaultBorrowerList = {
   borrowers: [],
@@ -31,6 +44,13 @@ const defaultBorrowerList = {
 
 beforeEach(() => {
   useBorrowersMock.mockReturnValue(defaultBorrowerList)
+  fetchBorrowerDetailsMock.mockImplementation(async (borrowerId: number) => ({
+    borrower_id: borrowerId,
+    unb_id: borrowerId === 22 ? '0000022' : '0000023',
+    first_name: borrowerId === 22 ? 'Ada' : 'Riley',
+    last_name: borrowerId === 22 ? 'Lovelace' : '',
+    negligent_damage_flag: false,
+  }))
 })
 
 afterEach(() => {
@@ -194,7 +214,7 @@ describe('BorrowersPage details integration', () => {
     { borrower_id: 23, unb_id: '0000023', first_name: 'Riley', last_name: '' },
   ]
 
-  it('opens the selected borrower details with unique identity and no fabricated data', async () => {
+  it('opens the selected borrower details with unique identity and API-backed damage status', async () => {
     const user = userEvent.setup()
     useBorrowersMock.mockReturnValue({
       ...defaultBorrowerList,
@@ -212,13 +232,14 @@ describe('BorrowersPage details integration', () => {
       name: 'View details for Ada Lovelace, UNB ID 0000022',
     }))
 
-    expect(screen.getByRole('dialog', { name: 'Ada Lovelace' })).toBeTruthy()
+    expect(await screen.findByRole('dialog', { name: 'Ada Lovelace' })).toBeTruthy()
+    expect(fetchBorrowerDetailsMock).toHaveBeenCalledWith(22, expect.any(AbortSignal))
     expect(screen.getByText('Borrower details · UNB ID 0000022')).toBeTruthy()
     expect(screen.getAllByText('Standing unavailable')).toHaveLength(2)
     expect(screen.getByText('Certification information unavailable.')).toBeTruthy()
     expect(screen.getByText('Active loan information unavailable.')).toBeTruthy()
     expect(screen.getByText('Overdue equipment information unavailable.')).toBeTruthy()
-    expect(screen.getByText('Damage flag information unavailable.')).toBeTruthy()
+    expect(await screen.findByText('No flag recorded')).toBeTruthy()
 
     const borrowingRecordsButton = screen.getByRole('button', { name: 'View Borrowing Records' })
     expect(borrowingRecordsButton.hasAttribute('disabled')).toBe(true)
@@ -245,10 +266,93 @@ describe('BorrowersPage details integration', () => {
     await user.click(screen.getByRole('button', {
       name: 'View details for Riley, UNB ID 0000023',
     }))
-    expect(screen.getByRole('dialog', { name: 'Riley' })).toBeTruthy()
+    expect(await screen.findByRole('dialog', { name: 'Riley' })).toBeTruthy()
     expect(screen.getByText('Borrower details · UNB ID 0000023')).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('shows a retryable detail error and does not apply a late response after close', async () => {
+    const user = userEvent.setup()
+    fetchBorrowerDetailsMock
+      .mockRejectedValueOnce(new BorrowerRequestError(404))
+      .mockResolvedValueOnce({
+        borrower_id: 22,
+        unb_id: '0000022',
+        first_name: 'Ada',
+        last_name: 'Lovelace',
+        negligent_damage_flag: true,
+      })
+    useBorrowersMock.mockReturnValue({
+      ...defaultBorrowerList,
+      borrowers: duplicateNameBorrowers,
+      isLoading: false,
+      totalCount: duplicateNameBorrowers.length,
+    })
+    render(<BorrowersPage />)
+
+    await user.click(screen.getByRole('button', {
+      name: 'View details for Ada Lovelace, UNB ID 0000022',
+    }))
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Unable to load borrower details. This borrower is no longer available.',
+    )
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('Flag recorded')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('ignores stale details when a different borrower is selected', async () => {
+    const user = userEvent.setup()
+    let resolveFirstRequest: ((record: BorrowerDetailsRecord) => void) | undefined
+    let firstRequestSignal: AbortSignal | undefined
+    fetchBorrowerDetailsMock.mockImplementation((borrowerId: number, signal: AbortSignal) => {
+      if (borrowerId === 22) {
+        firstRequestSignal = signal
+        return new Promise((resolve) => {
+          resolveFirstRequest = resolve
+        })
+      }
+      return Promise.resolve({
+        borrower_id: borrowerId,
+        unb_id: '0000023',
+        first_name: 'Riley',
+        last_name: '',
+        negligent_damage_flag: false,
+      })
+    })
+    useBorrowersMock.mockReturnValue({
+      ...defaultBorrowerList,
+      borrowers: duplicateNameBorrowers,
+      isLoading: false,
+      totalCount: duplicateNameBorrowers.length,
+    })
+    render(<BorrowersPage />)
+
+    await user.click(screen.getByRole('button', {
+      name: 'View details for Ada Lovelace, UNB ID 0000022',
+    }))
+    expect(screen.getByRole('status').textContent).toBe('Loading borrower details…')
+    await user.click(screen.getByRole('button', {
+      name: 'View details for Riley, UNB ID 0000023',
+    }))
+
+    expect(await screen.findByRole('dialog', { name: 'Riley' })).toBeTruthy()
+    expect(firstRequestSignal?.aborted).toBe(true)
+    await act(async () => {
+      resolveFirstRequest?.({
+        borrower_id: 22,
+        unb_id: '0000022',
+        first_name: 'Ada',
+        last_name: 'Lovelace',
+        negligent_damage_flag: true,
+      })
+    })
+    expect(screen.getByText('No flag recorded')).toBeTruthy()
+    expect(screen.queryByText('Flag recorded')).toBeNull()
+    expect(screen.getByText('Borrower details · UNB ID 0000023')).toBeTruthy()
   })
 })

@@ -32,6 +32,11 @@ export interface BorrowerDetailsViewModel {
   negligent_damage_flag?: boolean
 }
 
+export type BorrowerDetailsLoadState =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'loaded' }
+
 export type DamageFlagStatus = 'unresolved' | 'resolved'
 
 export interface DamageFlag {

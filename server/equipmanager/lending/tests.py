@@ -196,3 +196,92 @@ def test_borrower_list_paginates_twenty_records_per_page(borrower_client):
     assert len(second_page.data["results"]) == 2
     assert second_page.data["next"] is None
     assert second_page.data["previous"] is not None
+
+
+@pytest.mark.parametrize("negligent_damage_flag", [False, True])
+def test_borrower_detail_returns_identity_and_negligent_damage_status(
+    borrower_client, negligent_damage_flag
+):
+    borrower = create_borrower(
+        unb_id="UNB-DETAIL",
+        negligent_damage_flag=negligent_damage_flag,
+    )
+
+    response = borrower_client.get(f"/api/borrowers/{borrower.borrower_id}/")
+
+    assert response.status_code == 200
+    assert response.data == {
+        "borrower_id": borrower.borrower_id,
+        "unb_id": "UNB-DETAIL",
+        "first_name": "Ada",
+        "last_name": "Lovelace",
+        "negligent_damage_flag": negligent_damage_flag,
+    }
+
+
+@pytest.mark.parametrize("role", ["TECHNICIAN", "ADMINISTRATOR"])
+def test_borrower_detail_allows_technicians_and_administrators(db, role):
+    user = get_user_model().objects.create_user(
+        username=f"borrower-detail-{role.lower()}",
+        role=role,
+    )
+    borrower = create_borrower(unb_id=f"UNB-{role}")
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get(f"/api/borrowers/{borrower.borrower_id}/")
+
+    assert response.status_code == 200
+
+
+def test_borrower_detail_denies_faculty(db):
+    user = get_user_model().objects.create_user(
+        username="borrower-detail-faculty",
+        role="FACULTY",
+    )
+    borrower = create_borrower(unb_id="UNB-FACULTY")
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get(f"/api/borrowers/{borrower.borrower_id}/")
+
+    assert response.status_code == 403
+
+
+def test_borrower_detail_requires_authentication(db):
+    borrower = create_borrower(unb_id="UNB-UNAUTH")
+
+    response = APIClient().get(f"/api/borrowers/{borrower.borrower_id}/")
+
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("is_deleted", [False, True])
+def test_borrower_detail_returns_not_found_for_missing_or_deleted_borrower(
+    borrower_client, db, is_deleted
+):
+    if is_deleted:
+        borrower = create_borrower(unb_id="UNB-DELETED-DETAIL", is_deleted=True)
+        borrower_id = borrower.borrower_id
+    else:
+        borrower_id = 999999
+
+    response = borrower_client.get(f"/api/borrowers/{borrower_id}/")
+
+    assert response.status_code == 404
+
+
+def test_borrower_detail_does_not_change_borrower_list_response(borrower_client):
+    borrower = create_borrower(unb_id="UNB-LIST-DETAIL", negligent_damage_flag=True)
+
+    response = borrower_client.get("/api/borrowers/")
+
+    assert response.status_code == 200
+    assert response.data["results"] == [
+        {
+            "borrower_id": borrower.borrower_id,
+            "unb_id": "UNB-LIST-DETAIL",
+            "first_name": "Ada",
+            "last_name": "Lovelace",
+        }
+    ]

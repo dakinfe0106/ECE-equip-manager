@@ -1,19 +1,31 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import PageIntro from '../components/ui/PageIntro'
 import Panel from '../components/ui/Panel'
 import BorrowerDetailsWorkflow from '../features/borrowers/components/BorrowerDetailsWorkflow'
 import BorrowerPagination from '../features/borrowers/components/BorrowerPagination'
 import BorrowerSearchToolbar from '../features/borrowers/components/BorrowerSearchToolbar'
 import BorrowerTable from '../features/borrowers/components/BorrowerTable'
-import type { BorrowerRecord } from '../features/borrowers/api'
+import {
+  describeBorrowerDetailsError,
+  fetchBorrowerDetails,
+  type BorrowerDetailsRecord,
+  type BorrowerRecord,
+} from '../features/borrowers/api'
 import useBorrowers from '../features/borrowers/hooks/useBorrowers'
-import type { BorrowerDetailsViewModel } from '../features/borrowers/types'
+import type { BorrowerDetailsLoadState, BorrowerDetailsViewModel } from '../features/borrowers/types'
 
 export default function BorrowersPage() {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedBorrower, setSelectedBorrower] = useState<BorrowerRecord | null>(null)
+  const [borrowerDetailsRecord, setBorrowerDetailsRecord] = useState<BorrowerDetailsRecord | null>(null)
+  const [detailsResult, setDetailsResult] = useState<{
+    borrowerId: number
+    attempt: number
+    state: BorrowerDetailsLoadState
+  }>()
+  const [detailsRetry, setDetailsRetry] = useState(0)
   const {
     borrowers,
     errorMessage,
@@ -22,6 +34,58 @@ export default function BorrowersPage() {
     pageSize,
     totalCount,
   } = useBorrowers(currentPage, appliedSearch)
+
+  useEffect(() => {
+    if (!selectedBorrower) return
+
+    const controller = new AbortController()
+    const selectedBorrowerId = selectedBorrower.borrower_id
+
+    fetchBorrowerDetails(selectedBorrowerId, controller.signal).then(
+      (record) => {
+        if (record.borrower_id !== selectedBorrowerId) {
+          throw new Error('The borrower details response did not match the selected borrower.')
+        }
+        if (!controller.signal.aborted) {
+          setBorrowerDetailsRecord(record)
+          setDetailsResult({
+            borrowerId: selectedBorrowerId,
+            attempt: detailsRetry,
+            state: { status: 'loaded' },
+          })
+        }
+      },
+      (error: unknown) => {
+        if (!controller.signal.aborted) {
+          setDetailsResult({
+            borrowerId: selectedBorrowerId,
+            attempt: detailsRetry,
+            state: { status: 'error', message: describeBorrowerDetailsError(error) },
+          })
+        }
+      },
+    ).catch((error: unknown) => {
+      if (!controller.signal.aborted) {
+        setDetailsResult({
+          borrowerId: selectedBorrowerId,
+          attempt: detailsRetry,
+          state: { status: 'error', message: describeBorrowerDetailsError(error) },
+        })
+      }
+    })
+
+    return () => controller.abort()
+  }, [selectedBorrower, detailsRetry])
+
+  const currentDetailsRecord = borrowerDetailsRecord?.borrower_id === selectedBorrower?.borrower_id
+    ? borrowerDetailsRecord
+    : undefined
+  const currentDetailsLoadState = detailsResult
+    && selectedBorrower
+    && detailsResult.borrowerId === selectedBorrower.borrower_id
+    && detailsResult.attempt === detailsRetry
+    ? detailsResult.state
+    : { status: 'loading' as const }
 
   const searchBorrowers = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -37,11 +101,15 @@ export default function BorrowersPage() {
 
   const borrowerDetails: BorrowerDetailsViewModel | null = selectedBorrower
     ? {
-      borrower_id: selectedBorrower.borrower_id,
-      borrower_name: [selectedBorrower.first_name, selectedBorrower.last_name]
+      borrower_id: currentDetailsRecord?.borrower_id ?? selectedBorrower.borrower_id,
+      borrower_name: [
+        currentDetailsRecord?.first_name ?? selectedBorrower.first_name,
+        currentDetailsRecord?.last_name ?? selectedBorrower.last_name,
+      ]
         .filter(Boolean)
         .join(' '),
-      unb_id: selectedBorrower.unb_id,
+      unb_id: currentDetailsRecord?.unb_id ?? selectedBorrower.unb_id,
+      negligent_damage_flag: currentDetailsRecord?.negligent_damage_flag,
     }
     : null
 
@@ -87,7 +155,10 @@ export default function BorrowersPage() {
             borrowers={borrowers}
             errorMessage={errorMessage}
             isLoading={isLoading}
-            onViewDetails={setSelectedBorrower}
+            onViewDetails={(record) => {
+              setBorrowerDetailsRecord(null)
+              setSelectedBorrower(record)
+            }}
           />
           <BorrowerPagination
             currentPage={currentPage}
@@ -101,7 +172,10 @@ export default function BorrowersPage() {
       </section>
       {borrowerDetails && (
         <BorrowerDetailsWorkflow
+          key={borrowerDetails.borrower_id}
           borrower={borrowerDetails}
+          detailsLoadState={currentDetailsLoadState}
+          onRetryDetails={() => setDetailsRetry((retry) => retry + 1)}
           onClose={() => setSelectedBorrower(null)}
         />
       )}
