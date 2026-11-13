@@ -46,7 +46,7 @@ describe('Sidebar navigation', () => {
 
 describe('Demo page routes', () => {
   it.each([
-    ['/loans', 'Lending'], ['/borrowers', 'Borrowers'],
+    ['/loans', 'Lending'],
     ['/analytics', 'Analytics'], ['/import-export', 'Import & Export'], ['/users', 'Users & Access'],
   ])('renders an honest placeholder at %s', (path, title) => {
     const html = pageHtml(path)
@@ -67,11 +67,23 @@ describe('Demo page routes', () => {
     expect(within(container).queryByText('This page is still in progress.')).toBeNull()
   })
 
-  it.each(['/loans', '/borrowers', '/maintenance', '/import-export', '/users'])('denies Faculty direct access to %s', (path) => {
+  it.each(['/loans', '/maintenance', '/import-export', '/users'])('denies Faculty direct access to %s', (path) => {
     const html = pageHtml(path, 'FACULTY')
     expect(html).toContain('Access denied')
     expect(html).not.toContain('This page is still in progress.')
   })
+
+  it.each(['TECHNICIAN', 'ADMINISTRATOR'] as const)(
+    'renders the API-backed Borrowers page for %s',
+    (role) => {
+      const html = pageHtml('/borrowers', role)
+
+      expect(html).toContain('>Borrowers</h1>')
+      expect(html).toContain('Loading borrower records')
+      expect(html).toContain('href="/borrowers"')
+      expect(html).not.toContain('This page is still in progress.')
+    },
+  )
 
   it('denies Technicians direct access to Users & Access', () => {
     expect(pageHtml('/users', 'TECHNICIAN')).toContain('Access denied')
