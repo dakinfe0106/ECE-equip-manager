@@ -1,3 +1,7 @@
-# Routes for the lending app, mounted under /api/ by equipmanager/urls.py.
-# Example: path('loans/', views.LoanList.as_view(), name='loan-list'),
-urlpatterns = []
+from django.urls import path
+
+from . import views
+
+urlpatterns = [
+    path("borrowers/", views.BorrowerList.as_view(), name="borrower-list"),
+]

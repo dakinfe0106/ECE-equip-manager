@@ -10,6 +10,10 @@ export interface CurrentUser {
 }
 
 export function hasPermission(user: CurrentUser | null, permission: string): boolean {
+  if (permission === 'lending.view_borrower') {
+    return user?.role === 'TECHNICIAN' || user?.role === 'ADMINISTRATOR'
+  }
+
   const inventoryMatch =
     /^inventory\.(view|add|change|delete)_(asset|category|equipmenttype)$/.exec(
       permission,
