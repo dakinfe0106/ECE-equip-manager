@@ -1,6 +1,6 @@
 
  // @vitest-environment jsdom
-
+import { StrictMode } from 'react'
 import { renderToString } from 'react-dom/server'
 import {
   afterEach,
@@ -78,6 +78,27 @@ afterEach(() => {
 })
 
 describe('AssetDetails modal', () => {
+  it('stays open when rendered inside React StrictMode', () => {
+    const onClose = vi.fn()
+
+    render(
+      <StrictMode>
+        {withAuth(
+          <AssetDetails
+            asset={makeAsset()}
+            onAssetUpdated={noop}
+            onClose={onClose}
+          />,
+        )}
+      </StrictMode>,
+    )
+
+    expect(
+      document.getElementById('asset-details')?.hasAttribute('open'),
+    ).toBe(true)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('shows every field required by the acceptance criteria', () => {
     const html = renderToString(
       withAuth(

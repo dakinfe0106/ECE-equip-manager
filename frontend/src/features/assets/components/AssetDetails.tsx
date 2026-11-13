@@ -64,6 +64,10 @@ export default function AssetDetails({
 
   const certifications = asset.equipment_type.required_certifications
 
+  const handleDialogClose = () => {
+    onClose()
+  }
+
   const isDirty =
     draft.name.trim() !== asset.name ||
     (draft.acquisition_date || null) !==
@@ -75,12 +79,6 @@ export default function AssetDetails({
 
     if (dialog && !dialog.open && typeof dialog.showModal === 'function') {
       dialog.showModal()
-    }
-
-    return () => {
-      if (dialog?.open) {
-        dialog.close()
-      }
     }
   }, [])
 
@@ -208,7 +206,7 @@ export default function AssetDetails({
       className="m-auto max-h-[calc(100dvh-48px)] w-[min(720px,calc(100vw-32px))] overflow-y-auto rounded-[10px] border-0 bg-white px-6 pb-[18px] pt-[22px] shadow-[0_24px_60px_rgb(15_27_45_/_28%)] backdrop:bg-[rgb(20_33_54_/_45%)]"
       id="asset-details"
       aria-labelledby="details-title"
-      onClose={onClose}
+      onClose={handleDialogClose}
       onCancel={(event) => {
         event.preventDefault()
         handleAttemptClose()
