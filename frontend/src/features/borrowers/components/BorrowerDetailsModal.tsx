@@ -2,6 +2,7 @@ import { useRef, type MouseEvent } from 'react'
 import Badge from '../../../components/ui/Badge'
 import useModalAccessibility from '../hooks/useModalAccessibility'
 import type { BorrowerDetailsLoadState, BorrowerDetailsViewModel } from '../types'
+import BorrowerDamageWarningBadge from './BorrowerDamageWarningBadge'
 
 interface BorrowerDetailsModalProps {
   borrower: BorrowerDetailsViewModel
@@ -222,18 +223,53 @@ export default function BorrowerDetailsModal({
               </dd>
             </div>
 
-            <div className="min-w-0 sm:col-span-2">
-              <dt className="mb-[6px] text-[10px] font-[650] text-body">Negligent damage flag · Read only</dt>
+            <div className="min-w-0">
+              <dt className="mb-[6px] text-[10px] font-[650] text-body">
+                Unresolved reviewed damage incidents · System calculated
+              </dt>
               <dd className="m-0">
-            {borrower.negligent_damage_flag === undefined ? (
+                {borrower.unresolved_damage_flag_count === undefined ? (
                   <p className="m-0 rounded-lg border border-input bg-page px-[11px] py-[10px] text-[11px] text-muted">
-                    Damage flag information unavailable.
+                    Damage incident count unavailable.
                   </p>
-            ) : (
-                  <p className="m-0 rounded-lg border border-input bg-page px-[11px] py-[10px] text-[11px] text-body">
-                {borrower.negligent_damage_flag ? 'Flag recorded' : 'No flag recorded'}
+                ) : (
+                  <div className="space-y-2 rounded-lg border border-input bg-page px-[11px] py-[10px] text-[11px] text-body">
+                    <p className="m-0">
+                      {borrower.unresolved_damage_flag_count}
+                      {' '}
+                      {borrower.unresolved_damage_flag_count === 1 ? 'unresolved incident' : 'unresolved incidents'}
+                    </p>
+                    <BorrowerDamageWarningBadge warningLevel={borrower.damage_warning_level} />
+                    {borrower.damage_eligible !== undefined && (
+                      <p className="m-0 text-[10px] text-muted">
+                        Damage-based checkout status:{' '}
+                        {borrower.damage_eligible ? 'Eligible' : 'Ineligible'}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </dd>
+            </div>
+
+            <div className="min-w-0 sm:col-span-2">
+              <dt className="mb-[6px] text-[10px] font-[650] text-body">
+                Legacy negligent damage indicator · Read only
+              </dt>
+              <dd className="m-0">
+                {borrower.negligent_damage_flag === undefined ? (
+                  <p className="m-0 rounded-lg border border-input bg-page px-[11px] py-[10px] text-[11px] text-muted">
+                    Legacy indicator unavailable.
                   </p>
-            )}
+                ) : (
+                  <div className="rounded-lg border border-input bg-page px-[11px] py-[10px] text-[11px] text-body">
+                    <p className="m-0">
+                      {borrower.negligent_damage_flag ? 'Flag recorded' : 'No flag recorded'}
+                    </p>
+                    <p className="mb-0 mt-1 text-[10px] text-muted">
+                      This stored indicator is separate from incident history and does not affect warning calculations.
+                    </p>
+                  </div>
+                )}
               </dd>
             </div>
           </dl>

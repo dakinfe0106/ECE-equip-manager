@@ -7,9 +7,11 @@ import type {
   BorrowerDetailsLoadState,
   BorrowerIdentity,
   DamageFlag,
+  DamageFlagCollection,
   DamageFlagCreateInput,
   DamageFlagEquipmentOption,
   DamageFlagLoadState,
+  DamageFlagMutationResult,
   DamageFlagUpdateInput,
 } from '../types'
 
@@ -21,11 +23,19 @@ interface BorrowerDetailsWorkflowProps {
   detailsLoadState?: BorrowerDetailsLoadState
   onRetryDetails?: () => void
   onViewBorrowingRecords?: (borrowerId: number) => void
-  onLoadDamageFlags?: (borrowerId: number) => Promise<DamageFlag[]>
-  onCreateDamageFlag?: (payload: DamageFlagCreateInput) => Promise<DamageFlag>
-  onResolveDamageFlag?: (flagId: string) => Promise<DamageFlag>
-  onUpdateDamageFlag?: (flagId: string, payload: DamageFlagUpdateInput) => Promise<DamageFlag>
+  onLoadDamageFlags?: (borrowerId: number) => Promise<DamageFlagCollection>
+  onCreateDamageFlag?: (payload: DamageFlagCreateInput) => Promise<DamageFlagMutationResult>
+  onResolveDamageFlag?: (
+    flagId: string,
+    resolutionReason: string,
+  ) => Promise<DamageFlagMutationResult>
+  onUpdateDamageFlag?: (
+    flagId: string,
+    payload: DamageFlagUpdateInput,
+  ) => Promise<DamageFlagMutationResult>
   equipmentOptions?: DamageFlagEquipmentOption[]
+  equipmentOptionsError?: string
+  onRetryEquipmentOptions?: () => void
 }
 
 function getErrorMessage(error: unknown): string {
@@ -37,6 +47,9 @@ function toBorrowerIdentity(borrower: BorrowerDetailsViewModel): BorrowerIdentit
     borrower_id: borrower.borrower_id,
     borrower_name: borrower.borrower_name,
     standing: borrower.standing,
+    unresolved_damage_flag_count: borrower.unresolved_damage_flag_count,
+    damage_warning_level: borrower.damage_warning_level,
+    damage_eligible: borrower.damage_eligible,
   }
 }
 
@@ -56,6 +69,8 @@ export default function BorrowerDetailsWorkflow({
   onResolveDamageFlag,
   onUpdateDamageFlag,
   equipmentOptions,
+  equipmentOptionsError,
+  onRetryEquipmentOptions,
 }: BorrowerDetailsWorkflowProps) {
   const [stage, setStage] = useState<WorkflowStage>('details')
   const [damageFlagState, setDamageFlagState] = useState<DamageFlagLoadState>({
@@ -66,6 +81,11 @@ export default function BorrowerDetailsWorkflow({
   const loadRequestId = useRef(0)
   const currentBorrowerId = useRef(borrower.borrower_id)
   const [stageBorrowerId, setStageBorrowerId] = useState(borrower.borrower_id)
+  const [damageSummary, setDamageSummary] = useState<{
+    unresolved_damage_flag_count: number
+    damage_warning_level: NonNullable<BorrowerDetailsViewModel['damage_warning_level']>
+    damage_eligible: boolean
+  }>()
   const openerRef = useRef<HTMLElement | null>(
     typeof document !== 'undefined' && document.activeElement instanceof HTMLElement
       ? document.activeElement
@@ -101,15 +121,24 @@ export default function BorrowerDetailsWorkflow({
     setLoadedBorrowerId(borrower.borrower_id)
     setDamageFlagState({ status: 'loading' })
     try {
-      const flags = await onLoadDamageFlags(borrower.borrower_id)
-      if (!Array.isArray(flags) || flags.some((flag) => !isForBorrower(flag, borrower))) {
+      const result = await onLoadDamageFlags(borrower.borrower_id)
+      if (!Array.isArray(result.results) || result.results.some((flag) => !isForBorrower(flag, borrower))) {
         throw new Error('The damage flag service returned incidents for a different borrower.')
       }
       if (
         requestId === loadRequestId.current
         && currentBorrowerId.current === borrower.borrower_id
       ) {
-        setDamageFlagState({ status: 'loaded', flags })
+        setDamageFlagState({
+          status: 'loaded',
+          flags: result.results,
+          summary: result.summary,
+        })
+        setDamageSummary({
+          unresolved_damage_flag_count: result.summary.unresolved_count,
+          damage_warning_level: result.summary.warning_level,
+          damage_eligible: result.summary.damage_eligible,
+        })
       }
     } catch (error: unknown) {
       if (
@@ -147,24 +176,34 @@ export default function BorrowerDetailsWorkflow({
       throw new Error('The damage flag borrower does not match the selected borrower.')
     }
 
-    const createdFlag = await onCreateDamageFlag(payload)
+    const result = await onCreateDamageFlag(payload)
+    const createdFlag = result.damage_flag
     if (!isForBorrower(createdFlag, borrower)) {
       throw new Error('The saved damage flag does not match the selected borrower.')
     }
     if (createdFlag.status !== 'unresolved') {
       throw new Error('The created damage flag was not confirmed as unresolved.')
     }
+    setDamageSummary({
+      unresolved_damage_flag_count: result.summary.unresolved_count,
+      damage_warning_level: result.summary.warning_level,
+      damage_eligible: result.summary.damage_eligible,
+    })
 
     setDamageFlagState((current) => {
       if (current.status !== 'loaded' || loadedBorrowerId !== borrower.borrower_id) return current
       return {
         status: 'loaded',
         flags: [...current.flags.filter((flag) => flag.id !== createdFlag.id), createdFlag],
+        summary: result.summary,
       }
     })
   }
 
-  const handleResolveDamageFlag = async (flagId: string): Promise<DamageFlag> => {
+  const handleResolveDamageFlag = async (
+    flagId: string,
+    resolutionReason: string,
+  ): Promise<DamageFlagMutationResult> => {
     if (!onResolveDamageFlag) throw new Error('Damage flag resolution is unavailable.')
     const selectedFlag = damageFlagState.status === 'loaded'
       ? damageFlagState.flags.find(
@@ -175,7 +214,8 @@ export default function BorrowerDetailsWorkflow({
       throw new Error('The selected unresolved incident is unavailable for this borrower.')
     }
 
-    const resolvedFlag = await onResolveDamageFlag(flagId)
+    const result = await onResolveDamageFlag(flagId, resolutionReason)
+    const resolvedFlag = result.damage_flag
     if (
       resolvedFlag.id !== flagId
       || resolvedFlag.status !== 'resolved'
@@ -183,21 +223,27 @@ export default function BorrowerDetailsWorkflow({
     ) {
       throw new Error('The service did not confirm resolution of the selected incident.')
     }
+    setDamageSummary({
+      unresolved_damage_flag_count: result.summary.unresolved_count,
+      damage_warning_level: result.summary.warning_level,
+      damage_eligible: result.summary.damage_eligible,
+    })
 
     setDamageFlagState((current) => {
       if (current.status !== 'loaded' || loadedBorrowerId !== borrower.borrower_id) return current
       return {
         status: 'loaded',
         flags: current.flags.map((flag) => flag.id === flagId ? resolvedFlag : flag),
+        summary: result.summary,
       }
     })
-    return resolvedFlag
+    return result
   }
 
   const handleUpdateDamageFlag = async (
     flagId: string,
     payload: DamageFlagUpdateInput,
-  ): Promise<DamageFlag> => {
+  ): Promise<DamageFlagMutationResult> => {
     if (!onUpdateDamageFlag) throw new Error('Damage flag editing is unavailable.')
     const selectedFlag = damageFlagState.status === 'loaded'
       ? damageFlagState.flags.find((flag) => flag.id === flagId)
@@ -206,7 +252,8 @@ export default function BorrowerDetailsWorkflow({
       throw new Error('The selected incident is unavailable for this borrower.')
     }
 
-    const updatedFlag = await onUpdateDamageFlag(flagId, payload)
+    const result = await onUpdateDamageFlag(flagId, payload)
+    const updatedFlag = result.damage_flag
     if (
       updatedFlag.id !== selectedFlag.id
       || !isForBorrower(updatedFlag, borrower)
@@ -215,20 +262,27 @@ export default function BorrowerDetailsWorkflow({
     ) {
       throw new Error('The service did not preserve the selected incident identity and status.')
     }
+    setDamageSummary({
+      unresolved_damage_flag_count: result.summary.unresolved_count,
+      damage_warning_level: result.summary.warning_level,
+      damage_eligible: result.summary.damage_eligible,
+    })
 
     setDamageFlagState((current) => {
       if (current.status !== 'loaded' || loadedBorrowerId !== borrower.borrower_id) return current
       return {
         status: 'loaded',
         flags: current.flags.map((flag) => flag.id === flagId ? updatedFlag : flag),
+        summary: result.summary,
       }
     })
     setSelectedDamageFlagId(flagId)
-    return updatedFlag
+    return result
   }
 
-  const borrowerIdentity = toBorrowerIdentity(borrower)
-  const canRecordDamageFlag = Boolean(onCreateDamageFlag && equipmentOptions)
+  const borrowerWithDamageSummary = { ...borrower, ...damageSummary }
+  const borrowerIdentity = toBorrowerIdentity(borrowerWithDamageSummary)
+  const canRecordDamageFlag = Boolean(onCreateDamageFlag && equipmentOptions?.length)
   const selectedDamageFlag = damageFlagState.status === 'loaded'
     ? damageFlagState.flags.find((flag) => flag.id === selectedDamageFlagId)
     : undefined
@@ -238,7 +292,7 @@ export default function BorrowerDetailsWorkflow({
     <>
       {activeStage === 'details' && (
         <BorrowerDetailsModal
-          borrower={borrower}
+          borrower={borrowerWithDamageSummary}
           onClose={closeWorkflow}
           onViewBorrowingRecords={onViewBorrowingRecords ? viewBorrowingRecords : undefined}
           detailsLoadState={detailsLoadState}
@@ -261,6 +315,9 @@ export default function BorrowerDetailsWorkflow({
           onRetry={() => {
             void loadFlags()
           }}
+          equipmentOptionsError={equipmentOptionsError}
+          equipmentOptionsEmpty={equipmentOptions?.length === 0}
+          onRetryEquipmentOptions={onRetryEquipmentOptions}
           initialSelectedFlagId={selectedDamageFlagId}
           onSelectFlag={setSelectedDamageFlagId}
           onEditFlag={onUpdateDamageFlag && equipmentOptions

@@ -25,7 +25,7 @@ type RecordDamageFlagModalProps = RecordDamageFlagModalBaseProps & (
   | {
     mode: 'edit'
     editingFlag: DamageFlag
-    onUpdate: (flagId: string, payload: DamageFlagUpdateInput) => Promise<DamageFlag>
+    onUpdate: (flagId: string, payload: DamageFlagUpdateInput) => Promise<unknown>
     onSave?: never
   }
 )

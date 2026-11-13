@@ -17,7 +17,7 @@ If this guide conflicts with `database.md` or `Architecture.md`, raise the confl
 ## 1. Current state
 
 - `inventory` provides authenticated category and equipment-type lookups and creation, paginated asset listing/search, asset creation, asset detail/update endpoints, and a category summary list and per-category equipment-type list for the Categories page. Asset status remains server-controlled; newly created assets start as `Available`.
-- `lending` provides the documented `Borrower` model, an authenticated, read-only, paginated `GET /api/borrowers/` endpoint for active borrowers, and a read-only `GET /api/borrowers/<borrower_id>/` details endpoint. The list supports trimmed, case-insensitive `search` across UNB ID and names; the detail response includes borrower identity and the stored negligent-damage boolean. Only Technicians and Administrators may access these endpoints, and detail lookup returns 404 for missing or soft-deleted borrowers. Standing and inclusion of deactivated borrowers with outstanding loans remain pending integration with the Loan model owned by the Lending team. Borrower creation/editing and lending workflows are not implemented.
+- `lending` provides the documented `Borrower` model, authenticated list/detail endpoints, and persistent reviewed damage incidents with edit auditing. `GET /api/borrowers/<borrower_id>/` returns identity, the separate legacy negligent-damage boolean, unresolved reviewed incident count, warning level, and damage-based eligibility. Borrower-scoped damage-flag endpoints list history, record reviewed incidents, edit existing incidents, and resolve them with a reason. Only Technicians and Administrators may use these endpoints. Overall eligibility, overdue-loan restrictions, checkout enforcement, borrower creation/editing, and loan workflows remain pending the Loan model and checkout integration.
 - `maintenance` is mounted under `/api/` but does not yet expose business endpoints.
 - `users.User(AbstractUser)` is the custom `AUTH_USER_MODEL`; its required `role` stores `TECHNICIAN`, `FACULTY`, or `ADMINISTRATOR`. Django admin creation/edit forms expose the role, and `createsuperuser` prompts for it through `REQUIRED_FIELDS`. Existing accounts receive `ADMINISTRATOR` in migration `users.0002`; new accounts have no default role. Role assignment does not grant staff/superuser flags or Django permissions.
 - DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Inventory endpoints enforce the role policy in [database.md section 5](database.md#5-permissions-scope). The paginated asset list supports case-insensitive search across Asset ID and name, plus combined category and equipment-type filters.
@@ -32,7 +32,7 @@ Each app uses only the files it needs:
 | --- | --- |
 | `models.py` | Fields, `TextChoices`, `Meta.constraints`, simple model properties. No multi-step workflows. |
 | `serializers.py` | Input validation and output shape for the API. |
-| `services.py` | Business operations that change several rows or must lock rows: checkout, return, starting and completing maintenance, retirement, reactivation, imports. |
+| `services.py` | Business operations that change several rows or must lock rows: checkout, return, starting and completing maintenance, retirement, reactivation, imports, and damage-flag record/edit/resolve operations. |
 | `views.py` | HTTP layer only: permissions, parse input with a serializer, call the ORM or a service, return a response. |
 | `permissions.py` | DRF permission classes for the app. |
 | `urls.py` | Explicit `path()` entries for the app's resources. |
@@ -130,6 +130,7 @@ Rules from [database.md section 4](database.md#4-operating-rules) live in `servi
 - Use `@transaction.atomic` on every service that writes more than one row.
 - Lock the rows being checked with `select_for_update()` inside the transaction.
 - When persistent damage-incident editing is implemented, record the authenticated technician, server-generated edit timestamp, and changed fields in audit history in the same transaction as the incident update. Do not accept the editor identity or timestamp from the client.
+- Damage-flag services lock the borrower row before modifying incident state. This serializes count-changing operations for a borrower; checkout enforcement must use the same lock once the Loan workflow is implemented.
 - Services do not use HTTP-layer exceptions. DRF `ValidationError` and `Http404` are only converted to responses inside DRF views, so admin actions and imports would get a `500` or an unhandled traceback. Instead:
   - _Proposed:_ raise `BusinessRuleError` for rule violations. It is a small exception class in `equipmanager/exceptions.py` (shared configuration, not a business app) that carries a field-to-messages dict.
   - Let `Model.DoesNotExist` propagate for a missing record.
@@ -290,7 +291,7 @@ Each endpoint needs tests for:
 | Service error handling | Views convert `BusinessRuleError` per view (current guidance), or a custom DRF exception handler in shared settings | Every service-backed endpoint |
 | Pagination | The asset list sets `PageNumberPagination` (20 per page) on its view. Open: make it the global DRF default, or keep it per view | All list endpoints |
 | Filtering and search | Manual query parameters (proposed), or add `django-filter` | List endpoints |
-| UI design fields not in the schema | Serial number, borrower eligibility and terms, damage-flag count, maintenance and damage notes, who may archive, Asset ID in the add form, changing an asset's category or type, and the asset archived view and status filter. See [UI-Design.md §7](UI-Design.md#7-where-the-design-differs-from-the-data-model) | Asset, borrower, loan, and maintenance features |
+| UI design fields not in the schema | Serial number, overall borrower eligibility and terms, maintenance notes, who may archive, Asset ID in the add form, changing an asset's category or type, and the asset archived view and status filter. Damage incident history and damage-based warnings are implemented separately; overall eligibility awaits Loan integration. See [UI-Design.md §7](UI-Design.md#7-where-the-design-differs-from-the-data-model) | Asset, borrower, loan, and maintenance features |
 | Analytics and Excel export | Which app owns the endpoints for the four analytics in the Project Overview, and whether Excel files are generated by Django or in the browser | Analytics pages, export |
 | Resource names | `assets/` (matches `database.md`) vs `equipment/` (Architecture.md examples) | URLs, frontend routes. Once decided, also update the examples in `docs/README.md` ("Adding an Endpoint", "Trying a Protected Endpoint") and the comment in `inventory/urls.py` |
 

@@ -1,5 +1,6 @@
 import { apiBaseUrl } from '../../api'
 import { sessionFetch } from '../auth/sessionFetch'
+import type { DamageWarningLevel } from './types'
 
 export interface BorrowerRecord {
   borrower_id: number
@@ -10,6 +11,9 @@ export interface BorrowerRecord {
 
 export interface BorrowerDetailsRecord extends BorrowerRecord {
   negligent_damage_flag: boolean
+  unresolved_damage_flag_count: number
+  damage_warning_level: DamageWarningLevel
+  damage_eligible: boolean
 }
 
 export interface PaginatedBorrowers {

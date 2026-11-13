@@ -16,9 +16,16 @@ import BorrowerTable from '../features/borrowers/components/BorrowerTable'
 import BorrowersPage from '../pages/BorrowersPage'
 import { technicianAuth, withAuth } from './authTestUtils'
 
-const { useBorrowersMock, fetchBorrowerDetailsMock } = vi.hoisted(() => ({
+const {
+  useBorrowersMock,
+  fetchBorrowerDetailsMock,
+  fetchAllAssetsMock,
+  fetchDamageFlagsMock,
+} = vi.hoisted(() => ({
   useBorrowersMock: vi.fn(),
   fetchBorrowerDetailsMock: vi.fn(),
+  fetchAllAssetsMock: vi.fn(),
+  fetchDamageFlagsMock: vi.fn(),
 }))
 
 vi.mock('../features/borrowers/hooks/useBorrowers', () => ({
@@ -32,6 +39,21 @@ vi.mock('../features/borrowers/api', async (importOriginal) => {
     fetchBorrowerDetails: fetchBorrowerDetailsMock,
   }
 })
+
+vi.mock('../features/assets/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../features/assets/api')>()
+  return {
+    ...actual,
+    fetchAllAssets: fetchAllAssetsMock,
+  }
+})
+
+vi.mock('../features/borrowers/damageFlagsApi', () => ({
+  fetchDamageFlags: fetchDamageFlagsMock,
+  createDamageFlag: vi.fn(),
+  resolveDamageFlag: vi.fn(),
+  updateDamageFlag: vi.fn(),
+}))
 
 const defaultBorrowerList = {
   borrowers: [],
@@ -50,7 +72,20 @@ beforeEach(() => {
     first_name: borrowerId === 22 ? 'Ada' : 'Riley',
     last_name: borrowerId === 22 ? 'Lovelace' : '',
     negligent_damage_flag: false,
+    unresolved_damage_flag_count: 0,
+    damage_warning_level: 'no_warning',
+    damage_eligible: true,
   }))
+  fetchAllAssetsMock.mockResolvedValue([])
+  fetchDamageFlagsMock.mockResolvedValue({
+    count: 0,
+    results: [],
+    summary: {
+      unresolved_count: 0,
+      warning_level: 'no_warning',
+      damage_eligible: true,
+    },
+  })
 })
 
 afterEach(() => {
@@ -236,10 +271,15 @@ describe('BorrowersPage details integration', () => {
     expect(fetchBorrowerDetailsMock).toHaveBeenCalledWith(22, expect.any(AbortSignal))
     expect(screen.getByText('Borrower details · UNB ID 0000022')).toBeTruthy()
     expect(screen.getAllByText('Standing unavailable')).toHaveLength(2)
+    expect(await screen.findByText('No flag recorded')).toBeTruthy()
+    expect(screen.getByText(/unresolved incidents/)).toBeTruthy()
+    expect(screen.getByText('No warning')).toBeTruthy()
+    expect(screen.getByText('Damage-based checkout status: Eligible')).toBeTruthy()
+    expect(screen.queryByText(/Overall eligibility/i)).toBeNull()
     expect(screen.getByText('Certification information unavailable.')).toBeTruthy()
     expect(screen.getByText('Active loan information unavailable.')).toBeTruthy()
     expect(screen.getByText('Overdue equipment information unavailable.')).toBeTruthy()
-    expect(await screen.findByText('No flag recorded')).toBeTruthy()
+    expect(screen.getByText('This stored indicator is separate from incident history and does not affect warning calculations.')).toBeTruthy()
 
     const borrowingRecordsButton = screen.getByRole('button', { name: 'View Borrowing Records' })
     expect(borrowingRecordsButton.hasAttribute('disabled')).toBe(true)
@@ -248,9 +288,10 @@ describe('BorrowersPage details integration', () => {
     )).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: 'Manage Damage Flags' }))
-    expect(screen.getByText(/Damage flag information is unavailable/i)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Record Damage Flag' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Resolve Existing Flag' })).toBeNull()
+    expect(await screen.findByText('No unresolved damage flags.')).toBeTruthy()
+    expect(fetchDamageFlagsMock).toHaveBeenCalledWith(22)
+    expect(screen.getByRole('button', { name: 'Record Damage Flag' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Resolve Existing Flag' }).hasAttribute('disabled')).toBe(true)
   })
 
   it('supports a borrower with no last name and closes the details workflow', async () => {
@@ -322,6 +363,9 @@ describe('BorrowersPage details integration', () => {
         first_name: 'Riley',
         last_name: '',
         negligent_damage_flag: false,
+        unresolved_damage_flag_count: 0,
+        damage_warning_level: 'no_warning',
+        damage_eligible: true,
       })
     })
     useBorrowersMock.mockReturnValue({
@@ -349,6 +393,9 @@ describe('BorrowersPage details integration', () => {
         first_name: 'Ada',
         last_name: 'Lovelace',
         negligent_damage_flag: true,
+        unresolved_damage_flag_count: 2,
+        damage_warning_level: 'final_warning',
+        damage_eligible: true,
       })
     })
     expect(screen.getByText('No flag recorded')).toBeTruthy()

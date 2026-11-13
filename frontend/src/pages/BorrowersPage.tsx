@@ -5,14 +5,26 @@ import BorrowerDetailsWorkflow from '../features/borrowers/components/BorrowerDe
 import BorrowerPagination from '../features/borrowers/components/BorrowerPagination'
 import BorrowerSearchToolbar from '../features/borrowers/components/BorrowerSearchToolbar'
 import BorrowerTable from '../features/borrowers/components/BorrowerTable'
+import { fetchAllAssets } from '../features/assets/api'
 import {
   describeBorrowerDetailsError,
   fetchBorrowerDetails,
   type BorrowerDetailsRecord,
   type BorrowerRecord,
 } from '../features/borrowers/api'
+import {
+  createDamageFlag,
+  fetchDamageFlags,
+  resolveDamageFlag,
+  updateDamageFlag,
+} from '../features/borrowers/damageFlagsApi'
 import useBorrowers from '../features/borrowers/hooks/useBorrowers'
-import type { BorrowerDetailsLoadState, BorrowerDetailsViewModel } from '../features/borrowers/types'
+import type {
+  BorrowerDetailsLoadState,
+  BorrowerDetailsViewModel,
+  DamageFlagEquipmentOption,
+  DamageFlagUpdateInput,
+} from '../features/borrowers/types'
 
 export default function BorrowersPage() {
   const [search, setSearch] = useState('')
@@ -26,6 +38,12 @@ export default function BorrowersPage() {
     state: BorrowerDetailsLoadState
   }>()
   const [detailsRetry, setDetailsRetry] = useState(0)
+  const [equipmentRetry, setEquipmentRetry] = useState(0)
+  const [equipmentResult, setEquipmentResult] = useState<{
+    borrowerId: number
+    options?: DamageFlagEquipmentOption[]
+    error: string
+  }>()
   const {
     borrowers,
     errorMessage,
@@ -77,6 +95,46 @@ export default function BorrowersPage() {
     return () => controller.abort()
   }, [selectedBorrower, detailsRetry])
 
+  useEffect(() => {
+    if (!selectedBorrower) return undefined
+
+    let active = true
+    const borrowerId = selectedBorrower.borrower_id
+    fetchAllAssets().then(
+      (assets) => {
+        if (active) {
+          setEquipmentResult({
+            borrowerId,
+            options: assets.map((asset) => ({
+              id: asset.asset_id,
+              name: `${asset.name} (${asset.asset_identifier})`,
+            })),
+            error: '',
+          })
+        }
+      },
+      (error: unknown) => {
+        if (active) {
+          setEquipmentResult({
+            borrowerId,
+            error: error instanceof Error ? error.message : 'Could not load equipment options.',
+          })
+        }
+      },
+    )
+
+    return () => {
+      active = false
+    }
+  }, [selectedBorrower, equipmentRetry])
+
+  const currentEquipmentResult = selectedBorrower
+    && equipmentResult?.borrowerId === selectedBorrower.borrower_id
+    ? equipmentResult
+    : undefined
+  const equipmentOptions = currentEquipmentResult?.options
+  const equipmentOptionsError = currentEquipmentResult?.error ?? ''
+
   const currentDetailsRecord = borrowerDetailsRecord?.borrower_id === selectedBorrower?.borrower_id
     ? borrowerDetailsRecord
     : undefined
@@ -110,6 +168,9 @@ export default function BorrowersPage() {
         .join(' '),
       unb_id: currentDetailsRecord?.unb_id ?? selectedBorrower.unb_id,
       negligent_damage_flag: currentDetailsRecord?.negligent_damage_flag,
+      unresolved_damage_flag_count: currentDetailsRecord?.unresolved_damage_flag_count,
+      damage_warning_level: currentDetailsRecord?.damage_warning_level,
+      damage_eligible: currentDetailsRecord?.damage_eligible,
     }
     : null
 
@@ -176,6 +237,21 @@ export default function BorrowersPage() {
           borrower={borrowerDetails}
           detailsLoadState={currentDetailsLoadState}
           onRetryDetails={() => setDetailsRetry((retry) => retry + 1)}
+          onLoadDamageFlags={fetchDamageFlags}
+          onCreateDamageFlag={createDamageFlag}
+          onResolveDamageFlag={(flagId, resolutionReason) => resolveDamageFlag(
+            borrowerDetails.borrower_id,
+            flagId,
+            resolutionReason,
+          )}
+          onUpdateDamageFlag={(flagId, payload: DamageFlagUpdateInput) => updateDamageFlag(
+            borrowerDetails.borrower_id,
+            flagId,
+            payload,
+          )}
+          equipmentOptions={equipmentOptions}
+          equipmentOptionsError={equipmentOptionsError}
+          onRetryEquipmentOptions={() => setEquipmentRetry((retry) => retry + 1)}
           onClose={() => setSelectedBorrower(null)}
         />
       )}

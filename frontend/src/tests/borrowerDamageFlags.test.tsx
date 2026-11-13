@@ -8,13 +8,16 @@ import BorrowerStandingBadge from '../features/borrowers/components/BorrowerStan
 import DamageFlagList from '../features/borrowers/components/DamageFlagList'
 import ManageDamageFlagsModal from '../features/borrowers/components/ManageDamageFlagsModal'
 import RecordDamageFlagModal from '../features/borrowers/components/RecordDamageFlagModal'
-import type { BorrowerIdentity, DamageFlag } from '../features/borrowers/types'
+import type {
+  BorrowerIdentity,
+  DamageFlag,
+  DamageFlagLoadState,
+} from '../features/borrowers/types'
 
 const borrower: BorrowerIdentity = {
   borrower_id: 42,
   borrower_name: 'Jordan Smith',
   standing: 'Overdue',
-  is_eligible: false,
 }
 
 afterEach(() => {
@@ -50,6 +53,25 @@ const flags: DamageFlag[] = [
   },
 ]
 
+function loadedState(items: DamageFlag[]): DamageFlagLoadState {
+  const unresolvedCount = items.filter((flag) => flag.status === 'unresolved').length
+  return {
+    status: 'loaded',
+    flags: items,
+    summary: {
+      unresolved_count: unresolvedCount,
+      warning_level: unresolvedCount === 0
+        ? 'no_warning'
+        : unresolvedCount === 1
+          ? 'first_warning'
+          : unresolvedCount === 2
+            ? 'final_warning'
+            : 'ineligible',
+      damage_eligible: unresolvedCount < 3,
+    },
+  }
+}
+
 describe('DamageFlagList', () => {
   it('formats date-only incident dates consistently across timezones', () => {
     const dateOnlyFlag: DamageFlag = {
@@ -77,7 +99,7 @@ describe('ManageDamageFlagsModal', () => {
     const { container } = render(
       <ManageDamageFlagsModal
         borrower={borrower}
-        dataState={{ status: 'loaded', flags }}
+        dataState={loadedState(flags)}
         onClose={() => {}}
         onResolveFlag={() => {}}
         onSelectFlag={() => {}}
@@ -122,7 +144,7 @@ describe('ManageDamageFlagsModal', () => {
     render(
       <ManageDamageFlagsModal
         borrower={borrower}
-        dataState={{ status: 'loaded', flags }}
+        dataState={loadedState(flags)}
         onClose={() => {}}
         onEditFlag={onEditFlag}
         onResolveFlag={onResolveFlag}
@@ -180,7 +202,7 @@ describe('ManageDamageFlagsModal', () => {
     render(
       <ManageDamageFlagsModal
         borrower={borrower}
-        dataState={{ status: 'loaded', flags: multipleFlags }}
+        dataState={loadedState(multipleFlags)}
         onClose={() => {}}
         onResolveFlag={onResolve}
         onSelectFlag={() => {}}
@@ -200,7 +222,7 @@ describe('ManageDamageFlagsModal', () => {
       name: /Select unresolved incident: Cordless drill, Returned with cracked housing/i,
     }))
     await user.click(resolveButton)
-    expect(saveButton.hasAttribute('disabled')).toBe(false)
+    expect(saveButton.hasAttribute('disabled')).toBe(true)
 
     await user.click(screen.getByRole('button', {
       name: /Select unresolved incident: Laser level, Case cracked after return/i,
@@ -208,10 +230,12 @@ describe('ManageDamageFlagsModal', () => {
     expect(saveButton.hasAttribute('disabled')).toBe(true)
 
     await user.click(resolveButton)
+    expect(saveButton.hasAttribute('disabled')).toBe(true)
+    await user.type(screen.getByLabelText('Resolution reason'), 'Reviewed and resolved.')
     await user.click(saveButton)
 
     expect(onResolve).toHaveBeenCalledTimes(1)
-    expect(onResolve).toHaveBeenCalledWith('flag-3')
+    expect(onResolve).toHaveBeenCalledWith('flag-3', 'Reviewed and resolved.')
     expect(screen.getByText(/incident remains in history/i)).toBeTruthy()
     expect(screen.getByRole('button', {
       name: /Select resolved incident: Laser level, Case cracked after return/i,
@@ -229,7 +253,7 @@ describe('ManageDamageFlagsModal', () => {
     render(
       <ManageDamageFlagsModal
         borrower={borrower}
-        dataState={{ status: 'loaded', flags: [flags[0]] }}
+        dataState={loadedState([flags[0]])}
         onClose={() => {}}
         onResolveFlag={onResolve}
       />,
@@ -239,6 +263,7 @@ describe('ManageDamageFlagsModal', () => {
       name: /Select unresolved incident: Cordless drill/i,
     }))
     await user.click(screen.getByRole('button', { name: 'Resolve Existing Flag' }))
+    await user.type(screen.getByLabelText('Resolution reason'), 'Reviewed and resolved.')
     const saveButton = screen.getByRole('button', { name: /Save selected flag resolution/i })
     await user.click(saveButton)
     await user.click(saveButton)
@@ -258,7 +283,7 @@ describe('ManageDamageFlagsModal', () => {
     const { unmount } = render(
       <ManageDamageFlagsModal
         borrower={borrower}
-        dataState={{ status: 'loaded', flags: [] }}
+        dataState={loadedState([])}
         onClose={onClose}
       />,
     )

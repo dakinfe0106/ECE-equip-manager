@@ -1,10 +1,13 @@
 export type BorrowerStanding = 'Good' | 'Overdue' | 'Damage flag'
+export type DamageWarningLevel = 'no_warning' | 'first_warning' | 'final_warning' | 'ineligible'
 
 export interface BorrowerIdentity {
   borrower_id: number
   borrower_name: string
   standing?: BorrowerStanding
-  is_eligible?: boolean
+  unresolved_damage_flag_count?: number
+  damage_warning_level?: DamageWarningLevel
+  damage_eligible?: boolean
 }
 
 export interface BorrowerLoanSummary {
@@ -30,6 +33,9 @@ export interface BorrowerDetailsViewModel {
   active_loans?: BorrowerLoanSummary[]
   overdue_equipment?: BorrowerOverdueEquipment[]
   negligent_damage_flag?: boolean
+  unresolved_damage_flag_count?: number
+  damage_warning_level?: DamageWarningLevel
+  damage_eligible?: boolean
 }
 
 export type BorrowerDetailsLoadState =
@@ -53,6 +59,27 @@ export interface DamageFlag {
   resolved_at?: string | null
   resolved_by?: string | null
   reviewed?: boolean
+  reviewed_by?: string
+  reviewed_at?: string
+  updated_at?: string
+  resolution_reason?: string
+}
+
+export interface DamageFlagSummary {
+  unresolved_count: number
+  warning_level: DamageWarningLevel
+  damage_eligible: boolean
+}
+
+export interface DamageFlagCollection {
+  count: number
+  results: DamageFlag[]
+  summary: DamageFlagSummary
+}
+
+export interface DamageFlagMutationResult {
+  damage_flag: DamageFlag
+  summary: DamageFlagSummary
 }
 
 export interface DamageFlagCreateInput {
@@ -83,10 +110,4 @@ export type DamageFlagLoadState =
   | { status: 'loading' }
   | { status: 'unavailable' }
   | { status: 'error'; message: string }
-  | { status: 'loaded'; flags: DamageFlag[] }
-
-export interface DamageFlagApiResponse {
-  data: DamageFlag[]
-  count: number
-  unresolved_count: number
-}
+  | { status: 'loaded'; flags: DamageFlag[]; summary: DamageFlagSummary }

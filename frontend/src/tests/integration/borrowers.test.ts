@@ -30,6 +30,9 @@ const borrowerDetails: BorrowerDetailsRecord = {
   first_name: 'Ada',
   last_name: 'Lovelace',
   negligent_damage_flag: false,
+  unresolved_damage_flag_count: 0,
+  damage_warning_level: 'no_warning',
+  damage_eligible: true,
 }
 
 const server = setupServer(

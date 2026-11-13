@@ -1,8 +1,8 @@
-"""Reusable, provisional damage-flag validation logic for future borrower integration.
+"""Legacy pure helpers retained for compatibility with existing tests.
 
-This module intentionally does not create any database models or migrations.
-It is designed to be consumed by the future Borrower model and checkout workflow
-without duplicating the Borrower domain or adding a production persistence layer.
+Persistent damage incidents and authoritative warning calculations live in
+``lending.models`` and ``lending.services``. These dataclasses are not persisted
+and must not be used as the source of truth for borrower warnings or eligibility.
 """
 
 from __future__ import annotations
@@ -15,11 +15,7 @@ from typing import Any
 
 @dataclass(frozen=True)
 class DamageFlagRecord:
-    """Representative damage incident record used by the frontend and service layer.
-
-    The contract is intentionally provisional and should be replaced by the final
-    Borrower model once the feature is integrated upstream.
-    """
+    """Non-persistent compatibility record; production incidents use DamageFlag."""
 
     id: str
     borrower_id: int
@@ -82,12 +78,7 @@ def _incident_date(value: Any) -> date:
 
 
 def validate_damage_flag_input(payload: Mapping[str, Any]) -> DamageFlagDraft:
-    """Validate a technician-submitted damage flag before it is accepted.
-
-    This intentionally rejects missing required data without requiring a database
-    model or migration. The rule is explicit: a flag is only valid after the
-    incident has been reviewed and confirmed as negligent damage.
-    """
+    """Validate a review-confirmed draft without performing database persistence."""
 
     if "reviewed_by" in payload:
         raise ValueError("Reviewer identity must come from the authenticated server.")
@@ -178,12 +169,7 @@ def create_damage_flag_record(
     created_at: str | None = None,
     reviewed_by: str | None = None,
 ) -> DamageFlagRecord:
-    """Create a provisional damage-flag record for future persistence.
-
-    This intentionally does not write to the database. It preserves all of the
-    incident details needed to later integrate with the real Borrower model.
-    ``reviewed_by`` must come from the authenticated server context, not request data.
-    """
+    """Create a non-persistent compatibility record for existing unit tests."""
 
     return DamageFlagRecord(
         id=flag_id,
@@ -222,12 +208,7 @@ def borrower_is_eligible(
     standing: str | None = None,
     is_eligible: bool | None = None,
 ) -> bool | None:
-    """Return the system-provided eligibility value without inferring policy.
-
-    Standing is intentionally unused: warning or restriction thresholds have not
-    been approved. Missing eligibility remains unknown rather than being treated
-    as either eligible or ineligible.
-    """
+    """Return an explicit overall eligibility value, which is unknown without Loan data."""
 
     return is_eligible
 

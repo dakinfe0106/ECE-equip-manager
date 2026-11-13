@@ -216,6 +216,9 @@ def test_borrower_detail_returns_identity_and_negligent_damage_status(
         "first_name": "Ada",
         "last_name": "Lovelace",
         "negligent_damage_flag": negligent_damage_flag,
+        "unresolved_damage_flag_count": 0,
+        "damage_warning_level": "no_warning",
+        "damage_eligible": True,
     }
 
 

@@ -1,18 +1,31 @@
 import { useMemo, useRef, useState } from 'react'
 import DamageFlagList from './DamageFlagList'
-import BorrowerStandingBadge from './BorrowerStandingBadge'
+import BorrowerDamageWarningBadge from './BorrowerDamageWarningBadge'
 import useModalAccessibility from '../hooks/useModalAccessibility'
-import type { BorrowerIdentity, DamageFlag, DamageFlagLoadState } from '../types'
+import type {
+  BorrowerIdentity,
+  DamageFlag,
+  DamageFlagLoadState,
+  DamageFlagMutationResult,
+  DamageFlagSummary,
+} from '../types'
 
 interface ManageDamageFlagsModalProps {
   borrower: BorrowerIdentity
   dataState: DamageFlagLoadState
   onClose: () => void
-  onResolveFlag?: (flagId: string) => DamageFlag | void | Promise<DamageFlag | void>
+  onResolveFlag?: (
+    flagId: string,
+    resolutionReason: string,
+  ) => DamageFlagMutationResult | DamageFlag | void
+    | Promise<DamageFlagMutationResult | DamageFlag | void>
   onSelectFlag?: (flagId: string | undefined) => void
   onEditFlag?: (flagId: string) => void
   onRecordDamageFlag?: () => void
   onRetry?: () => void
+  equipmentOptionsError?: string
+  equipmentOptionsEmpty?: boolean
+  onRetryEquipmentOptions?: () => void
   initialSelectedFlagId?: string
   restoreFocusOnUnmount?: boolean
 }
@@ -26,6 +39,9 @@ export default function ManageDamageFlagsModal({
   onEditFlag,
   onRecordDamageFlag,
   onRetry,
+  equipmentOptionsError,
+  equipmentOptionsEmpty,
+  onRetryEquipmentOptions,
   initialSelectedFlagId,
   restoreFocusOnUnmount = true,
 }: ManageDamageFlagsModalProps) {
@@ -33,6 +49,8 @@ export default function ManageDamageFlagsModal({
   const savingRef = useRef(false)
   const [selectedFlagId, setSelectedFlagId] = useState(initialSelectedFlagId)
   const [pendingResolutionId, setPendingResolutionId] = useState<string | undefined>(undefined)
+  const [resolutionReason, setResolutionReason] = useState('')
+  const [summaryOverride, setSummaryOverride] = useState<DamageFlagSummary | undefined>()
   const [resolvedFlagIds, setResolvedFlagIds] = useState<string[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -60,7 +78,7 @@ export default function ManageDamageFlagsModal({
     )),
     [flags, resolvedFlagIds],
   )
-  const displayedUnresolvedCount = dataState.status === 'loaded'
+  const calculatedUnresolvedCount = dataState.status === 'loaded'
     ? Math.max(
       0,
       flags.filter((flag) => flag.status === 'unresolved').length
@@ -69,6 +87,10 @@ export default function ManageDamageFlagsModal({
         ).length,
     )
     : undefined
+  const displayedUnresolvedCount = summaryOverride?.unresolved_count
+    ?? (dataState.status === 'loaded' && resolvedFlagIds.length === 0
+      ? dataState.summary.unresolved_count
+      : calculatedUnresolvedCount)
 
   useModalAccessibility(dialogRef, () => {
     if (!savingRef.current) onClose()
@@ -81,6 +103,7 @@ export default function ManageDamageFlagsModal({
     setSuccessMessage('')
     setSelectedFlagId(flagId)
     setPendingResolutionId(undefined)
+    setResolutionReason('')
     onSelectFlag?.(flagId)
   }
 
@@ -91,6 +114,7 @@ export default function ManageDamageFlagsModal({
     }
 
     setPendingResolutionId(selectedUnresolvedFlag.id)
+    setResolutionReason('')
     setErrorMessage('')
     setSuccessMessage('Selected incident marked for resolution. Save Changes to confirm.')
   }
@@ -102,6 +126,11 @@ export default function ManageDamageFlagsModal({
       pendingResolutionId !== selectedUnresolvedFlag.id
     ) {
       setErrorMessage('Select an unresolved incident and mark it for resolution before saving.')
+      return
+    }
+
+    if (!resolutionReason.trim()) {
+      setErrorMessage('A resolution reason is required.')
       return
     }
 
@@ -117,7 +146,10 @@ export default function ManageDamageFlagsModal({
     setErrorMessage('')
     setSuccessMessage('')
     try {
-      await onResolveFlag(pendingResolutionId)
+      const result = await onResolveFlag(pendingResolutionId, resolutionReason.trim())
+      if (result && 'summary' in result) {
+        setSummaryOverride(result.summary)
+      }
       setResolvedFlagIds((current) => [...new Set([...current, pendingResolutionId])])
       setSelectedFlagId(undefined)
       onSelectFlag?.(undefined)
@@ -138,6 +170,7 @@ export default function ManageDamageFlagsModal({
       && selectedUnresolvedFlag
       && pendingResolutionId
       && pendingResolutionId === selectedUnresolvedFlag.id
+      && resolutionReason.trim()
       && !isSaving,
   )
 
@@ -212,6 +245,27 @@ export default function ManageDamageFlagsModal({
           )}
           {dataState.status === 'loaded' && (
             <div className="space-y-4">
+          {equipmentOptionsEmpty && (
+            <p role="status" className="rounded-[8px] border border-line bg-page p-3 text-[10px] text-muted">
+              No active equipment is available. Recording a new damage flag is disabled.
+            </p>
+          )}
+          {equipmentOptionsError && (
+            <div className="space-y-2 rounded-[8px] border border-danger/20 bg-danger-soft p-3">
+              <p role="alert" className="m-0 text-[10px] text-danger">
+                Unable to load equipment options. {equipmentOptionsError}
+              </p>
+              {onRetryEquipmentOptions && (
+                <button
+                  type="button"
+                  className="inline-flex min-h-[34px] items-center justify-center rounded-lg border border-input bg-white px-3 text-[10px] font-[650] text-body focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
+                  onClick={onRetryEquipmentOptions}
+                >
+                  Retry equipment lookup
+                </button>
+              )}
+            </div>
+          )}
           <div className="rounded-[9px] border border-line bg-page px-[14px] py-1">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -224,8 +278,13 @@ export default function ManageDamageFlagsModal({
               </div>
             </div>
             <div className="border-t border-divider py-3">
-              <BorrowerStandingBadge
-                standing={borrower.standing}
+              <BorrowerDamageWarningBadge
+                warningLevel={
+                  summaryOverride?.warning_level
+                    ?? (dataState.status === 'loaded'
+                      ? dataState.summary.warning_level
+                      : borrower.damage_warning_level)
+                }
               />
             </div>
           </div>
@@ -269,6 +328,30 @@ export default function ManageDamageFlagsModal({
           <p className="mb-4 text-[10px] text-muted" aria-live="polite">
             Select an incident to edit, or select an unresolved incident to resolve it.
           </p>
+
+          {pendingResolutionId && (
+            <div className="mb-4">
+              <label
+                htmlFor="damage-flag-resolution-reason"
+                className="mb-1 block text-[9px] font-[650] uppercase tracking-[0.25px] text-muted"
+              >
+                Resolution reason
+              </label>
+              <textarea
+                id="damage-flag-resolution-reason"
+                className="min-h-[64px] w-full rounded-[5px] border border-input bg-white px-[9px] py-2 text-[11px] text-body focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[2px]"
+                value={resolutionReason}
+                onChange={(event) => {
+                  setResolutionReason(event.target.value)
+                  setErrorMessage('')
+                }}
+                aria-describedby="damage-flag-resolution-help"
+              />
+              <p id="damage-flag-resolution-help" className="mt-1 text-[9px] text-muted">
+                Required to preserve why this incident was resolved.
+              </p>
+            </div>
+          )}
 
           <div className="rounded-[8px] border border-line bg-page p-3" aria-live="polite">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.25px] text-muted">

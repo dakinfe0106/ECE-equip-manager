@@ -8,7 +8,10 @@ import BorrowerDetailsWorkflow from '../features/borrowers/components/BorrowerDe
 import type {
   BorrowerDetailsViewModel,
   DamageFlag,
+  DamageFlagCollection,
   DamageFlagCreateInput,
+  DamageFlagMutationResult,
+  DamageFlagSummary,
   DamageFlagUpdateInput,
 } from '../features/borrowers/types'
 
@@ -57,6 +60,29 @@ const createdFlag: DamageFlag = {
   reason: 'Screen damaged',
 }
 
+function summaryFor(flags: DamageFlag[]): DamageFlagSummary {
+  const unresolvedCount = flags.filter((flag) => flag.status === 'unresolved').length
+  return {
+    unresolved_count: unresolvedCount,
+    warning_level: unresolvedCount === 0
+      ? 'no_warning'
+      : unresolvedCount === 1
+        ? 'first_warning'
+        : unresolvedCount === 2
+          ? 'final_warning'
+          : 'ineligible',
+    damage_eligible: unresolvedCount < 3,
+  }
+}
+
+function loadedFlags(flags: DamageFlag[]): DamageFlagCollection {
+  return { count: flags.length, results: flags, summary: summaryFor(flags) }
+}
+
+function mutationResult(flag: DamageFlag, flags: DamageFlag[]): DamageFlagMutationResult {
+  return { damage_flag: flag, summary: summaryFor(flags) }
+}
+
 function renderWorkflow(overrides: Partial<ComponentProps<typeof BorrowerDetailsWorkflow>> = {}) {
   const onClose = vi.fn()
   const onViewBorrowingRecords = vi.fn()
@@ -96,11 +122,13 @@ describe('BorrowerDetailsWorkflow', () => {
 
   it('keeps borrower identity consistent while navigating and recording an incident', async () => {
     const user = userEvent.setup()
-    const onLoadDamageFlags = vi.fn().mockResolvedValue([firstFlag])
+    const onLoadDamageFlags = vi.fn().mockResolvedValue(loadedFlags([firstFlag]))
     const onCreateDamageFlag = vi.fn(async (input: DamageFlagCreateInput) => ({
-      ...createdFlag,
-      borrower_id: input.borrower_id,
-      borrower_name: input.borrower_name,
+      ...mutationResult({
+        ...createdFlag,
+        borrower_id: input.borrower_id,
+        borrower_name: input.borrower_name,
+      }, [firstFlag, createdFlag]),
     }))
     renderWorkflow({
       onLoadDamageFlags,
@@ -144,6 +172,9 @@ describe('BorrowerDetailsWorkflow', () => {
 
     expect(screen.getByRole('dialog', { name: 'Jordan Smith' })).toBeTruthy()
     expect(screen.getByText('0000142')).toBeTruthy()
+    expect(screen.getByText('2 unresolved incidents')).toBeTruthy()
+    expect(screen.getByText('Final warning')).toBeTruthy()
+    expect(screen.queryByText(/Overall eligibility/i)).toBeNull()
   })
 
   it('edits an explicitly selected unresolved incident in place without changing its count', async () => {
@@ -155,13 +186,12 @@ describe('BorrowerDetailsWorkflow', () => {
       reason: 'Corrected description',
       notes: 'Corrected note',
     }
-    const onUpdateDamageFlag = vi.fn(async (flagId: string, input: DamageFlagUpdateInput) => ({
-      ...firstFlag,
-      ...input,
-      id: flagId,
-    }))
+    const onUpdateDamageFlag = vi.fn(async (flagId: string, input: DamageFlagUpdateInput) => {
+      const updatedFlag = { ...firstFlag, ...input, id: flagId }
+      return mutationResult(updatedFlag, [updatedFlag, resolvedFlag])
+    })
     renderWorkflow({
-      onLoadDamageFlags: async () => [firstFlag, resolvedFlag],
+      onLoadDamageFlags: async () => loadedFlags([firstFlag, resolvedFlag]),
       onUpdateDamageFlag,
       equipmentOptions: [
         { id: 7, name: 'Cordless drill' },
@@ -214,13 +244,12 @@ describe('BorrowerDetailsWorkflow', () => {
 
   it('prepopulates resolved incidents and preserves their ID, borrower, review state, and status', async () => {
     const user = userEvent.setup()
-    const onUpdateDamageFlag = vi.fn(async (flagId: string, input: DamageFlagUpdateInput) => ({
-      ...resolvedFlag,
-      ...input,
-      id: flagId,
-    }))
+    const onUpdateDamageFlag = vi.fn(async (flagId: string, input: DamageFlagUpdateInput) => {
+      const updatedFlag = { ...resolvedFlag, ...input, id: flagId }
+      return mutationResult(updatedFlag, [firstFlag, updatedFlag])
+    })
     renderWorkflow({
-      onLoadDamageFlags: async () => [firstFlag, resolvedFlag],
+      onLoadDamageFlags: async () => loadedFlags([firstFlag, resolvedFlag]),
       onUpdateDamageFlag,
       equipmentOptions: [
         { id: 7, name: 'Cordless drill' },
@@ -258,13 +287,15 @@ describe('BorrowerDetailsWorkflow', () => {
     expect(screen.getByRole('button', {
       name: /Select resolved incident: Laser level, Broken case after return/,
     }).getAttribute('aria-pressed')).toBe('true')
-    const updatedFlag = onUpdateDamageFlag.mock.results[0].value
-    await expect(updatedFlag).resolves.toMatchObject({
+    const updatedResult = onUpdateDamageFlag.mock.results[0].value
+    await expect(updatedResult).resolves.toMatchObject({
+      damage_flag: expect.objectContaining({
       id: resolvedFlag.id,
       borrower_id: borrower.borrower_id,
       borrower_name: borrower.borrower_name,
       reviewed: resolvedFlag.reviewed,
       status: 'resolved',
+      }),
     })
   })
 
@@ -272,7 +303,7 @@ describe('BorrowerDetailsWorkflow', () => {
     const user = userEvent.setup()
     const onUpdateDamageFlag = vi.fn().mockRejectedValue(new Error('Update failed.'))
     renderWorkflow({
-      onLoadDamageFlags: async () => [firstFlag],
+      onLoadDamageFlags: async () => loadedFlags([firstFlag]),
       onUpdateDamageFlag,
       equipmentOptions: [{ id: 7, name: 'Cordless drill' }],
     })
@@ -316,7 +347,7 @@ describe('BorrowerDetailsWorkflow', () => {
     const user = userEvent.setup()
     const onUpdateDamageFlag = vi.fn()
     renderWorkflow({
-      onLoadDamageFlags: async () => [firstFlag],
+      onLoadDamageFlags: async () => loadedFlags([firstFlag]),
       onUpdateDamageFlag,
       equipmentOptions: [{ id: 7, name: 'Cordless drill' }],
     })
@@ -347,9 +378,9 @@ describe('BorrowerDetailsWorkflow', () => {
 
   it('does not show counts or empty history while loading, and shows empty only after success', async () => {
     const user = userEvent.setup()
-    let finishLoading: (flags: DamageFlag[]) => void = () => {}
+    let finishLoading: (result: DamageFlagCollection) => void = () => {}
     renderWorkflow({
-      onLoadDamageFlags: () => new Promise((resolve) => {
+      onLoadDamageFlags: () => new Promise<DamageFlagCollection>((resolve) => {
         finishLoading = resolve
       }),
     })
@@ -360,7 +391,7 @@ describe('BorrowerDetailsWorkflow', () => {
     expect(screen.queryByText('No unresolved damage flags.')).toBeNull()
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
 
-    finishLoading([])
+    finishLoading(loadedFlags([]))
     expect(await screen.findByText('No unresolved damage flags.')).toBeTruthy()
     expect(screen.getByText('0')).toBeTruthy()
   })
@@ -375,7 +406,7 @@ describe('BorrowerDetailsWorkflow', () => {
 
     const onLoadDamageFlags = vi.fn()
       .mockRejectedValueOnce(new Error('Service is offline.'))
-      .mockResolvedValueOnce([firstFlag])
+      .mockResolvedValueOnce(loadedFlags([firstFlag]))
     rerender(
       <BorrowerDetailsWorkflow
         borrower={borrower}
@@ -400,15 +431,17 @@ describe('BorrowerDetailsWorkflow', () => {
 
   it('resolves only the selected incident after persistence confirms it', async () => {
     const user = userEvent.setup()
-    const onResolveDamageFlag = vi.fn(async (flagId: string) => ({
-      ...(flagId === secondFlag.id ? secondFlag : firstFlag),
-      id: flagId,
-      status: 'resolved' as const,
-      resolved_at: '2026-03-20T12:00:00Z',
-    }))
     renderWorkflow({
-      onLoadDamageFlags: async () => [firstFlag, secondFlag],
-      onResolveDamageFlag,
+      onLoadDamageFlags: async () => loadedFlags([firstFlag, secondFlag]),
+      onResolveDamageFlag: async (flagId, reason) => {
+        expect(reason).toBe('Corrected after review.')
+        const flag = flagId === secondFlag.id ? secondFlag : firstFlag
+        return mutationResult({
+          ...flag,
+          status: 'resolved',
+          resolved_at: '2026-03-20T12:00:00Z',
+        }, [firstFlag])
+      },
     })
 
     await user.click(screen.getByRole('button', { name: 'Manage Damage Flags' }))
@@ -416,9 +449,9 @@ describe('BorrowerDetailsWorkflow', () => {
       name: /Select unresolved incident: Laser level, Broken case after return/,
     }))
     await user.click(screen.getByRole('button', { name: 'Resolve Existing Flag' }))
+    await user.type(screen.getByLabelText('Resolution reason'), 'Corrected after review.')
     await user.click(screen.getByRole('button', { name: /Save selected flag resolution/ }))
 
-    await waitFor(() => expect(onResolveDamageFlag).toHaveBeenCalledWith(secondFlag.id))
     expect(await screen.findByText(/incident remains in history/i)).toBeTruthy()
     expect(screen.getByRole('button', {
       name: /Select resolved incident: Laser level, Broken case after return/,
@@ -433,7 +466,7 @@ describe('BorrowerDetailsWorkflow', () => {
     const onResolveDamageFlag = vi.fn().mockRejectedValue(new Error('Resolve failed.'))
     const onCreateDamageFlag = vi.fn().mockRejectedValue(new Error('Create failed.'))
     renderWorkflow({
-      onLoadDamageFlags: async () => [firstFlag],
+      onLoadDamageFlags: async () => loadedFlags([firstFlag]),
       onResolveDamageFlag,
       onCreateDamageFlag,
       equipmentOptions: [{ id: 9, name: 'Oscilloscope' }],
@@ -444,6 +477,7 @@ describe('BorrowerDetailsWorkflow', () => {
       name: /Select unresolved incident: Cordless drill/,
     }))
     await user.click(screen.getByRole('button', { name: 'Resolve Existing Flag' }))
+    await user.type(screen.getByLabelText('Resolution reason'), 'Reviewed.')
     await user.click(screen.getByRole('button', { name: /Save selected flag resolution/ }))
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
@@ -472,8 +506,8 @@ describe('BorrowerDetailsWorkflow', () => {
     document.body.append(trigger)
     trigger.focus()
     const { onClose } = renderWorkflow({
-      onLoadDamageFlags: async () => [firstFlag],
-      onCreateDamageFlag: async () => createdFlag,
+      onLoadDamageFlags: async () => loadedFlags([firstFlag]),
+      onCreateDamageFlag: async () => mutationResult(createdFlag, [firstFlag, createdFlag]),
       equipmentOptions: [{ id: 9, name: 'Oscilloscope' }],
     })
     await user.click(screen.getByRole('button', { name: 'Manage Damage Flags' }))
