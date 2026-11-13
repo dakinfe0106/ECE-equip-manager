@@ -57,13 +57,13 @@ describe('Demo page routes', () => {
     expect(within(container).getByRole('banner', { name: 'Application header' })).toBeTruthy()
   })
 
-  it('renders the maintenance create page instead of the in-progress placeholder', () => {
+  it('renders the maintenance page instead of the in-progress placeholder', () => {
     const html = pageHtml('/maintenance')
     const container = document.createElement('div')
     container.innerHTML = html
 
     expect(within(container).getByRole('heading', { name: 'Maintenance', level: 1 })).toBeTruthy()
-    expect(within(container).getByText('Start an equipment maintenance record')).toBeTruthy()
+    expect(within(container).getByText('Search Asset ID')).toBeTruthy()
     expect(within(container).queryByText('This page is still in progress.')).toBeNull()
   })
 

@@ -14,6 +14,7 @@ export const maintenanceTypes = [
 
 export type MaintenanceType = (typeof maintenanceTypes)[number]
 export type MaintenancePriority = 'Low' | 'Medium' | 'High' | 'Urgent'
+export type MaintenanceStatusFilter = 'all' | 'in_progress' | 'completed'
 export type MaintenanceStatus = 'In Progress' | 'Completed'
 
 export const maintenanceTypeLabels: Record<MaintenanceType, string> = {
@@ -43,6 +44,20 @@ export interface MaintenanceRecord {
   start_date: string
   end_date: string | null
   status: MaintenanceStatus
+}
+
+export interface MaintenanceFilters {
+  asset_identifier: string
+  status: MaintenanceStatusFilter
+  maintenance_type: MaintenanceType | ''
+  priority: MaintenancePriority | ''
+}
+
+export interface PaginatedMaintenanceRecords {
+  count: number
+  next: string | null
+  previous: string | null
+  results: MaintenanceRecord[]
 }
 
 export interface MaintenanceCreation {
@@ -88,6 +103,63 @@ async function fetchJson<T>(url: string, action: string): Promise<T> {
     throw await responseError(response, action)
   }
   return response.json()
+}
+
+function buildMaintenanceQuery(
+  filters: Partial<MaintenanceFilters>,
+  page = 1,
+  assetId?: number,
+): URLSearchParams {
+  const params = new URLSearchParams({ page: page.toString() })
+  const search = filters.asset_identifier?.trim()
+  if (search) params.set('asset_identifier', search)
+  if (filters.status && filters.status !== 'all') {
+    params.set('status', filters.status)
+  }
+  if (filters.maintenance_type) {
+    params.set('maintenance_type', filters.maintenance_type)
+  }
+  if (filters.priority) params.set('priority', filters.priority)
+  if (assetId !== undefined) params.set('asset_id', assetId.toString())
+  return params
+}
+
+export function fetchMaintenanceRecords(
+  filters: Partial<MaintenanceFilters> = {},
+  page = 1,
+): Promise<PaginatedMaintenanceRecords> {
+  const query = buildMaintenanceQuery(filters, page)
+  return fetchJson(
+    `${apiBaseUrl}/maintenance-records/?${query}`,
+    'Maintenance records',
+  )
+}
+
+export function fetchAssetMaintenanceHistory(
+  assetId: number,
+): Promise<MaintenanceRecord[]> {
+  return fetchAllAssetMaintenancePages(assetId)
+}
+
+async function fetchAllAssetMaintenancePages(
+  assetId: number,
+): Promise<MaintenanceRecord[]> {
+  const records: MaintenanceRecord[] = []
+  let page = 1
+  let hasNextPage = true
+
+  while (hasNextPage) {
+    const query = buildMaintenanceQuery({}, page, assetId)
+    const response = await fetchJson<PaginatedMaintenanceRecords>(
+      `${apiBaseUrl}/maintenance-records/?${query}`,
+      'Maintenance history',
+    )
+    records.push(...response.results)
+    hasNextPage = response.next !== null
+    page += 1
+  }
+
+  return records
 }
 
 export function fetchMaintenanceTechnicians(): Promise<MaintenanceTechnician[]> {
