@@ -1,3 +1,16 @@
-# Routes for the maintenance app, mounted under /api/ by equipmanager/urls.py.
-# Example: path('maintenance-records/', views.MaintenanceRecordList.as_view(), name='maintenance-record-list'),
-urlpatterns = []
+from django.urls import path
+
+from . import views
+
+urlpatterns = [
+    path(
+        "maintenance-records/",
+        views.MaintenanceRecordCreate.as_view(),
+        name="maintenance-record-create",
+    ),
+    path(
+        "maintenance-records/technicians/",
+        views.MaintenanceTechnicianList.as_view(),
+        name="maintenance-technician-list",
+    ),
+]

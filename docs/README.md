@@ -474,11 +474,13 @@ All endpoints live under `/api/` and end with a trailing slash.
 | GET | `/api/categories/<id>/equipment-types/` | Authenticated. Lists a category's active equipment types, ordered by `type_id`, for the retained category detail popup (no demo page route). Returns `404` for an unknown category. |
 | GET | `/api/equipment-types/` | Authenticated. Lists equipment types whose category is active, ordered by `type_id`. Supports `category_id` and `deleted` (`false` by default, `true`, or `all`). |
 | POST | `/api/equipment-types/` | Technician or Administrator. Creates an equipment type from `{name, category_id}` (optional `description`) in an active category. The name is unique within its category, ignoring case; a duplicate returns `400`. |
-| GET | `/api/assets/` | Authenticated, paginated active assets; supports case-insensitive `search` across Asset ID and name, plus `category_id` and `equipment_type_id` filters together. `/api/assets/lookup/` is an alias. The older `asset_identifier` parameter still works but matches the Asset ID only. |
+| GET | `/api/assets/` | Authenticated, paginated active assets; supports case-insensitive `search` across Asset ID and name, plus `category_id`, `equipment_type_id`, and stored-value `status` filters together. `/api/assets/lookup/` is an alias. The older `asset_identifier` parameter still works but matches the Asset ID only. |
 | GET | `/api/borrowers/` | Authenticated Technician/Administrator only. Lists active borrowers, paginated at 20 per page; supports trimmed, case-insensitive `search` across UNB ID, first name, last name, and full name. Returns `borrower_id`, `unb_id`, `first_name`, and `last_name`; standing and deactivated borrowers with outstanding loans are pending Loan model integration. |
 | POST | `/api/assets/` | Authenticated. Creates an asset with an active `equipment_type_id`; status starts as `Available`. |
 | GET | `/api/assets/<asset_id>/` | Authenticated. Returns one asset. |
 | PATCH | `/api/assets/<asset_id>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
+| POST | `/api/maintenance-records/` | Technician or Administrator. Creates an open maintenance record and sets the eligible asset to `Under_Maintenance` transactionally. |
+| GET | `/api/maintenance-records/technicians/` | Technician or Administrator. Lists active Technician accounts for assignment. |
 
 The general asset edit endpoint keeps `asset_identifier`, `equipment_type`, and `status` read-only. Status transitions must use their corresponding loan, maintenance, retirement, or reactivation workflow so related records and state changes remain consistent.
 
