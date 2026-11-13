@@ -6,7 +6,7 @@ import type { BorrowerDetailsViewModel } from '../types'
 interface BorrowerDetailsModalProps {
   borrower: BorrowerDetailsViewModel
   onClose: () => void
-  onViewBorrowingRecords: (borrowerId: number) => void
+  onViewBorrowingRecords?: (borrowerId: number) => void
   onManageDamageFlags: (borrowerId: number) => void
   restoreFocusOnUnmount?: boolean
 }
@@ -215,12 +215,19 @@ export default function BorrowerDetailsModal({
 
           <button
             type="button"
-            onClick={() => onViewBorrowingRecords(borrower.borrower_id)}
-            className="mt-5 flex w-full items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary-soft p-[13px] text-left text-[10px] font-[650] text-primary hover:bg-primary-soft focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
+            disabled={!onViewBorrowingRecords}
+            aria-describedby={!onViewBorrowingRecords ? 'borrowing-records-unavailable' : undefined}
+            onClick={() => onViewBorrowingRecords?.(borrower.borrower_id)}
+            className="mt-5 flex w-full items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary-soft p-[13px] text-left text-[10px] font-[650] text-primary hover:bg-primary-soft focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px] disabled:cursor-not-allowed disabled:opacity-55"
           >
             View Borrowing Records
             <span aria-hidden="true">›</span>
           </button>
+          {!onViewBorrowingRecords && (
+            <p id="borrowing-records-unavailable" className="mt-2 text-[10px] text-muted">
+              Borrowing records are unavailable until the Lending page is implemented.
+            </p>
+          )}
         </div>
 
         <footer className="flex min-h-[70px] shrink-0 items-center gap-[9px] border-t border-[#e8ebf0] bg-[#fafbfc] px-[22px] py-[15px] max-[520px]:flex-wrap">

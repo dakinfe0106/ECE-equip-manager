@@ -17,7 +17,7 @@ type WorkflowStage = 'details' | 'damageFlags' | 'recordDamageFlag' | 'editDamag
 interface BorrowerDetailsWorkflowProps {
   borrower: BorrowerDetailsViewModel
   onClose: () => void
-  onViewBorrowingRecords: (borrowerId: number) => void
+  onViewBorrowingRecords?: (borrowerId: number) => void
   onLoadDamageFlags?: (borrowerId: number) => Promise<DamageFlag[]>
   onCreateDamageFlag?: (payload: DamageFlagCreateInput) => Promise<DamageFlag>
   onResolveDamageFlag?: (flagId: string) => Promise<DamageFlag>
@@ -128,7 +128,7 @@ export default function BorrowerDetailsWorkflow({
   }
 
   const viewBorrowingRecords = (borrowerId: number) => {
-    if (borrowerId !== borrower.borrower_id) return
+    if (!onViewBorrowingRecords || borrowerId !== borrower.borrower_id) return
     closeWorkflow()
     onViewBorrowingRecords(borrowerId)
   }
@@ -235,7 +235,7 @@ export default function BorrowerDetailsWorkflow({
         <BorrowerDetailsModal
           borrower={borrower}
           onClose={closeWorkflow}
-          onViewBorrowingRecords={viewBorrowingRecords}
+          onViewBorrowingRecords={onViewBorrowingRecords ? viewBorrowingRecords : undefined}
           onManageDamageFlags={(borrowerId) => {
             if (borrowerId !== borrower.borrower_id) return
             void loadFlags()

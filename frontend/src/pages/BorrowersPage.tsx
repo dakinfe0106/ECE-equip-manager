@@ -1,15 +1,19 @@
 import { useState, type FormEvent } from 'react'
 import PageIntro from '../components/ui/PageIntro'
 import Panel from '../components/ui/Panel'
+import BorrowerDetailsWorkflow from '../features/borrowers/components/BorrowerDetailsWorkflow'
 import BorrowerPagination from '../features/borrowers/components/BorrowerPagination'
 import BorrowerSearchToolbar from '../features/borrowers/components/BorrowerSearchToolbar'
 import BorrowerTable from '../features/borrowers/components/BorrowerTable'
+import type { BorrowerRecord } from '../features/borrowers/api'
 import useBorrowers from '../features/borrowers/hooks/useBorrowers'
+import type { BorrowerDetailsViewModel } from '../features/borrowers/types'
 
 export default function BorrowersPage() {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [selectedBorrower, setSelectedBorrower] = useState<BorrowerRecord | null>(null)
   const {
     borrowers,
     errorMessage,
@@ -31,57 +35,76 @@ export default function BorrowersPage() {
     setAppliedSearch('')
   }
 
+  const borrowerDetails: BorrowerDetailsViewModel | null = selectedBorrower
+    ? {
+      borrower_id: selectedBorrower.borrower_id,
+      borrower_name: [selectedBorrower.first_name, selectedBorrower.last_name]
+        .filter(Boolean)
+        .join(' '),
+      unb_id: selectedBorrower.unb_id,
+    }
+    : null
+
   return (
-    <section
-      className="mx-auto flex h-full min-h-0 w-full max-w-[1500px] flex-col px-[34px] pt-[34px] pb-[50px] max-[760px]:px-4 max-[760px]:pt-6 max-[760px]:pb-10"
-      aria-labelledby="page-title"
-    >
-      <PageIntro
-        title="Borrowers"
-        description="Find borrowers and review their records."
-      />
-
-      <Panel className="flex min-h-0 flex-1 flex-col overflow-hidden" label="Borrower search results">
-        <BorrowerSearchToolbar
-          isLoading={isLoading}
-          onSearch={searchBorrowers}
-          onSearchChange={setSearch}
-          onClear={clearSearch}
-          search={search}
+    <>
+      <section
+        className="mx-auto flex h-full min-h-0 w-full max-w-[1500px] flex-col px-[34px] pt-[34px] pb-[50px] max-[760px]:px-4 max-[760px]:pt-6 max-[760px]:pb-10"
+        aria-labelledby="page-title"
+      >
+        <PageIntro
+          title="Borrowers"
+          description="Find borrowers and review their records."
         />
 
-        {errorMessage && (
-          <p
-            className="mx-[17px] mt-[13px] mb-0 rounded-lg border border-danger/20 bg-danger-soft px-[11px] py-[9px] text-[11px] text-danger"
-            role="alert"
-          >
-            <strong>Unable to load borrowers.</strong> {errorMessage}
-          </p>
-        )}
-        {isLoading && (
-          <p
-            className="mx-[17px] mt-[13px] mb-0 rounded-lg border border-primary/20 bg-primary-soft px-[11px] py-[9px] text-[11px] text-primary"
-            role="status"
-          >
-            Loading borrower records…
-          </p>
-        )}
+        <Panel className="flex min-h-0 flex-1 flex-col overflow-hidden" label="Borrower search results">
+          <BorrowerSearchToolbar
+            isLoading={isLoading}
+            onSearch={searchBorrowers}
+            onSearchChange={setSearch}
+            onClear={clearSearch}
+            search={search}
+          />
 
-        <BorrowerTable
-          appliedSearch={appliedSearch}
-          borrowers={borrowers}
-          errorMessage={errorMessage}
-          isLoading={isLoading}
+          {errorMessage && (
+            <p
+              className="mx-[17px] mt-[13px] mb-0 rounded-lg border border-danger/20 bg-danger-soft px-[11px] py-[9px] text-[11px] text-danger"
+              role="alert"
+            >
+              <strong>Unable to load borrowers.</strong> {errorMessage}
+            </p>
+          )}
+          {isLoading && (
+            <p
+              className="mx-[17px] mt-[13px] mb-0 rounded-lg border border-primary/20 bg-primary-soft px-[11px] py-[9px] text-[11px] text-primary"
+              role="status"
+            >
+              Loading borrower records…
+            </p>
+          )}
+
+          <BorrowerTable
+            appliedSearch={appliedSearch}
+            borrowers={borrowers}
+            errorMessage={errorMessage}
+            isLoading={isLoading}
+            onViewDetails={setSelectedBorrower}
+          />
+          <BorrowerPagination
+            currentPage={currentPage}
+            isLoading={isLoading}
+            onPageChange={setCurrentPage}
+            pageCount={pageCount}
+            pageSize={pageSize}
+            totalCount={totalCount}
+          />
+        </Panel>
+      </section>
+      {borrowerDetails && (
+        <BorrowerDetailsWorkflow
+          borrower={borrowerDetails}
+          onClose={() => setSelectedBorrower(null)}
         />
-        <BorrowerPagination
-          currentPage={currentPage}
-          isLoading={isLoading}
-          onPageChange={setCurrentPage}
-          pageCount={pageCount}
-          pageSize={pageSize}
-          totalCount={totalCount}
-        />
-      </Panel>
-    </section>
+      )}
+    </>
   )
 }
