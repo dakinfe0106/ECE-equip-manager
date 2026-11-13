@@ -124,18 +124,6 @@ export default function AssetDetails({
     setShowUnsavedWarning(false)
   }
 
-  const handleCancelEditing = () => {
-    setDraft({
-      name: asset.name,
-      acquisition_date: asset.acquisition_date,
-    })
-
-    setIsEditing(false)
-    setValidationError('')
-    setErrorMessage('')
-    setShowUnsavedWarning(false)
-  }
-
   const closeOnBackdropClick = (
     event: MouseEvent<HTMLDialogElement>,
   ) => {
@@ -220,6 +208,7 @@ export default function AssetDetails({
       className="m-auto max-h-[calc(100dvh-48px)] w-[min(720px,calc(100vw-32px))] overflow-y-auto rounded-[10px] border-0 bg-white px-6 pb-[18px] pt-[22px] shadow-[0_24px_60px_rgb(15_27_45_/_28%)] backdrop:bg-[rgb(20_33_54_/_45%)]"
       id="asset-details"
       aria-labelledby="details-title"
+      onClose={onClose}
       onCancel={(event) => {
         event.preventDefault()
         handleAttemptClose()
@@ -315,19 +304,6 @@ export default function AssetDetails({
 
             <label className="flex min-w-0 flex-col gap-[6px]">
               <span className="text-[10px] font-[650] text-[#8792a2]">
-                Serial Number
-              </span>
-              <input
-                className="w-full rounded-[5px] border border-[#dce3ed] bg-[#f1f3f6] px-3 py-2 text-[12px] text-[#68768a]"
-                value="N/A"
-                readOnly
-                disabled
-                aria-label="Serial number not available"
-              />
-            </label>
-
-            <label className="flex min-w-0 flex-col gap-[6px]">
-              <span className="text-[10px] font-[650] text-[#8792a2]">
                 Category · Read only
               </span>
               <input
@@ -401,7 +377,7 @@ export default function AssetDetails({
               className="rounded-[5px] border border-[#dce3ed] bg-white px-[10px] py-[6px] text-[10px] text-[#59677a] disabled:cursor-wait disabled:opacity-70"
               type="button"
               disabled={isSaving}
-              onClick={handleCancelEditing}
+              onClick={handleAttemptClose}
             >
               Cancel
             </button>
@@ -554,8 +530,7 @@ export default function AssetDetails({
             Lifecycle safeguards
           </h4>
           <p className="text-[10px] text-gray-600">
-            Operational actions are disabled while the asset has an active loan,
-            maintenance record, or retired status.
+            Asset lifecycle actions will be available in a future sprint.
           </p>
         </div>
 
