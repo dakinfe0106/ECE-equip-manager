@@ -95,6 +95,11 @@ Asset ID search trims surrounding whitespace and matches identifiers by case-ins
 
 ### Loan
 
+Implemented in `lending.models.Loan` with a new migration after Borrower's
+`0001_initial`. Loan status is calculated, never stored; Loan has no `is_deleted`.
+The read-only `/api/loans/` endpoint retains history even when related records are
+soft-deleted. Return-condition choices are also enforced by a database check.
+
 | Column               | Type        | Nullable | Constraints/default                                     |
 | -------------------- | ----------- | -------- | ------------------------------------------------------- |
 | loan_id              | int         | No       | PK                                                      |

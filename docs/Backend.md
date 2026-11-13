@@ -19,12 +19,48 @@ If this guide conflicts with `database.md` or `Architecture.md`, raise the confl
 - `inventory` provides authenticated category and equipment-type lookups and creation, paginated asset listing/search, asset creation, asset detail/update endpoints, and a category summary list and per-category equipment-type list for the Categories page. Asset status remains server-controlled; newly created assets start as `Available`.
 - `lending` provides the documented `Borrower` model and an authenticated, read-only, paginated `GET /api/borrowers/` endpoint for active borrowers. It supports trimmed, case-insensitive `search` across UNB ID and names, and only Technicians and Administrators may access it. Standing and inclusion of deactivated borrowers with outstanding loans remain pending integration with the Loan model owned by the Lending team. Borrower creation/editing and lending workflows are not implemented.
 - `maintenance` is mounted under `/api/` but does not yet expose business endpoints.
+- `lending` also provides `Loan` and read-only `GET /api/loans/` with the Issue #110 contract below. Checkout, return, and extension workflows remain unimplemented.
 - `users.User(AbstractUser)` is the custom `AUTH_USER_MODEL`; its required `role` stores `TECHNICIAN`, `FACULTY`, or `ADMINISTRATOR`. Django admin creation/edit forms expose the role, and `createsuperuser` prompts for it through `REQUIRED_FIELDS`. Existing accounts receive `ADMINISTRATOR` in migration `users.0002`; new accounts have no default role. Role assignment does not grant staff/superuser flags or Django permissions.
 - DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Inventory endpoints enforce the role policy in [database.md section 5](database.md#5-permissions-scope). The paginated asset list supports case-insensitive search across Asset ID and name, plus combined category and equipment-type filters.
 - `/api/health/` is a plain Django view, so DRF authentication does not apply to it.
 - The `users` app provides CSRF, login, logout, and current-user endpoints for application-managed sessions (see [section 6](#6-authentication-endpoints)).
 
 ## 2. App layout
+
+### Issue #110: read-only loans contract
+
+`GET /api/loans/` returns an unpaginated JSON array ordered by `loan_id`.
+Each item contains exactly `loan_id`, `asset_id`, `equipment_name`, `borrower_id`,
+`borrower_name`, `checkout_date`, `expected_return_date`, `actual_return_date`,
+`return_condition`, and `status`. Equipment name is `Asset.name`; borrower name
+joins the existing first and last names and trims the result. Dates use YYYY-MM-DD.
+Return date and condition are null for open loans; returned conditions are `Intact`
+or `Damaged`.
+
+The endpoint permits authenticated active Technicians and Administrators through
+`LoanReadPermissions`; Faculty and unsupported roles are denied. Write methods
+are not implemented. Existing borrower endpoints are unchanged.
+
+Supported query parameters (combined with AND):
+
+- `status=on_loan|overdue|returned`: On Loan includes every open loan, including
+  overdue loans. Overdue requires an open loan due before `timezone.localdate()`;
+  returned requires a populated actual return date. The response status is mutually
+  exclusive: returned first, otherwise overdue, otherwise on_loan. Due today is
+  not overdue. A single business date is used throughout each request.
+- `expected_return_from=YYYY-MM-DD` and `expected_return_to=YYYY-MM-DD`: inclusive
+  expected-return bounds, individually or together. Invalid dates or reversed
+  bounds return 400.
+- `asset_status=available|on_loan|under_maintenance|retired`: filters the related
+  asset's current stored status, independently of loan status. Overdue is not an
+  asset status. Invalid loan or asset statuses return 400.
+- `search`: trimmed, case-insensitive substring search across borrower first name,
+  last name, full name, UNB ID, asset name, and asset identifier. Blank search
+  applies no restriction.
+
+Loan history remains visible when related borrowers, assets, types, or categories
+are soft-deleted. No checkout, return, extension, or deletion workflow is included.
+The configured timezone remains unchanged; the timezone decision below is pending.
 
 Each app uses only the files it needs:
 
