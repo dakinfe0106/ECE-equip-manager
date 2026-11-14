@@ -10,6 +10,7 @@ interface BorrowerTableProps {
   borrowers: BorrowerRecord[]
   errorMessage: string
   isLoading: boolean
+  onViewDetails: (borrower: BorrowerRecord) => void
 }
 
 export default function BorrowerTable({
@@ -17,6 +18,7 @@ export default function BorrowerTable({
   borrowers,
   errorMessage,
   isLoading,
+  onViewDetails,
 }: BorrowerTableProps) {
   return (
     <div className="min-h-0 flex-1 overflow-auto">
@@ -26,6 +28,7 @@ export default function BorrowerTable({
             <th className={headerClassName} scope="col">UNB ID</th>
             <th className={headerClassName} scope="col">Borrower Name</th>
             <th className={headerClassName} scope="col">Standing</th>
+            <th className={headerClassName} scope="col"><span className="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody>
@@ -42,13 +45,23 @@ export default function BorrowerTable({
                   <span aria-label="Standing not available">Not available</span>
                 </Badge>
               </td>
+              <td className={cellClassName}>
+                <button
+                  type="button"
+                  aria-label={`View details for ${[borrower.first_name, borrower.last_name].filter(Boolean).join(' ')}, UNB ID ${borrower.unb_id}`}
+                  onClick={() => onViewDetails(borrower)}
+                  className="rounded-md px-2 py-1 font-semibold text-primary hover:bg-primary-soft focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+                >
+                  View Details
+                </button>
+              </td>
             </tr>
           ))}
           {!isLoading && borrowers.length === 0 && (
             <tr>
               <td
                 className="h-[116px] px-[17px] text-center text-[11px] text-subtle whitespace-normal"
-                colSpan={3}
+                colSpan={4}
               >
                 {errorMessage
                   ? 'The borrower list could not be loaded.'
