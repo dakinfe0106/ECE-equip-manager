@@ -1,6 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import PageIntro from '../components/ui/PageIntro'
 import Panel from '../components/ui/Panel'
+import type { BorrowerRecord } from '../features/borrowers/api'
+import AddBorrowerAction from '../features/borrowers/components/AddBorrowersAction'
+import AddBorrowerModal from '../features/borrowers/components/AddBorrowersModal'
 import BorrowerPagination from '../features/borrowers/components/BorrowerPagination'
 import BorrowerSearchToolbar from '../features/borrowers/components/BorrowerSearchToolbar'
 import BorrowerTable from '../features/borrowers/components/BorrowerTable'
@@ -10,7 +13,10 @@ export default function BorrowersPage() {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [isAddBorrowerOpen, setIsAddBorrowerOpen] = useState(false)
+  const [createdBorrower, setCreatedBorrower] = useState<BorrowerRecord | null>(null)
   const {
+    addBorrower,
     borrowers,
     errorMessage,
     isLoading,
@@ -21,14 +27,22 @@ export default function BorrowersPage() {
 
   const searchBorrowers = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    setCreatedBorrower(null)
     setCurrentPage(1)
     setAppliedSearch(search.trim())
   }
 
   const clearSearch = () => {
     setSearch('')
+    setCreatedBorrower(null)
     setCurrentPage(1)
     setAppliedSearch('')
+  }
+
+  const handleBorrowerCreated = (borrower: BorrowerRecord) => {
+    setIsAddBorrowerOpen(false)
+    setCreatedBorrower(borrower)
+    addBorrower(borrower)
   }
 
   return (
@@ -39,6 +53,7 @@ export default function BorrowersPage() {
       <PageIntro
         title="Borrowers"
         description="Find borrowers and review their records."
+        actions={<AddBorrowerAction onClick={() => setIsAddBorrowerOpen(true)} />}
       />
 
       <Panel className="flex min-h-0 flex-1 flex-col overflow-hidden" label="Borrower search results">
@@ -49,6 +64,17 @@ export default function BorrowersPage() {
           onClear={clearSearch}
           search={search}
         />
+
+        {createdBorrower && (
+          <div
+            className="mx-[17px] mt-[13px] flex items-center justify-between gap-3 rounded-lg border border-success/20 bg-success-soft px-[11px] py-[7px] text-[11px] text-success"
+            role="status"
+          >
+            <span>
+              Borrower {[createdBorrower.first_name, createdBorrower.last_name].filter(Boolean).join(' ')} ({createdBorrower.unb_id}) was added successfully.
+            </span>
+          </div>
+        )}
 
         {errorMessage && (
           <p
@@ -76,12 +102,22 @@ export default function BorrowersPage() {
         <BorrowerPagination
           currentPage={currentPage}
           isLoading={isLoading}
-          onPageChange={setCurrentPage}
+          onPageChange={(page) => {
+            setCreatedBorrower(null)
+            setCurrentPage(page)
+          }}
           pageCount={pageCount}
           pageSize={pageSize}
           totalCount={totalCount}
         />
       </Panel>
+
+      {isAddBorrowerOpen && (
+        <AddBorrowerModal
+          onClose={() => setIsAddBorrowerOpen(false)}
+          onCreated={handleBorrowerCreated}
+        />
+      )}
     </section>
   )
 }

@@ -16,7 +16,7 @@ function renderAtBorrowers(auth = technicianAuth): string {
 }
 
 describe('Borrowers route', () => {
-  it('renders the borrower list loading state and role-gated navigation', () => {
+  it('renders the borrower list loading state, Add Borrower action, and role-gated navigation', () => {
     const html = renderAtBorrowers()
 
     expect(html).toContain('>Borrowers</h1>')
@@ -26,7 +26,7 @@ describe('Borrowers route', () => {
     expect(html).toContain('Borrower Name')
     expect(html).toContain('Standing')
     expect(html).toContain('href="/borrowers"')
-    expect(html).not.toContain('Add Borrower')
+    expect(html).toContain('Add Borrower')
     expect(html).not.toContain('Eligibility')
     expect(html).not.toContain('Page not found')
   })

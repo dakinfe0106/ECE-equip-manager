@@ -10,7 +10,7 @@ export interface CurrentUser {
 }
 
 export function hasPermission(user: CurrentUser | null, permission: string): boolean {
-  if (permission === 'lending.view_borrower') {
+  if (permission === 'lending.view_borrower' || permission === 'lending.add_borrower') {
     return user?.role === 'TECHNICIAN' || user?.role === 'ADMINISTRATOR'
   }
 

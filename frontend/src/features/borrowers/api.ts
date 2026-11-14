@@ -8,6 +8,12 @@ export interface BorrowerRecord {
   last_name: string
 }
 
+export interface BorrowerCreation {
+  unb_id: string
+  first_name: string
+  last_name?: string
+}
+
 export interface PaginatedBorrowers {
   count: number
   next: string | null
@@ -18,11 +24,40 @@ export interface PaginatedBorrowers {
 export class BorrowerRequestError extends Error {
   readonly status: number
 
-  constructor(status: number) {
-    super(`Borrower request failed (${status})`)
+  constructor(status: number, message = `Borrower request failed (${status})`) {
+    super(message)
     this.name = 'BorrowerRequestError'
     this.status = status
   }
+}
+
+async function responseError(response: Response, action: string): Promise<BorrowerRequestError> {
+  let message = `${action} failed (${response.status})`
+  try {
+    const body: unknown = await response.json()
+    if (typeof body === 'object' && body !== null) {
+      const values = Object.values(body)
+      const firstMessage = values
+        .flatMap((value) => (Array.isArray(value) ? value : [value]))
+        .find((value) => typeof value === 'string')
+      if (typeof firstMessage === 'string') {
+        message = firstMessage
+      }
+    }
+  } catch {
+    // Keep default status message when body is not JSON.
+  }
+  return new BorrowerRequestError(response.status, message)
+}
+
+function getCsrfToken(): string | undefined {
+  if (typeof document === 'undefined') {
+    return undefined
+  }
+  return document.cookie
+    .split('; ')
+    .find((cookie) => cookie.startsWith('csrftoken='))
+    ?.slice('csrftoken='.length)
 }
 
 export function describeBorrowerError(error: unknown): string {
@@ -53,4 +88,23 @@ export async function fetchBorrowers(
     throw new BorrowerRequestError(response.status)
   }
   return response.json() as Promise<PaginatedBorrowers>
+}
+
+export async function createBorrower(borrower: BorrowerCreation): Promise<BorrowerRecord> {
+  const headers = new Headers({ 'Content-Type': 'application/json' })
+  const csrfToken = getCsrfToken()
+  if (csrfToken) {
+    headers.set('X-CSRFToken', decodeURIComponent(csrfToken))
+  }
+
+  const response = await sessionFetch(`${apiBaseUrl}/borrowers/`, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify(borrower),
+  })
+  if (!response.ok) {
+    throw await responseError(response, 'Borrower creation')
+  }
+  return response.json() as Promise<BorrowerRecord>
 }

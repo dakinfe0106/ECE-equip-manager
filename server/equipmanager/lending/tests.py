@@ -94,20 +94,6 @@ def test_borrower_list_denies_faculty(db):
     assert response.status_code == 403
 
 
-def test_borrower_list_is_read_only(borrower_client):
-    response = borrower_client.post(
-        "/api/borrowers/",
-        {
-            "unb_id": "UNB-001",
-            "first_name": "Ada",
-            "last_name": "Lovelace",
-        },
-        format="json",
-    )
-
-    assert response.status_code == 405
-
-
 def test_borrower_list_returns_documented_identity_fields(borrower_client):
     borrower = create_borrower(unb_id="UNB-001")
 
@@ -196,3 +182,156 @@ def test_borrower_list_paginates_twenty_records_per_page(borrower_client):
     assert len(second_page.data["results"]) == 2
     assert second_page.data["next"] is None
     assert second_page.data["previous"] is not None
+
+
+@pytest.mark.parametrize("role", ["TECHNICIAN", "ADMINISTRATOR"])
+def test_borrower_create_allows_technician_and_administrator(db, role):
+    user = get_user_model().objects.create_user(
+        username=f"borrower-create-{role.lower()}",
+        role=role,
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.post(
+        "/api/borrowers/",
+        {
+            "unb_id": "  3519271  ",
+            "first_name": "  Kobi  ",
+            "last_name": "  Mensah  ",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["unb_id"] == "3519271"
+    assert response.data["first_name"] == "Kobi"
+    assert response.data["last_name"] == "Mensah"
+    created = Borrower.objects.get(borrower_id=response.data["borrower_id"])
+    assert not created.negligent_damage_flag
+    assert not created.is_deleted
+
+
+def test_borrower_create_allows_optional_blank_last_name(borrower_client):
+    response = borrower_client.post(
+        "/api/borrowers/",
+        {"unb_id": "3519272", "first_name": "Grace"},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["last_name"] == ""
+
+
+@pytest.mark.parametrize(
+    ("payload", "missing_field"),
+    [
+        ({"first_name": "Kobi"}, "unb_id"),
+        ({"unb_id": "   ", "first_name": "Kobi"}, "unb_id"),
+        ({"unb_id": "3519273"}, "first_name"),
+        ({"unb_id": "3519273", "first_name": "   "}, "first_name"),
+    ],
+)
+def test_borrower_create_rejects_missing_or_blank_required_fields(
+    borrower_client, payload, missing_field
+):
+    response = borrower_client.post("/api/borrowers/", payload, format="json")
+
+    assert response.status_code == 400
+    assert missing_field in response.data
+    assert Borrower.objects.count() == 0
+
+
+def test_borrower_create_rejects_duplicate_unb_id_including_soft_deleted(
+    borrower_client,
+):
+    create_borrower(unb_id="3519271", is_deleted=True)
+
+    response = borrower_client.post(
+        "/api/borrowers/",
+        {"unb_id": " 3519271 ", "first_name": "Duplicate"},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.data["unb_id"] == [
+        "A borrower with this UNB ID already exists."
+    ]
+    assert Borrower.objects.count() == 1
+
+
+def test_borrower_create_ignores_client_supplied_server_flags(borrower_client):
+    response = borrower_client.post(
+        "/api/borrowers/",
+        {
+            "unb_id": "3519274",
+            "first_name": "Kobi",
+            "negligent_damage_flag": True,
+            "is_deleted": True,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    created = Borrower.objects.get(borrower_id=response.data["borrower_id"])
+    assert not created.negligent_damage_flag
+    assert not created.is_deleted
+
+
+def test_borrower_create_denies_faculty_and_anonymous(db):
+    assert (
+        APIClient()
+        .post(
+            "/api/borrowers/",
+            {"unb_id": "3519999", "first_name": "Anon"},
+            format="json",
+        )
+        .status_code
+        == 403
+    )
+
+    faculty = get_user_model().objects.create_user(
+        username="faculty-cannot-add-borrower", role="FACULTY"
+    )
+    client = APIClient()
+    client.force_authenticate(user=faculty)
+    assert (
+        client.post(
+            "/api/borrowers/",
+            {"unb_id": "3519999", "first_name": "Faculty"},
+            format="json",
+        ).status_code
+        == 403
+    )
+
+
+def test_borrower_create_enforces_csrf_for_session_users(db):
+    user = get_user_model().objects.create_user(
+        username="csrf-borrower-tech",
+        role="TECHNICIAN",
+        password="test-password",
+    )
+    client = APIClient(enforce_csrf_checks=True)
+    client.force_login(user)
+
+    assert (
+        client.post(
+            "/api/borrowers/",
+            {"unb_id": "3519888", "first_name": "NoCsrf"},
+            format="json",
+        ).status_code
+        == 403
+    )
+
+    get_response = client.get(
+        "/api/borrowers/", HTTP_ORIGIN="http://localhost:5173"
+    )
+    csrf_token = get_response.cookies["csrftoken"].value
+    response = client.post(
+        "/api/borrowers/",
+        {"unb_id": "3519888", "first_name": "ValidCsrf"},
+        format="json",
+        HTTP_ORIGIN="http://localhost:5173",
+        HTTP_X_CSRFTOKEN=csrf_token,
+    )
+    assert response.status_code == 201
