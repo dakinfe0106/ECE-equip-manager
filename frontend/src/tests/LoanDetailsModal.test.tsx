@@ -13,8 +13,10 @@ afterEach(() => {
 const activeLoan: LoanRecord = {
   loan_id: 1,
   asset_id: 101,
+  asset_identifier: 'ECE-101',
   equipment_name: 'ThinkPad T14',
   borrower_id: 201,
+  borrower_unb_id: 'UNB-0201',
   borrower_name: 'Kobi Mensah',
   checkout_date: '2026-11-01',
   expected_return_date: '2026-11-14',
@@ -26,8 +28,10 @@ const activeLoan: LoanRecord = {
 const returnedLoan: LoanRecord = {
   loan_id: 2,
   asset_id: 102,
+  asset_identifier: 'ECE-102',
   equipment_name: 'Network Tester',
   borrower_id: 203,
+  borrower_unb_id: 'UNB-0203',
   borrower_name: 'Keziah Adeyemi',
   checkout_date: '2026-10-01',
   expected_return_date: '2026-10-15',
@@ -54,7 +58,8 @@ describe('LoanDetailsModal', () => {
 
     expect(within(dialog).getByText('ThinkPad T14')).toBeTruthy()
     expect(within(dialog).getByText('Kobi Mensah')).toBeTruthy()
-    expect(within(dialog).getByText('201')).toBeTruthy()
+    expect(within(dialog).getByText('UNB-0201')).toBeTruthy()
+    expect(within(dialog).getByText('ECE-101 · Loan Record')).toBeTruthy()
     expect(within(dialog).getByText('2026-11-01')).toBeTruthy()
     expect(within(dialog).getByText('2026-11-14')).toBeTruthy()
   })

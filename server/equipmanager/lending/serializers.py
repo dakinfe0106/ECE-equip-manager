@@ -30,16 +30,36 @@ class LoanQuerySerializer(serializers.Serializer):
 
 
 class LoanListSerializer(serializers.ModelSerializer):
-    equipment_name = serializers.CharField(source="asset.name", read_only=True)
+    asset_identifier = serializers.CharField(
+        source="asset.asset_identifier",
+        read_only=True,
+    )
+    equipment_name = serializers.CharField(
+        source="asset.name",
+        read_only=True,
+    )
+    borrower_unb_id = serializers.CharField(
+        source="borrower.unb_id",
+        read_only=True,
+    )
     borrower_name = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
 
     class Meta:
         model = Loan
         fields = (
-            "loan_id", "asset_id", "equipment_name", "borrower_id", "borrower_name",
-            "checkout_date", "expected_return_date", "actual_return_date",
-            "return_condition", "status",
+            "loan_id",
+            "asset_id",
+            "asset_identifier",
+            "equipment_name",
+            "borrower_id",
+            "borrower_unb_id",
+            "borrower_name",
+            "checkout_date",
+            "expected_return_date",
+            "actual_return_date",
+            "return_condition",
+            "status",
         )
         read_only_fields = fields
 

@@ -1,4 +1,3 @@
-
 import { useState } from 'react'
 import {
   defaultLoanFilters,
@@ -17,8 +16,8 @@ export default function LoanFilters({
   onClose,
 }: LoanFiltersProps) {
   const [draftFilters, setDraftFilters] = useState<LoanFilters>(() => ({
-  ...filters,
-}))
+    ...filters,
+  }))
 
   function updateFilter<K extends keyof LoanFilters>(
     key: K,
@@ -36,17 +35,15 @@ export default function LoanFilters({
 
   function handleApply(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-
     onApply(draftFilters)
     onClose()
   }
 
   return (
-    <div className="absolute right-0 top-full z-40 mt-2 w-[290px] rounded-xl border border-border bg-white p-4 shadow-xl">
+    <div className="absolute right-0 top-full z-40 mt-2 w-[320px] rounded-lg border border-line bg-white p-4 shadow-lg">
       <form onSubmit={handleApply}>
-        {/* Header */}
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-primary">
+          <h3 className="m-0 text-sm font-semibold text-body">
             Filter records
           </h3>
 
@@ -54,23 +51,15 @@ export default function LoanFilters({
             type="button"
             onClick={onClose}
             aria-label="Close filters"
-            className="text-lg text-secondary hover:text-primary"
+            className="rounded px-2 py-1 text-subtle hover:bg-page hover:text-body focus-visible:outline-2 focus-visible:outline-primary"
           >
             ×
           </button>
         </div>
 
-        {/* Loan state */}
-        <div className="mb-3">
-          <label
-            htmlFor="loan-state-filter"
-            className="mb-1.5 block text-xs font-medium text-primary"
-          >
-            Loan state
-          </label>
-
+        <label className="mb-3 flex flex-col gap-1 text-xs font-medium text-body">
+          Loan state
           <select
-            id="loan-state-filter"
             value={draftFilters.loanState}
             onChange={(event) =>
               updateFilter(
@@ -78,74 +67,51 @@ export default function LoanFilters({
                 event.target.value as LoanFilters['loanState'],
               )
             }
-            className="h-9 w-full rounded-lg border border-border bg-white px-3 text-xs text-primary outline-none focus:border-accent"
+            className="min-h-9 rounded-md border border-input bg-white px-2 text-xs text-body outline-none focus:border-primary"
           >
             <option value="all">All loan states</option>
             <option value="on_loan">Active</option>
             <option value="overdue">Overdue</option>
             <option value="returned">Completed</option>
           </select>
-        </div>
+        </label>
 
-        {/* Expected return date range */}
         <div className="mb-3">
-          <p className="mb-1.5 text-xs font-medium text-primary">
+          <p className="mb-1 text-xs font-medium text-body">
             Expected return date
           </p>
 
           <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label
-                htmlFor="return-date-from"
-                className="mb-1 block text-[10px] text-secondary"
-              >
-                From
-              </label>
-
+            <label className="flex flex-col gap-1 text-[10px] text-muted">
+              From
               <input
-                id="return-date-from"
                 type="date"
                 value={draftFilters.expectedReturnDateFrom}
                 onChange={(event) =>
                   updateFilter('expectedReturnDateFrom', event.target.value)
                 }
-                className="h-9 w-full rounded-lg border border-border bg-white px-2 text-xs text-primary outline-none focus:border-accent"
+                className="min-h-9 rounded-md border border-input bg-white px-2 text-xs text-body outline-none focus:border-primary"
               />
-            </div>
+            </label>
 
-            <div>
-              <label
-                htmlFor="return-date-to"
-                className="mb-1 block text-[10px] text-secondary"
-              >
-                To
-              </label>
-
+            <label className="flex flex-col gap-1 text-[10px] text-muted">
+              To
               <input
-                id="return-date-to"
                 type="date"
                 min={draftFilters.expectedReturnDateFrom || undefined}
                 value={draftFilters.expectedReturnDateTo}
                 onChange={(event) =>
                   updateFilter('expectedReturnDateTo', event.target.value)
                 }
-                className="h-9 w-full rounded-lg border border-border bg-white px-2 text-xs text-primary outline-none focus:border-accent"
+                className="min-h-9 rounded-md border border-input bg-white px-2 text-xs text-body outline-none focus:border-primary"
               />
-            </div>
+            </label>
           </div>
         </div>
 
-        {/* Asset status */}
-        <div className="mb-4">
-          <label
-            htmlFor="asset-status-filter"
-            className="mb-1.5 block text-xs font-medium text-primary"
-          >
-            Asset status
-          </label>
-
+        <label className="mb-4 flex flex-col gap-1 text-xs font-medium text-body">
+          Asset status
           <select
-            id="asset-status-filter"
             value={draftFilters.assetStatus}
             onChange={(event) =>
               updateFilter(
@@ -153,27 +119,26 @@ export default function LoanFilters({
                 event.target.value as LoanFilters['assetStatus'],
               )
             }
-            className="h-9 w-full rounded-lg border border-border bg-white px-3 text-xs text-primary outline-none focus:border-accent"
+            className="min-h-9 rounded-md border border-input bg-white px-2 text-xs text-body outline-none focus:border-primary"
           >
             <option value="all">All statuses</option>
             <option value="available">Available</option>
             <option value="on_loan">On Loan</option>
           </select>
-        </div>
+        </label>
 
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-border pt-3">
+        <div className="flex items-center justify-between border-t border-divider pt-3">
           <button
             type="button"
             onClick={handleReset}
-            className="text-xs font-medium text-accent hover:underline"
+            className="rounded-md px-2 py-2 text-xs font-medium text-primary hover:bg-primary-soft"
           >
             Reset
           </button>
 
           <button
             type="submit"
-            className="rounded-lg bg-accent px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:opacity-90"
+            className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary-hover"
           >
             Apply Filters
           </button>

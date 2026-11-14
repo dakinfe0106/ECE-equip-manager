@@ -1,4 +1,3 @@
-
 import type { LoanRecord } from '../types'
 import LoanStatusBadge from './LoanStatusBadge'
 
@@ -7,41 +6,34 @@ interface LoanTableProps {
   onSelectLoan: (loan: LoanRecord) => void
 }
 
+const headerClassName =
+  'border-b border-line bg-page px-[17px] py-[11px] text-left text-[9px] font-bold uppercase tracking-[0.04em] text-muted'
+
+const cellClassName =
+  'border-b border-divider px-[17px] py-[13px] text-[11px] text-muted'
+
 export default function LoanTable({
   loans,
   onSelectLoan,
 }: LoanTableProps) {
-  if (loans.length === 0) {
-    return (
-      <div className="rounded-xl border border-border bg-white px-6 py-12 text-center">
-        <h3 className="text-sm font-semibold text-primary">
-          No loans found
-        </h3>
-        <p className="mt-1 text-xs text-secondary">
-          There are no loan records to display.
-        </p>
-      </div>
-    )
-  }
-
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-white">
-      <table className="w-full border-collapse text-left">
+    <div className="min-h-0 flex-1 overflow-auto">
+      <table className="w-full border-collapse text-left whitespace-nowrap">
         <thead>
-          <tr className="border-b border-border bg-surface-muted">
-            <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-secondary">
+          <tr>
+            <th className={headerClassName} scope="col">
               Asset
             </th>
-            <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-secondary">
+            <th className={headerClassName} scope="col">
               Borrower
             </th>
-            <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-secondary">
+            <th className={headerClassName} scope="col">
               Checkout Date
             </th>
-            <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-secondary">
+            <th className={headerClassName} scope="col">
               Expected Return
             </th>
-            <th className="px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-secondary">
+            <th className={headerClassName} scope="col">
               Status
             </th>
           </tr>
@@ -49,37 +41,45 @@ export default function LoanTable({
 
         <tbody>
           {loans.map((loan) => (
-            <tr
-              key={loan.loan_id}
-              className="border-b border-border last:border-b-0 transition-colors hover:bg-surface-muted"
-            >
-              <td className="px-4 py-4">
+            <tr key={loan.loan_id} className="hover:bg-page">
+              <td className={cellClassName}>
                 <button
                   type="button"
                   onClick={() => onSelectLoan(loan)}
-                  className="text-xs font-semibold text-primary hover:text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                  className="font-[650] text-body hover:underline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
                 >
                   {loan.equipment_name}
                 </button>
               </td>
 
-              <td className="px-4 py-4 text-xs text-secondary">
+              <td className={`${cellClassName} font-[650] text-body`}>
                 {loan.borrower_name}
               </td>
 
-              <td className="px-4 py-4 text-xs text-secondary">
+              <td className={cellClassName}>
                 {loan.checkout_date}
               </td>
 
-              <td className="px-4 py-4 text-xs text-secondary">
+              <td className={cellClassName}>
                 {loan.expected_return_date}
               </td>
 
-              <td className="px-4 py-4">
+              <td className={cellClassName}>
                 <LoanStatusBadge status={loan.status} />
               </td>
             </tr>
           ))}
+
+          {loans.length === 0 && (
+            <tr>
+              <td
+                colSpan={5}
+                className="h-[116px] px-[17px] text-center text-[11px] text-subtle whitespace-normal"
+              >
+                No loans found.
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>

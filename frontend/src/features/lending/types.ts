@@ -27,8 +27,10 @@ export type LoanAssetStatusFilter =
 export interface LoanRecord {
   loan_id: number
   asset_id: number
+  asset_identifier: string
   equipment_name: string
   borrower_id: number
+  borrower_unb_id: string
   borrower_name: string
   checkout_date: string
   expected_return_date: string

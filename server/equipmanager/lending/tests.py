@@ -266,7 +266,9 @@ def test_loan_exact_response_and_all_statuses(borrower_client, loan_data):
     loan = loan_data.loans[0]
     assert response.data[0] == {
         "loan_id": loan.pk, "asset_id": loan.asset_id,
+        "asset_identifier": "SHOP-0",
         "equipment_name": "Oscilloscope 0", "borrower_id": loan.borrower_id,
+        "borrower_unb_id": "UNB-LOAN",
         "borrower_name": "Ada Lovelace", "checkout_date": "2026-11-03",
         "expected_return_date": "2026-11-12", "actual_return_date": None,
         "return_condition": None, "status": "overdue",

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
+import { fetchLoans, LoanLookupError } from '../api'
 import {
-  fetchLoans,
-  LoanLookupError,
+  defaultLoanFilters,
+  type LoanFilters,
   type LoanRecord,
-  type LoanStatus,
-} from '../api'
+} from '../types'
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof LoanLookupError && error.status === 403) {
@@ -14,46 +14,61 @@ function getErrorMessage(error: unknown): string {
   return 'Could not load lending records. Please try again.'
 }
 
+interface LoanState {
+  loans: LoanRecord[]
+  errorMessage: string
+  resolvedRequest: string | null
+}
+
 export default function useLoans(
-  status?: LoanStatus,
+  filters: LoanFilters = defaultLoanFilters,
   search = '',
 ) {
-  const [loans, setLoans] = useState<LoanRecord[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [errorMessage, setErrorMessage] = useState('')
+  const requestKey = [
+    filters.loanState,
+    filters.expectedReturnDateFrom,
+    filters.expectedReturnDateTo,
+    filters.assetStatus,
+    search,
+  ].join('|')
+
+  const [state, setState] = useState<LoanState>({
+    loans: [],
+    errorMessage: '',
+    resolvedRequest: null,
+  })
 
   useEffect(() => {
     let isCurrent = true
 
-    setIsLoading(true)
-    setErrorMessage('')
-
-    fetchLoans(status, search)
+    fetchLoans(filters, search)
       .then((response) => {
-        if (isCurrent) {
-          setLoans(response.results)
-        }
+        if (!isCurrent) return
+
+        setState({
+          loans: response,
+          errorMessage: '',
+          resolvedRequest: requestKey,
+        })
       })
       .catch((error: unknown) => {
-        if (isCurrent) {
-          setLoans([])
-          setErrorMessage(getErrorMessage(error))
-        }
-      })
-      .finally(() => {
-        if (isCurrent) {
-          setIsLoading(false)
-        }
+        if (!isCurrent) return
+
+        setState({
+          loans: [],
+          errorMessage: getErrorMessage(error),
+          resolvedRequest: requestKey,
+        })
       })
 
     return () => {
       isCurrent = false
     }
-  }, [status, search])
+  }, [filters, search, requestKey])
 
   return {
-    loans,
-    isLoading,
-    errorMessage,
+    loans: state.loans,
+    errorMessage: state.errorMessage,
+    isLoading: state.resolvedRequest !== requestKey,
   }
 }

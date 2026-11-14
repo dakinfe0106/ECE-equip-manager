@@ -1,4 +1,3 @@
-
 import { renderToString } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -13,8 +12,6 @@ describe('LoanFilters', () => {
     ...defaultLoanFilters,
   }
 
-
-
   it('renders all loan state options', () => {
     const html = renderToString(
       <LoanFilters
@@ -26,6 +23,7 @@ describe('LoanFilters', () => {
 
     expect(html).toContain('All loan states')
     expect(html).toContain('Active')
+    expect(html).toContain('Overdue')
     expect(html).toContain('Completed')
   })
 
@@ -41,11 +39,12 @@ describe('LoanFilters', () => {
     expect(html).toContain('All statuses')
     expect(html).toContain('Available')
     expect(html).toContain('On Loan')
-    const assetStatusSelect = html.match(
-      /<select id="asset-status-filter"[^>]*>([\s\S]*?)<\/select>/,
-    )
 
-  expect(assetStatusSelect?.[1]).not.toContain('value="overdue"')
+    const selects =
+      html.match(/<select[^>]*>[\s\S]*?<\/select>/g) ?? []
+
+    expect(selects).toHaveLength(2)
+    expect(selects[1]).not.toContain('value="overdue"')
   })
 
   it('renders previously selected filter values', () => {
@@ -79,8 +78,8 @@ describe('LoanFilters', () => {
       />,
     )
 
-    expect(html).toContain('type="date"')
-    expect(html).toContain('id="return-date-from"')
-    expect(html).toContain('id="return-date-to"')
+    expect((html.match(/type="date"/g) ?? [])).toHaveLength(2)
+    expect(html).toContain('From')
+    expect(html).toContain('To')
   })
 })

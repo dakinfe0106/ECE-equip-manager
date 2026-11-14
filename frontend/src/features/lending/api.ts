@@ -1,27 +1,6 @@
 import { apiBaseUrl } from '../../api'
 import { sessionFetch } from '../auth/sessionFetch'
-
-export type LoanStatus = 'on_loan' | 'overdue' | 'returned'
-
-export interface LoanRecord {
-  loan_id: number
-  asset_id: string
-  equipment_name: string
-  borrower_id: string
-  borrower_name: string
-  checkout_date: string
-  expected_return_date: string
-  actual_return_date: string | null
-  return_condition: 'Intact' | 'Damaged' | null
-  status: LoanStatus
-}
-
-export interface PaginatedLoans {
-  count: number
-  next: string | null
-  previous: string | null
-  results: LoanRecord[]
-}
+import type { LoanFilters, LoanRecord } from './types'
 
 export class LoanLookupError extends Error {
   readonly status: number
@@ -34,13 +13,25 @@ export class LoanLookupError extends Error {
 }
 
 export async function fetchLoans(
-  status?: LoanStatus,
+  filters: LoanFilters,
   search = '',
-): Promise<PaginatedLoans> {
+): Promise<LoanRecord[]> {
   const params = new URLSearchParams()
 
-  if (status) {
-    params.set('status', status)
+  if (filters.loanState !== 'all') {
+    params.set('status', filters.loanState)
+  }
+
+  if (filters.expectedReturnDateFrom) {
+    params.set('expected_return_from', filters.expectedReturnDateFrom)
+  }
+
+  if (filters.expectedReturnDateTo) {
+    params.set('expected_return_to', filters.expectedReturnDateTo)
+  }
+
+  if (filters.assetStatus !== 'all') {
+    params.set('asset_status', filters.assetStatus)
   }
 
   const trimmedSearch = search.trim()
