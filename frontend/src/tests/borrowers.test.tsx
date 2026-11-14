@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderToString } from 'react-dom/server'
 import { MemoryRouter } from 'react-router'
@@ -179,7 +179,7 @@ describe('BorrowerTable', () => {
     expect(html).toContain('Not available')
   })
 
-  it('passes the selected borrower record from an accessible row action', async () => {
+  it('opens details from borrower cells while preserving the selected borrower identity', async () => {
     const user = userEvent.setup()
     const onViewDetails = vi.fn()
     const secondBorrower = { ...borrower, borrower_id: 22, unb_id: '0000022' }
@@ -193,12 +193,77 @@ describe('BorrowerTable', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', {
+      const row = screen.getByRole('row', {
       name: 'View details for Ada Lovelace, UNB ID 0000022',
-    }))
+      })
+      await user.click(within(row).getByText('0000022'))
+      await user.click(within(row).getByText('Ada Lovelace'))
+      await user.click(within(row).getByText('Not available'))
 
-    expect(onViewDetails).toHaveBeenCalledOnce()
-    expect(onViewDetails).toHaveBeenCalledWith(secondBorrower)
+      expect(onViewDetails).toHaveBeenCalledTimes(3)
+      expect(onViewDetails).toHaveBeenNthCalledWith(1, secondBorrower)
+      expect(onViewDetails).toHaveBeenNthCalledWith(2, secondBorrower)
+      expect(onViewDetails).toHaveBeenNthCalledWith(3, secondBorrower)
+      expect(screen.queryByRole('button', { name: /view details/i })).toBeNull()
+  })
+
+  it('supports Enter and Space on a visibly focusable borrower row', async () => {
+      const user = userEvent.setup()
+      const onViewDetails = vi.fn()
+      render(
+        <BorrowerTable
+          appliedSearch=""
+          borrowers={[borrower]}
+          errorMessage=""
+          isLoading={false}
+          onViewDetails={onViewDetails}
+        />,
+      )
+
+      const row = screen.getByRole('row', {
+        name: 'View details for Ada Lovelace, UNB ID 0000101',
+      })
+      expect(row.tabIndex).toBe(0)
+      expect(row.className).toContain('hover:bg-page')
+      expect(row.className).toContain('focus-visible:outline-primary')
+
+      await user.tab()
+      expect(document.activeElement).toBe(row)
+      await user.keyboard('{Enter}')
+      expect(onViewDetails).toHaveBeenCalledWith(borrower)
+
+      onViewDetails.mockClear()
+      await user.keyboard(' ')
+      expect(onViewDetails).toHaveBeenCalledOnce()
+      expect(onViewDetails).toHaveBeenCalledWith(borrower)
+  })
+
+  it('does not open borrower details from an independent nested control', async () => {
+      const user = userEvent.setup()
+      const onViewDetails = vi.fn()
+      render(
+        <BorrowerTable
+          appliedSearch=""
+          borrowers={[borrower]}
+          errorMessage=""
+          isLoading={false}
+          onViewDetails={onViewDetails}
+        />,
+      )
+
+      const row = screen.getByRole('row', {
+        name: 'View details for Ada Lovelace, UNB ID 0000101',
+      })
+      const nestedControl = document.createElement('button')
+      nestedControl.textContent = 'Other row action'
+      const cell = row.querySelector('td')
+      if (!cell) throw new Error('Expected borrower row to contain a table cell.')
+      cell.append(nestedControl)
+
+      await user.click(nestedControl)
+      await user.keyboard('{Enter}')
+
+      expect(onViewDetails).not.toHaveBeenCalled()
   })
 
   it('shows a distinct empty message for a search with no matches', () => {
@@ -259,13 +324,10 @@ describe('BorrowersPage details integration', () => {
     })
     render(<BorrowersPage />)
 
-    const detailActions = screen.getAllByRole('button', {
-      name: 'View details for Ada Lovelace, UNB ID 0000101',
-    })
-    expect(detailActions).toHaveLength(1)
-    await user.click(screen.getByRole('button', {
+    const selectedRow = screen.getByRole('row', {
       name: 'View details for Ada Lovelace, UNB ID 0000022',
-    }))
+    })
+    await user.click(within(selectedRow).getByText('Ada Lovelace'))
 
     expect(await screen.findByRole('dialog', { name: 'Ada Lovelace' })).toBeTruthy()
     expect(fetchBorrowerDetailsMock).toHaveBeenCalledWith(22, expect.any(AbortSignal))
@@ -304,7 +366,7 @@ describe('BorrowersPage details integration', () => {
     })
     render(<BorrowersPage />)
 
-    await user.click(screen.getByRole('button', {
+    await user.click(screen.getByRole('row', {
       name: 'View details for Riley, UNB ID 0000023',
     }))
     expect(await screen.findByRole('dialog', { name: 'Riley' })).toBeTruthy()
@@ -333,7 +395,7 @@ describe('BorrowersPage details integration', () => {
     })
     render(<BorrowersPage />)
 
-    await user.click(screen.getByRole('button', {
+    await user.click(screen.getByRole('row', {
       name: 'View details for Ada Lovelace, UNB ID 0000022',
     }))
     expect((await screen.findByRole('alert')).textContent).toContain(
@@ -376,11 +438,11 @@ describe('BorrowersPage details integration', () => {
     })
     render(<BorrowersPage />)
 
-    await user.click(screen.getByRole('button', {
+    await user.click(screen.getByRole('row', {
       name: 'View details for Ada Lovelace, UNB ID 0000022',
     }))
     expect(screen.getByRole('status').textContent).toBe('Loading borrower details…')
-    await user.click(screen.getByRole('button', {
+    await user.click(screen.getByRole('row', {
       name: 'View details for Riley, UNB ID 0000023',
     }))
 

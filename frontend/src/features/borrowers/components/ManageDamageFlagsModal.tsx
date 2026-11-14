@@ -175,18 +175,18 @@ export default function ManageDamageFlagsModal({
   )
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgb(9_18_32_/_48%)] p-5 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgb(9_18_32_/_48%)] p-4 backdrop-blur-[2px] max-[480px]:p-2">
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="manage-damage-flags-title"
         tabIndex={-1}
-        className="flex max-h-[min(780px,calc(100dvh-40px))] w-[min(440px,calc(100vw-40px))] flex-col overflow-hidden rounded-[13px] border border-line bg-white shadow-[0_24px_70px_rgb(10_20_35_/_25%)]"
+        className="flex max-h-[min(760px,calc(100dvh-32px))] w-[min(820px,calc(100vw-32px))] flex-col overflow-hidden rounded-[13px] border border-line bg-white shadow-[0_24px_70px_rgb(10_20_35_/_25%)] max-[480px]:max-h-[calc(100dvh-16px)] max-[480px]:w-[calc(100vw-16px)]"
       >
-        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[#e8ebf0] px-[22px] py-5">
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[#e8ebf0] px-4 py-3">
           <div>
-            <p className="mb-[7px] text-[11px] font-[750] uppercase tracking-[0.11em] text-primary">
+            <p className="mb-1 text-[10px] font-[750] uppercase tracking-[0.11em] text-primary">
               BORROWER RESTRICTION
             </p>
             <h2 id="manage-damage-flags-title" className="m-0 text-[14px] font-[650] tracking-[-0.01em] text-[#202a38]">
@@ -216,19 +216,19 @@ export default function ManageDamageFlagsModal({
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-[22px] py-[21px]">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-3 md:overflow-hidden">
           {dataState.status === 'loading' && (
-            <p role="status" className="rounded-[8px] border border-line bg-page p-4 text-[11px] text-muted">
+            <p role="status" className="rounded-[8px] border border-line bg-page p-3 text-[11px] text-muted">
               Loading damage flag information…
             </p>
           )}
           {dataState.status === 'unavailable' && (
-            <p role="status" className="rounded-[8px] border border-line bg-page p-4 text-[11px] text-muted">
+            <p role="status" className="rounded-[8px] border border-line bg-page p-3 text-[11px] text-muted">
               Damage flag information is unavailable because no data service was provided.
             </p>
           )}
           {dataState.status === 'error' && (
-            <div className="space-y-3 rounded-[8px] border border-danger/20 bg-danger-soft p-4">
+            <div className="space-y-3 rounded-[8px] border border-danger/20 bg-danger-soft p-3">
               <p role="alert" className="m-0 text-[11px] text-danger">
                 Unable to load damage flags: {dataState.message}
               </p>
@@ -244,155 +244,166 @@ export default function ManageDamageFlagsModal({
             </div>
           )}
           {dataState.status === 'loaded' && (
-            <div className="space-y-4">
-          {equipmentOptionsEmpty && (
-            <p role="status" className="rounded-[8px] border border-line bg-page p-3 text-[10px] text-muted">
-              No active equipment is available. Recording a new damage flag is disabled.
-            </p>
-          )}
-          {equipmentOptionsError && (
-            <div className="space-y-2 rounded-[8px] border border-danger/20 bg-danger-soft p-3">
-              <p role="alert" className="m-0 text-[10px] text-danger">
-                Unable to load equipment options. {equipmentOptionsError}
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+              {equipmentOptionsEmpty && (
+                <p role="status" className="rounded-[8px] border border-line bg-page px-3 py-2 text-[10px] text-muted">
+                  No active equipment is available. Recording a new damage flag is disabled.
+                </p>
+              )}
+              {equipmentOptionsError && (
+                <div className="space-y-2 rounded-[8px] border border-danger/20 bg-danger-soft px-3 py-2">
+                  <p role="alert" className="m-0 text-[10px] text-danger">
+                    Unable to load equipment options. {equipmentOptionsError}
+                  </p>
+                  {onRetryEquipmentOptions && (
+                    <button
+                      type="button"
+                      className="inline-flex min-h-[34px] items-center justify-center rounded-lg border border-input bg-white px-3 text-[10px] font-[650] text-body focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
+                      onClick={onRetryEquipmentOptions}
+                    >
+                      Retry equipment lookup
+                    </button>
+                  )}
+                </div>
+              )}
+              <div className="rounded-[9px] border border-line bg-page px-3 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] text-muted">Borrower</p>
+                    <p className="mt-1 text-[11px] font-semibold text-body">{borrower.borrower_name}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-muted">Unresolved negligent damage flags</p>
+                    <p className="mt-1 text-[11px] font-semibold text-body">{displayedUnresolvedCount}</p>
+                  </div>
+                </div>
+                <div className="mt-2 border-t border-divider pt-2">
+                  <BorrowerDamageWarningBadge
+                    warningLevel={
+                      summaryOverride?.warning_level
+                        ?? (dataState.status === 'loaded'
+                          ? dataState.summary.warning_level
+                          : borrower.damage_warning_level)
+                    }
+                  />
+                </div>
+              </div>
+
+              <p className="m-0 rounded-[8px] border border-warning/20 bg-warning-soft px-3 py-2 text-[10px] leading-[1.45] text-warning">
+                A damaged return is not automatically negligent. Record a flag only after the incident has been reviewed.
               </p>
-              {onRetryEquipmentOptions && (
+
+              <div className="flag-controls grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <button
                   type="button"
-                  className="inline-flex min-h-[34px] items-center justify-center rounded-lg border border-input bg-white px-3 text-[10px] font-[650] text-body focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
-                  onClick={onRetryEquipmentOptions}
+                  disabled={!selectedIncident || !onEditFlag || isSaving}
+                  aria-disabled={!selectedIncident || !onEditFlag || isSaving}
+                  className="inline-flex min-h-[36px] items-center justify-center gap-[7px] rounded-lg border border-input bg-white px-3 text-[11px] font-[650] text-body disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
+                  onClick={() => {
+                    if (selectedIncident) onEditFlag?.(selectedIncident.id)
+                  }}
                 >
-                  Retry equipment lookup
+                  Edit Damage Flag
                 </button>
-              )}
-            </div>
-          )}
-          <div className="rounded-[9px] border border-line bg-page px-[14px] py-1">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[10px] text-muted">Borrower</p>
-                <p className="mt-1 text-[11px] font-semibold text-body">{borrower.borrower_name}</p>
+                <button
+                  type="button"
+                  disabled={!selectedUnresolvedFlag || !onResolveFlag || isSaving}
+                  aria-disabled={!selectedUnresolvedFlag || !onResolveFlag || isSaving}
+                  className="inline-flex min-h-[36px] items-center justify-center gap-[7px] rounded-lg border border-input bg-white px-3 text-[11px] font-[650] text-body disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
+                  onClick={handleRequestResolution}
+                >
+                  Resolve Existing Flag
+                </button>
+                <button
+                  type="button"
+                  disabled={isSaving || !onRecordDamageFlag}
+                  title={!onRecordDamageFlag ? 'Recording damage flags is unavailable.' : undefined}
+                  className="inline-flex min-h-[36px] items-center justify-center gap-[7px] rounded-lg border border-danger/20 bg-white px-3 text-[11px] font-[650] text-danger disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-danger focus-visible:outline-offset-[3px]"
+                  onClick={onRecordDamageFlag}
+                >
+                  Record Damage Flag
+                </button>
               </div>
-              <div className="text-right">
-                <p className="text-[10px] text-muted">Unresolved negligent damage flags</p>
-                <p className="mt-1 text-[11px] font-semibold text-body">{displayedUnresolvedCount}</p>
+
+              <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] md:overflow-hidden">
+                <div className="space-y-3 md:overflow-y-auto md:pr-1">
+                  <p className="m-0 text-[10px] text-muted" aria-live="polite">
+                    Select an incident to edit, or select an unresolved incident to resolve it.
+                  </p>
+
+                  {pendingResolutionId && (
+                    <div>
+                      <label
+                        htmlFor="damage-flag-resolution-reason"
+                        className="mb-1 block text-[9px] font-[650] uppercase tracking-[0.25px] text-muted"
+                      >
+                        Resolution reason
+                      </label>
+                      <textarea
+                        id="damage-flag-resolution-reason"
+                        className="min-h-[56px] w-full rounded-[5px] border border-input bg-white px-[9px] py-2 text-[11px] text-body focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[2px]"
+                        value={resolutionReason}
+                        onChange={(event) => {
+                          setResolutionReason(event.target.value)
+                          setErrorMessage('')
+                        }}
+                        aria-describedby="damage-flag-resolution-help"
+                      />
+                      <p id="damage-flag-resolution-help" className="mt-1 text-[9px] text-muted">
+                        Required to preserve why this incident was resolved.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="rounded-[8px] border border-line bg-page p-2.5" aria-live="polite">
+                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.25px] text-muted">
+                      Selected incident
+                    </p>
+                    {selectedIncident ? (
+                      <div className="space-y-1 text-[11px] text-body">
+                        <p className="font-semibold">{selectedIncident.equipment_name ?? 'Unknown equipment'}</p>
+                        <p>{selectedIncident.reason}</p>
+                        <p className="text-muted">
+                          {selectedIncident.incident_date} • {selectedIncident.reviewed ? 'Reviewed' : 'Pending review'}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="m-0 text-[11px] text-muted">
+                        No incident selected.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  role="region"
+                  aria-label="Damage flag incident history"
+                  tabIndex={0}
+                  className="max-h-[280px] min-h-[220px] overflow-y-auto rounded-[8px] border border-line bg-page p-2.5 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[2px] md:max-h-none md:min-h-0"
+                >
+                  <DamageFlagList
+                    flags={displayedFlags}
+                    selectedFlagId={selectedFlagId}
+                    onSelectFlag={handleSelectFlag}
+                  />
+                </div>
               </div>
-            </div>
-            <div className="border-t border-divider py-3">
-              <BorrowerDamageWarningBadge
-                warningLevel={
-                  summaryOverride?.warning_level
-                    ?? (dataState.status === 'loaded'
-                      ? dataState.summary.warning_level
-                      : borrower.damage_warning_level)
-                }
-              />
-            </div>
-          </div>
-
-          <p className="m-0 rounded-[8px] border border-warning/20 bg-warning-soft px-3 py-2 text-[10px] leading-[1.55] text-warning">
-            A damaged return is not automatically negligent. Record a flag only after the incident has been reviewed.
-          </p>
-
-          <div className="flag-controls flex justify-between gap-2 max-[760px]:flex-col max-[760px]:[&>button]:w-full">
-            <button
-              type="button"
-              disabled={!selectedIncident || !onEditFlag || isSaving}
-              aria-disabled={!selectedIncident || !onEditFlag || isSaving}
-              className="inline-flex min-h-[38px] items-center justify-center gap-[7px] whitespace-nowrap rounded-lg border border-input bg-white px-[15px] text-[12px] font-[650] text-body disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
-              onClick={() => {
-                if (selectedIncident) onEditFlag?.(selectedIncident.id)
-              }}
-            >
-              Edit Damage Flag
-            </button>
-            <button
-              type="button"
-              disabled={!selectedUnresolvedFlag || !onResolveFlag || isSaving}
-              aria-disabled={!selectedUnresolvedFlag || !onResolveFlag || isSaving}
-              className="inline-flex min-h-[38px] items-center justify-center gap-[7px] whitespace-nowrap rounded-lg border border-input bg-white px-[15px] text-[12px] font-[650] text-body disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[3px]"
-              onClick={handleRequestResolution}
-            >
-              Resolve Existing Flag
-            </button>
-            <button
-              type="button"
-              disabled={isSaving || !onRecordDamageFlag}
-              title={!onRecordDamageFlag ? 'Recording damage flags is unavailable.' : undefined}
-              className="inline-flex min-h-[38px] items-center justify-center gap-[7px] whitespace-nowrap rounded-lg border border-danger/20 bg-white px-[15px] text-[12px] font-[650] text-danger disabled:cursor-not-allowed disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-danger focus-visible:outline-offset-[3px]"
-              onClick={onRecordDamageFlag}
-            >
-              Record Damage Flag
-            </button>
-          </div>
-
-          <p className="mb-4 text-[10px] text-muted" aria-live="polite">
-            Select an incident to edit, or select an unresolved incident to resolve it.
-          </p>
-
-          {pendingResolutionId && (
-            <div className="mb-4">
-              <label
-                htmlFor="damage-flag-resolution-reason"
-                className="mb-1 block text-[9px] font-[650] uppercase tracking-[0.25px] text-muted"
-              >
-                Resolution reason
-              </label>
-              <textarea
-                id="damage-flag-resolution-reason"
-                className="min-h-[64px] w-full rounded-[5px] border border-input bg-white px-[9px] py-2 text-[11px] text-body focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[2px]"
-                value={resolutionReason}
-                onChange={(event) => {
-                  setResolutionReason(event.target.value)
-                  setErrorMessage('')
-                }}
-                aria-describedby="damage-flag-resolution-help"
-              />
-              <p id="damage-flag-resolution-help" className="mt-1 text-[9px] text-muted">
-                Required to preserve why this incident was resolved.
-              </p>
-            </div>
-          )}
-
-          <div className="rounded-[8px] border border-line bg-page p-3" aria-live="polite">
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.25px] text-muted">
-              Selected incident
-            </p>
-            {selectedIncident ? (
-              <div className="space-y-1 text-[11px] text-body">
-                <p className="font-semibold">{selectedIncident.equipment_name ?? 'Unknown equipment'}</p>
-                <p>{selectedIncident.reason}</p>
-                <p className="text-muted">
-                  {selectedIncident.incident_date} • {selectedIncident.reviewed ? 'Reviewed' : 'Pending review'}
-                </p>
-              </div>
-            ) : (
-              <p className="text-[11px] text-muted">
-                No incident selected.
-              </p>
-            )}
-          </div>
-
-          <DamageFlagList
-            flags={displayedFlags}
-            selectedFlagId={selectedFlagId}
-            onSelectFlag={handleSelectFlag}
-          />
             </div>
           )}
         </div>
 
         {dataState.status === 'loaded' && errorMessage && (
-          <p role="alert" className="shrink-0 px-[22px] pb-2 text-[10px] text-danger">
+          <p role="alert" className="m-0 shrink-0 px-4 pb-2 text-[10px] text-danger">
             {errorMessage}
           </p>
         )}
         {dataState.status === 'loaded' && successMessage && (
-          <p role="status" className="shrink-0 px-[22px] pb-2 text-[10px] text-success">
+          <p role="status" className="m-0 shrink-0 px-4 pb-2 text-[10px] text-success">
             {successMessage}
           </p>
         )}
 
-        <footer className="flex shrink-0 items-center justify-end gap-[9px] border-t border-[#e8ebf0] bg-[#fafbfc] px-[22px] py-[15px]">
+        <footer className="flex shrink-0 items-center justify-end gap-[9px] border-t border-[#e8ebf0] bg-[#fafbfc] px-4 py-3">
           <button
             type="button"
             disabled={isSaving}

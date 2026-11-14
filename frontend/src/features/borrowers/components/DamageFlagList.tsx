@@ -34,9 +34,9 @@ export default function DamageFlagList({
     return (
       <div
         key={flag.id}
-        className={`rounded-[8px] border p-3 ${isSelected ? 'border-primary bg-primary-soft' : 'border-line bg-white'}`}
+        className={`rounded-[8px] border p-2 ${isSelected ? 'border-primary bg-primary-soft' : 'border-line bg-white'}`}
       >
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-2">
           <button
             type="button"
             onClick={() => {
@@ -46,35 +46,35 @@ export default function DamageFlagList({
             aria-pressed={isSelected}
             aria-label={`Select ${isResolved ? 'resolved' : 'unresolved'} incident: ${flag.equipment_name ?? 'Unknown equipment'}, ${flag.reason}`}
           >
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.25px] text-muted">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.25px] text-muted">
                 {flag.equipment_name ?? 'Unknown equipment'}
               </span>
-              <span className="rounded-full bg-neutral-soft px-2 py-0.5 text-[9px] font-semibold text-neutral">
+              <span className="rounded-full bg-neutral-soft px-2 py-0.5 text-[8px] font-semibold text-neutral">
                 {isResolved ? 'Resolved' : 'Open'}
               </span>
             </div>
-            <p className="mt-1 text-[11px] text-body">{flag.reason}</p>
-            <p className="mt-1 text-[9px] text-muted">
+            <p className="mb-0 mt-1 text-[10px] leading-[1.4] text-body">{flag.reason}</p>
+            <p className="mb-0 mt-1 text-[9px] text-muted">
               {formatDate(flag.incident_date)} • {flag.reviewed ? 'Reviewed' : 'Pending review'}
             </p>
           </button>
         </div>
 
-        {flag.notes && <p className="mt-2 text-[10px] text-muted">Note: {flag.notes}</p>}
+        {flag.notes && <p className="mb-0 mt-1.5 text-[9px] leading-[1.4] text-muted">Note: {flag.notes}</p>}
       </div>
     )
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <section>
-        <h3 className="mb-2 text-[10px] font-[650] uppercase tracking-[0.25px] text-muted">
+        <h3 className="mb-1.5 text-[9px] font-[650] uppercase tracking-[0.25px] text-muted">
           Unresolved negligent damage
         </h3>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {unresolvedFlags.length === 0 ? (
-            <p className="rounded-[8px] border border-dashed border-line bg-page p-3 text-[10px] text-muted">
+            <p className="rounded-[8px] border border-dashed border-line bg-page p-2 text-[9px] text-muted">
               No unresolved damage flags.
             </p>
           ) : (
@@ -84,12 +84,12 @@ export default function DamageFlagList({
       </section>
 
       <section>
-        <h3 className="mb-2 text-[10px] font-[650] uppercase tracking-[0.25px] text-muted">
+        <h3 className="mb-1.5 text-[9px] font-[650] uppercase tracking-[0.25px] text-muted">
           Incident history
         </h3>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {resolvedFlags.length === 0 ? (
-            <p className="rounded-[8px] border border-dashed border-line bg-page p-3 text-[10px] text-muted">
+            <p className="rounded-[8px] border border-dashed border-line bg-page p-2 text-[9px] text-muted">
               No resolved flags yet.
             </p>
           ) : (
