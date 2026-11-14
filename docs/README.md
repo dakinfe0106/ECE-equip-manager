@@ -447,7 +447,7 @@ The response must include the header `Access-Control-Allow-Origin: http://localh
 
 **4. Automated checks.** `server/equipmanager/tests/test_health.py` verifies the response and CORS header through Django's test client. It runs with `python -m pytest` and in CI. The frontend's MSW tests exercise the API client with mocked HTTP responses; they do not verify connectivity to a running backend.
 
-Protected DRF endpoints require a logged-in Django session (see [Authentication](Architecture.md#9-authentication-and-authorization)) and return `403` for unauthenticated requests with the current configuration. The inventory app provides category and equipment-type lookups and asset list, create, and update routes. Lending and maintenance business routes are not implemented yet. `/api/health/` is public and is the endpoint to use for connection checks.
+Protected DRF endpoints require a logged-in Django session (see [Authentication](Architecture.md#9-authentication-and-authorization)) and return `403` for unauthenticated requests with the current configuration. The inventory app provides category and equipment-type lookups and asset list, create, and update routes. The lending app provides a read-only borrower list; borrower standing and inclusion of deactivated borrowers with outstanding loans depend on Loan model integration and are not implemented yet. Borrower creation/editing and lending workflows are not implemented. Maintenance business routes are not implemented. `/api/health/` is public and is the endpoint to use for connection checks.
 
 ---
 
@@ -469,10 +469,13 @@ All endpoints live under `/api/` and end with a trailing slash.
 | GET | `/api/auth/me/` | Returns `id`, `username`, `first_name`, and `last_name`; returns `403` when signed out. |
 | POST | `/api/auth/logout/` | Public, CSRF-protected. Ends the session; returns `204` even when already signed out. |
 | GET | `/api/categories/` | Authenticated. Lists active equipment categories for the asset form. |
-| GET | `/api/categories/summary/` | Authenticated. Lists categories for the Categories page, ordered by `category_id`, with `is_deleted` and `equipment_type_count`. Supports `search` (name contains) and `deleted` (`false` by default, `true`, or `all`). |
-| GET | `/api/categories/<id>/equipment-types/` | Authenticated. Lists a category's active equipment types, ordered by `type_id`, for the Categories page popup. Returns `404` for an unknown category. |
+| POST | `/api/categories/` | Technician or Administrator. Creates a category from `{name}`. The name is trimmed and must be unique ignoring case, including archived categories; a duplicate returns `400`. |
+| GET | `/api/categories/summary/` | Authenticated. Lists categories for the retained category-management components (no demo page route), ordered by `category_id`, with `is_deleted` and `equipment_type_count`. Supports `search` (name contains) and `deleted` (`false` by default, `true`, or `all`). |
+| GET | `/api/categories/<id>/equipment-types/` | Authenticated. Lists a category's active equipment types, ordered by `type_id`, for the retained category detail popup (no demo page route). Returns `404` for an unknown category. |
 | GET | `/api/equipment-types/` | Authenticated. Lists equipment types whose category is active, ordered by `type_id`. Supports `category_id` and `deleted` (`false` by default, `true`, or `all`). |
-| GET | `/api/assets/` | Authenticated, paginated active asset records; supports `asset_identifier` search. `/api/assets/lookup/` is an alias. |
+| POST | `/api/equipment-types/` | Technician or Administrator. Creates an equipment type from `{name, category_id}` (optional `description`) in an active category. The name is unique within its category, ignoring case; a duplicate returns `400`. |
+| GET | `/api/assets/` | Authenticated, paginated active assets; supports case-insensitive `search` across Asset ID and name, plus `category_id` and `equipment_type_id` filters together. `/api/assets/lookup/` is an alias. The older `asset_identifier` parameter still works but matches the Asset ID only. |
+| GET | `/api/borrowers/` | Authenticated Technician/Administrator only. Lists active borrowers, paginated at 20 per page; supports trimmed, case-insensitive `search` across UNB ID, first name, last name, and full name. Returns `borrower_id`, `unb_id`, `first_name`, and `last_name`; standing and deactivated borrowers with outstanding loans are pending Loan model integration. |
 | POST | `/api/assets/` | Authenticated. Creates an asset with an active `equipment_type_id`; status starts as `Available`. |
 | GET | `/api/assets/<asset_id>/` | Authenticated. Returns one asset. |
 | PATCH | `/api/assets/<asset_id>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
