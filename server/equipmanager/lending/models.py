@@ -13,6 +13,7 @@ class Borrower(models.Model):
     unb_id = models.CharField(max_length=100)
     negligent_damage_flag = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
+    is_manual_enrollment = models.BooleanField(default=False)
 
     class Meta:
         constraints = (
