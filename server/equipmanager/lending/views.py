@@ -19,11 +19,14 @@ from .serializers import (
     DamageFlagSerializer,
     DamageFlagUpdateSerializer,
     DamageFlagWriteSerializer,
+    LoanCheckoutSerializer,
     LoanListSerializer,
     LoanQuerySerializer,
 )
 from .services import (
+    CheckoutRuleError,
     DamageFlagRuleError,
+    checkout_asset,
     damage_flag_summary,
     record_damage_flag,
     resolve_damage_flag,
@@ -60,10 +63,32 @@ class BorrowerList(generics.ListAPIView):
         return borrowers.order_by("borrower_id")
 
 
-class LoanList(generics.ListAPIView):
+class LoanList(generics.ListCreateAPIView):
     serializer_class = LoanListSerializer
     permission_classes = (LoanReadPermissions,)
     pagination_class = None
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return LoanCheckoutSerializer
+        return LoanListSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            loan = checkout_asset(**serializer.validated_data)
+        except Asset.DoesNotExist as error:
+            raise NotFound("Asset not found.") from error
+        except Borrower.DoesNotExist as error:
+            raise NotFound("Borrower not found.") from error
+        except CheckoutRuleError as error:
+            raise ValidationError(error.errors) from error
+        self.today = loan.checkout_date
+        return Response(
+            LoanListSerializer(loan, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     def get_queryset(self):
         # Treat explicit blank filters as invalid, rather than omitted HTML fields.
@@ -113,7 +138,10 @@ class LoanList(generics.ListAPIView):
         return loans.order_by("loan_id")
 
     def get_serializer_context(self):
-        return {**super().get_serializer_context(), "today": self.today}
+        context = super().get_serializer_context()
+        if hasattr(self, "today"):
+            context["today"] = self.today
+        return context
 
 
 class BorrowerDetail(generics.RetrieveAPIView):

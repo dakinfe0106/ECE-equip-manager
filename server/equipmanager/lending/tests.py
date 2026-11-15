@@ -356,7 +356,7 @@ def test_loan_history_survives_soft_deletion(borrower_client, loan_data):
     assert loan_ids(response) == [loan.pk for loan in loan_data.loans]
 
 
-@pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
+@pytest.mark.parametrize("method", ["put", "patch", "delete"])
 def test_loan_writes_rejected(borrower_client, method):
     assert getattr(borrower_client, method)("/api/loans/", {}, format="json").status_code == 405
 
