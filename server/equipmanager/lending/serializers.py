@@ -1,9 +1,8 @@
 from rest_framework import serializers
 
-from .models import Borrower, Loan
 from inventory.models import Asset
 
-from .models import Borrower, DamageFlag
+from .models import Borrower, DamageFlag, Loan
 from .services import damage_warning_level_for_count
 
 
