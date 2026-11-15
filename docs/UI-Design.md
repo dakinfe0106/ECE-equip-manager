@@ -31,7 +31,7 @@ The sidebar has a **Workspace** group and, for Administrators only, an **Adminis
 | Dashboard | `/` | Everyone | Implemented inventory summary at `/api/dashboard/`. |
 | Assets | `/assets` | Everyone; Faculty read-only | `assets/`, `categories/`, `equipment-types/` |
 | Lending | `/loans` | Technician, Administrator | `loans/` |
-| Borrowers | `/borrowers` | Technician, Administrator | Active borrower list with search by UNB ID/name; standing and deactivated borrowers with outstanding loans remain pending Loan integration. |
+| Borrowers | `/borrowers` | Technician, Administrator | Active borrower list with search by UNB ID/name, read-only details, and reviewed damage incident history/management. Damage warning level and damage-based eligibility are calculated from unresolved reviewed incidents; overall standing and overdue-loan eligibility await Loan integration. |
 | Maintenance | `/maintenance` | Technician, Administrator | `maintenance-records/` |
 | Analytics | `/analytics` | Everyone | Pending ([Backend.md §9](Backend.md#9-pending-decisions)) |
 | Import & Export | `/import-export` | Technician, Administrator | Pending |
@@ -142,7 +142,7 @@ The API stores exact values ([database.md](database.md)); the UI shows friendly 
 | `Intact` / `Damaged` | Intact / Damaged | — |
 | `is_deleted = true` | Archived | neutral |
 
-Other badges: overdue, Urgent, and damage flag use danger; active loans, High, and in-progress maintenance use warning; completed and inactive use neutral; eligible, good standing, and active use success.
+Other badges: overdue, Urgent, final damage warning, and damage-ineligible use danger; active loans, High, in-progress maintenance, and first damage warning use warning; completed and inactive use neutral; no damage warning, damage-eligible, good standing, and active use success. The stored legacy `negligent_damage_flag` is displayed separately and is not used to calculate incident warnings or eligibility.
 
 **Archive** in the UI means soft delete (`DELETE`), and **Restore** means the restore action ([Backend.md §5](Backend.md#5-soft-deletion)). Archived records stay visible behind an "Include Archived" option.
 
@@ -154,9 +154,10 @@ Until the team decides, build what database.md supports and leave the extra desi
 | --- | --- | --- |
 | Serial Number on assets | No such field | Leave the field out |
 | Required certifications typed on each asset | Certifications belong to the **equipment type** | Show the type's certifications read-only on the asset |
-| Borrower **Eligibility** (Eligible/Ineligible) and a per-term eligible-borrowers import | No eligibility or term field; borrowers are active or soft-deleted, with standing derived from overdue loans and the damage flag | Show standing only; no eligibility field |
-| Damage flags as a count that can be resolved one at a time | One `negligent_damage_flag` boolean | A single flag that can be set or cleared |
-| Maintenance notes, resolution notes, damage notes on return | No such fields | Leave them out |
+| Overall borrower eligibility (Eligible/Ineligible) and a per-term eligible-borrowers import | Overdue-loan data and checkout service are not implemented | Do not display overall eligibility until Loan integration; damage-based eligibility alone is displayed separately |
+| Reviewed damage incidents, warning count, edit, and resolution | Persistent `DamageFlag` history and edit audit are implemented; `negligent_damage_flag` remains a separate legacy boolean | Show unresolved reviewed incidents and resolved history; only unresolved incidents count toward damage-based warnings |
+| Damage-incident resolution reason and audit metadata | Resolution reason is stored; editor, timestamp, and changed fields are audited | Preserve incident history and record technician-controlled metadata; damaged returns do not create incidents automatically |
+| Maintenance notes and return notes | No such fields | Leave them out |
 | Only Administrators archive and restore assets | Technicians manage inventory | Follow database.md §5 |
 | Borrower last name required | Last name optional | Optional |
 | Return marked Damaged has no maintenance option | Return may go straight to maintenance if damaged | Ask the PO before building returns |

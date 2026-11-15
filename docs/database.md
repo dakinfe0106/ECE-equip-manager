@@ -65,8 +65,41 @@ Asset ID search trims surrounding whitespace and matches identifiers by case-ins
 | first_name            | varchar(255) | No       | Trimmed, nonempty                                    |
 | last_name             | varchar(255) | No       | Default empty string `""` (optional input); trimmed  |
 | unb_id                | varchar(100) | No       | Trimmed, nonempty; unique within Borrower            |
-| negligent_damage_flag | boolean      | No       | Default `False`                                      |
+| negligent_damage_flag | boolean      | No       | Default `False`; retained legacy indicator, separate from incident history |
 | is_deleted            | boolean      | No       | Default `False`                                      |
+
+### DamageFlag
+
+| Column             | Type         | Nullable | Constraints/default |
+| ------------------ | ------------ | -------- | ------------------- |
+| damage_flag_id     | int          | No       | PK |
+| borrower_id        | int          | No       | FK → Borrower.borrower_id (`PROTECT`) |
+| asset_id           | int          | No       | FK → Asset.asset_id (`PROTECT`) |
+| incident_date      | date         | No       | Required |
+| reason             | varchar(1000)| No       | Trimmed, nonempty |
+| notes              | text         | No       | Default empty string `""`; trimmed |
+| status             | varchar(12)  | No       | `unresolved` / `resolved`; default `unresolved` |
+| reviewed_by        | bigint       | No       | FK → `settings.AUTH_USER_MODEL` (`PROTECT`) |
+| reviewed_at        | timestamp    | No       | Server-generated review time |
+| created_at         | timestamp    | No       | Server-generated creation time |
+| updated_at         | timestamp    | No       | Server-generated update time |
+| resolved_by        | bigint       | **Yes**  | FK → `settings.AUTH_USER_MODEL` (`PROTECT`); required when resolved |
+| resolved_at        | timestamp    | **Yes**  | Required when resolved |
+| resolution_reason  | varchar(1000)| No       | Empty while unresolved; trimmed, nonempty when resolved |
+
+Only a technician-confirmed reviewed negligent incident can be recorded. Damaged returns do not automatically create incidents. Resolution preserves the incident row and requires the authenticated technician and a reason.
+
+### DamageFlagEditAudit
+
+| Column                        | Type        | Nullable | Constraints/default |
+| ----------------------------- | ----------- | -------- | ------------------- |
+| damage_flag_edit_audit_id     | int         | No       | PK |
+| damage_flag_id                | int         | No       | FK → DamageFlag.damage_flag_id (`PROTECT`) |
+| edited_by                     | bigint      | No       | FK → `settings.AUTH_USER_MODEL` (`PROTECT`) |
+| edited_at                     | timestamp   | No       | Server-generated edit time |
+| changed_fields                | json        | No       | Field names changed by the edit |
+
+Each persisted edit creates an audit row in the same transaction as the incident correction. Editor identity and timestamp are server-controlled. A no-op edit does not create an audit row.
 
 ### Certification
 
@@ -146,16 +179,27 @@ SystemUser is the logical record for people who sign in to the application. It i
 - Borrower **many ↔ many** Certification through BorrowerCertification.
 - Asset **1 → many** Loan; Borrower **1 → many** Loan.
 - Asset **1 → many** MaintenanceRecord; SystemUser **1 → many** MaintenanceRecord (as technician).
+- Borrower **1 → many** DamageFlag; Asset **1 → many** DamageFlag.
+- SystemUser **1 → many** DamageFlag (as reviewer and resolver) and DamageFlagEditAudit (as editor).
+- DamageFlag **1 → many** DamageFlagEditAudit.
 
 ## 4. Operating rules
 
 ### Checkout and return
 
-1. New checkout requires an active, non-soft-deleted borrower without a negligent-damage flag or an **overdue open loan**; the borrower must have every certification required by the equipment type.
+1. The agreed checkout policy requires an active, non-soft-deleted borrower with fewer than three unresolved reviewed damage incidents and no overdue open loans; the borrower must have every certification required by the equipment type. The incident-based damage rule is implemented by the borrower detail and damage-flag APIs. The Loan model and checkout backend are not yet available, so overdue calculation and checkout enforcement remain pending.
 2. The asset, its equipment type, and its category must not be soft-deleted. An asset must be `Available` to be checked out; `Retired` assets require explicit reactivation first.
 3. Checkout creates a Loan and sets Asset.status = `On_Loan` in a single database transaction. Returning it fills the return date/condition and makes the asset `Available`, or initiates maintenance directly if damaged or otherwise required.
 4. A borrower who later becomes ineligible may keep and return an existing loan, but may not start new loans.
 5. Loan rows are historical records: never remove them through ordinary user-facing deletion actions. Extensions update expected return date, without altering checkout history.
+
+### Damage incidents and restrictions
+
+1. Record a damage incident only after a technician has reviewed and confirmed negligent damage. A damaged return alone is not evidence of negligence and never creates a flag automatically.
+2. Damage warning level is based only on reviewed incidents with unresolved status: zero is no warning, one is a first warning, two is a final warning, and three or more is damage-ineligible. Resolved incidents remain in history but do not count.
+3. Damage-based eligibility is true only when fewer than three reviewed incidents are unresolved. Overall checkout eligibility also requires no overdue open loans; it is not calculated or enforced until the Loan model and checkout backend are integrated.
+4. `Borrower.negligent_damage_flag` remains a separate legacy indicator. It is not incident history and is not used to calculate counts, warning levels, or eligibility. Existing values are not migrated into incident rows.
+5. Editing corrects the existing incident without changing its borrower, identity, review state, or resolution status. The backend records the authenticated editor, server timestamp, and changed field names. Resolving requires a reason and preserves the incident history.
 
 ### Maintenance and retirement
 
