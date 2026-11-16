@@ -145,7 +145,7 @@ soft-deleted. Return-condition choices are also enforced by a database check.
 | actual_return_date   | date        | **Yes**  | `NULL` while active; if populated, ≥ checkout_date      |
 | return_condition     | varchar(20) | **Yes**  | `NULL` while active; `Intact` / `Damaged` when returned |
 
-**Constraints:** One active loan per asset, enforced with a partial unique constraint on `asset_id` where `actual_return_date IS NULL`. Enforce that `actual_return_date` and `return_condition` are either both `NULL` or both populated. Authorized technicians may extend `expected_return_date` on an active loan.
+**Constraints:** One active loan per asset, enforced with a partial unique constraint on `asset_id` where `actual_return_date IS NULL`. Enforce that `actual_return_date` and `return_condition` are either both `NULL` or both populated. Technicians and Administrators may change `expected_return_date` on an active loan via `PATCH /api/loans/<loan_id>/`. The date may be earlier than, equal to, or later than the current expected return date, and must be on or after `checkout_date`. Returned loans cannot be changed. The service locks the Loan row and saves only the expected date atomically, preserving checkout history, return history, and the borrower and asset associations. This requires no schema change.
 
 ### MaintenanceRecord
 

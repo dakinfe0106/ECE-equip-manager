@@ -68,6 +68,30 @@ def checkout_asset(*, asset_id, borrower_id, expected_return_date):
     return loan
 
 
+class LoanExtensionRuleError(Exception):
+    def __init__(self, field, message):
+        self.errors = {field: message}
+        super().__init__(message)
+
+
+@transaction.atomic
+def extend_loan(*, loan_id, expected_return_date):
+    loan = (
+        Loan.objects.select_for_update(of=("self",))
+        .select_related("asset", "borrower")
+        .get(pk=loan_id)
+    )
+    if loan.actual_return_date is not None:
+        raise LoanExtensionRuleError("expected_return_date", "Returned loans cannot be extended.")
+    if expected_return_date < loan.checkout_date:
+        raise LoanExtensionRuleError(
+            "expected_return_date", "Must be on or after the original checkout date."
+        )
+    loan.expected_return_date = expected_return_date
+    loan.save(update_fields=["expected_return_date"])
+    return loan
+
+
 class DamageFlagRuleError(Exception):
     def __init__(self, field, message):
         self.errors = {field: message}
