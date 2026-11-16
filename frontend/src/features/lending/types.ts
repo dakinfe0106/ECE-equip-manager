@@ -19,7 +19,8 @@ export type LoanAssetStatusFilter =
   | 'all'
   | 'available'
   | 'on_loan'
-  | 'overdue'
+  | 'under_maintenance'
+  | 'retired'
 
 /**
  * A loan record returned by the backend.

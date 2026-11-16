@@ -1,4 +1,3 @@
-
 from django.db.models import CharField, Count, Q, Value
 from django.db.models.functions import Concat
 from django.shortcuts import get_object_or_404
@@ -81,7 +80,9 @@ class LoanList(generics.ListAPIView):
             if status == "overdue":
                 loans = loans.filter(expected_return_date__lt=self.today)
         if "expected_return_from" in params:
-            loans = loans.filter(expected_return_date__gte=params["expected_return_from"])
+            loans = loans.filter(
+                expected_return_date__gte=params["expected_return_from"]
+            )
         if "expected_return_to" in params:
             loans = loans.filter(expected_return_date__lte=params["expected_return_to"])
         asset_statuses = {
@@ -96,7 +97,9 @@ class LoanList(generics.ListAPIView):
         if search:
             loans = loans.alias(
                 borrower_full_name=Concat(
-                    "borrower__first_name", Value(" "), "borrower__last_name",
+                    "borrower__first_name",
+                    Value(" "),
+                    "borrower__last_name",
                     output_field=CharField(),
                 )
             ).filter(
@@ -111,6 +114,8 @@ class LoanList(generics.ListAPIView):
 
     def get_serializer_context(self):
         return {**super().get_serializer_context(), "today": self.today}
+
+
 class BorrowerDetail(generics.RetrieveAPIView):
     serializer_class = BorrowerDetailSerializer
     permission_classes = (BorrowerListPermissions,)
@@ -135,11 +140,13 @@ class BorrowerDamageFlagListCreate(APIView):
             .select_related("borrower", "asset", "reviewed_by", "resolved_by")
             .order_by("-incident_date", "-created_at", "-damage_flag_id")
         )
-        return Response({
-            "count": len(flags),
-            "results": DamageFlagSerializer(flags, many=True).data,
-            "summary": damage_flag_summary(borrower=borrower),
-        })
+        return Response(
+            {
+                "count": len(flags),
+                "results": DamageFlagSerializer(flags, many=True).data,
+                "summary": damage_flag_summary(borrower=borrower),
+            }
+        )
 
     def post(self, request, pk):
         get_object_or_404(Borrower, borrower_id=pk, is_deleted=False)
@@ -195,10 +202,12 @@ class BorrowerDamageFlagDetail(APIView):
         except DamageFlagRuleError as error:
             raise ValidationError(error.errors) from error
 
-        return Response({
-            "damage_flag": DamageFlagSerializer(flag).data,
-            "summary": summary,
-        })
+        return Response(
+            {
+                "damage_flag": DamageFlagSerializer(flag).data,
+                "summary": summary,
+            }
+        )
 
     def post(self, request, pk, damage_flag_id):
         borrower = get_object_or_404(Borrower, borrower_id=pk, is_deleted=False)
@@ -220,7 +229,9 @@ class BorrowerDamageFlagDetail(APIView):
         except DamageFlagRuleError as error:
             raise ValidationError(error.errors) from error
 
-        return Response({
-            "damage_flag": DamageFlagSerializer(flag).data,
-            "summary": summary,
-        })
+        return Response(
+            {
+                "damage_flag": DamageFlagSerializer(flag).data,
+                "summary": summary,
+            }
+        )

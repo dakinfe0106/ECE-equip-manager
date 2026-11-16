@@ -1,4 +1,5 @@
-import { useState } from 'react'
+
+import { useEffect, useState } from 'react'
 import PageIntro from '../components/ui/PageIntro'
 import Panel from '../components/ui/Panel'
 import LoanDetailsModal from '../features/lending/components/LoanDetailsModal'
@@ -14,13 +15,33 @@ import {
 
 export default function LendingPage() {
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filters, setFilters] = useState<LoanFiltersType>({
     ...defaultLoanFilters,
   })
   const [showFilters, setShowFilters] = useState(false)
   const [selectedLoan, setSelectedLoan] = useState<LoanRecord | null>(null)
 
-  const { loans, isLoading, errorMessage } = useLoans(filters, search)
+  // Wait until typing stops before requesting new results.
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 300)
+
+    return () => clearTimeout(timeout)
+  }, [search])
+
+  const { loans, isLoading, errorMessage } = useLoans(
+    filters,
+    debouncedSearch,
+  )
+
+  // Count only filters that differ from their default values.
+  const activeFilterCount = (
+    Object.keys(defaultLoanFilters) as Array<keyof LoanFiltersType>
+  ).filter((key) => filters[key] !== defaultLoanFilters[key]).length
+
+  const hasLoans = loans.length > 0
 
   return (
     <section
@@ -55,9 +76,11 @@ export default function LendingPage() {
 
               Filters
 
-              <span className="rounded-full bg-neutral-soft px-[5px] py-[2px] text-[8px] text-muted">
-                All
-              </span>
+              {activeFilterCount > 0 && (
+                <span className="rounded-full bg-neutral-soft px-[5px] py-[2px] text-[8px] text-muted">
+                  {activeFilterCount}
+                </span>
+              )}
             </button>
 
             {showFilters && (
@@ -71,8 +94,14 @@ export default function LendingPage() {
         </div>
 
         {isLoading && (
-          <div className="py-8 text-center text-[12px] text-muted">
-            Loading lending records...
+          <div
+            role="status"
+            aria-live="polite"
+            className="py-3 text-center text-[12px] text-muted"
+          >
+            {hasLoans
+              ? 'Updating lending records...'
+              : 'Loading lending records...'}
           </div>
         )}
 
@@ -88,7 +117,7 @@ export default function LendingPage() {
           </div>
         )}
 
-        {!isLoading && !errorMessage && (
+        {(hasLoans || (!isLoading && !errorMessage)) && (
           <LoanTable
             loans={loans}
             onSelectLoan={setSelectedLoan}

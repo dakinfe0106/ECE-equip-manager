@@ -29,13 +29,17 @@ If this guide conflicts with `database.md` or `Architecture.md`, raise the confl
 
 ### Issue #110: read-only loans contract
 
+
 `GET /api/loans/` returns an unpaginated JSON array ordered by `loan_id`.
-Each item contains exactly `loan_id`, `asset_id`, `equipment_name`, `borrower_id`,
-`borrower_name`, `checkout_date`, `expected_return_date`, `actual_return_date`,
-`return_condition`, and `status`. Equipment name is `Asset.name`; borrower name
-joins the existing first and last names and trims the result. Dates use YYYY-MM-DD.
-Return date and condition are null for open loans; returned conditions are `Intact`
-or `Damaged`.
+Each item contains exactly `loan_id`, `asset_id`, `asset_identifier`,
+`equipment_name`, `borrower_id`, `borrower_unb_id`, `borrower_name`,
+`checkout_date`, `expected_return_date`, `actual_return_date`,
+`return_condition`, and `status`. Asset identifier is `Asset.asset_identifier`;
+equipment name is `Asset.name`; borrower UNB ID is `Borrower.unb_id`; borrower
+name joins the existing first and last names and trims the result. Dates use
+YYYY-MM-DD. Return date and condition are null for open loans; returned
+conditions are `Intact` or `Damaged`.
+
 
 The endpoint permits authenticated active Technicians and Administrators through
 `LoanReadPermissions`; Faculty and unsupported roles are denied. Write methods

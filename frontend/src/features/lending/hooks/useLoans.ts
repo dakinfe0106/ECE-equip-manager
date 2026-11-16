@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react'
 import { fetchLoans, LoanLookupError } from '../api'
 import {
@@ -54,11 +55,11 @@ export default function useLoans(
       .catch((error: unknown) => {
         if (!isCurrent) return
 
-        setState({
-          loans: [],
+        setState((previous) => ({
+          ...previous,
           errorMessage: getErrorMessage(error),
           resolvedRequest: requestKey,
-        })
+        }))
       })
 
     return () => {
@@ -68,7 +69,10 @@ export default function useLoans(
 
   return {
     loans: state.loans,
-    errorMessage: state.errorMessage,
+    errorMessage:
+      state.resolvedRequest === requestKey
+        ? state.errorMessage
+        : '',
     isLoading: state.resolvedRequest !== requestKey,
   }
 }

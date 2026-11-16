@@ -14,9 +14,15 @@ class BorrowerListSerializer(serializers.ModelSerializer):
 
 
 class LoanQuerySerializer(serializers.Serializer):
-    status = serializers.ChoiceField(choices=("on_loan", "overdue", "returned"), required=False)
-    expected_return_from = serializers.DateField(input_formats=["%Y-%m-%d"], required=False)
-    expected_return_to = serializers.DateField(input_formats=["%Y-%m-%d"], required=False)
+    status = serializers.ChoiceField(
+        choices=("on_loan", "overdue", "returned"), required=False
+    )
+    expected_return_from = serializers.DateField(
+        input_formats=["%Y-%m-%d"], required=False
+    )
+    expected_return_to = serializers.DateField(
+        input_formats=["%Y-%m-%d"], required=False
+    )
     asset_status = serializers.ChoiceField(
         choices=("available", "on_loan", "under_maintenance", "retired"), required=False
     )
@@ -26,9 +32,9 @@ class LoanQuerySerializer(serializers.Serializer):
         start = attrs.get("expected_return_from")
         end = attrs.get("expected_return_to")
         if start and end and start > end:
-            raise serializers.ValidationError({
-                "expected_return_to": "Must be on or after expected_return_from."
-            })
+            raise serializers.ValidationError(
+                {"expected_return_to": "Must be on or after expected_return_from."}
+            )
         return attrs
 
 
@@ -75,6 +81,8 @@ class LoanListSerializer(serializers.ModelSerializer):
         if obj.expected_return_date < self.context["today"]:
             return "overdue"
         return "on_loan"
+
+
 class BorrowerDetailSerializer(serializers.ModelSerializer):
     unresolved_damage_flag_count = serializers.IntegerField(read_only=True)
     damage_warning_level = serializers.SerializerMethodField()
@@ -136,10 +144,9 @@ class DamageFlagWriteSerializer(serializers.Serializer):
             return
         unknown = set(data.keys()) - set(self.fields)
         if unknown:
-            raise serializers.ValidationError({
-                field: "This field is not accepted."
-                for field in sorted(unknown)
-            })
+            raise serializers.ValidationError(
+                {field: "This field is not accepted." for field in sorted(unknown)}
+            )
 
 
 class DamageFlagUpdateSerializer(serializers.Serializer):
@@ -169,10 +176,9 @@ class DamageFlagUpdateSerializer(serializers.Serializer):
         if hasattr(data, "keys"):
             unknown = set(data.keys()) - set(self.fields)
             if unknown:
-                raise serializers.ValidationError({
-                    field: "This field is not accepted."
-                    for field in sorted(unknown)
-                })
+                raise serializers.ValidationError(
+                    {field: "This field is not accepted." for field in sorted(unknown)}
+                )
         return super().to_internal_value(data)
 
     def validate_reason(self, value):
@@ -191,7 +197,9 @@ class DamageFlagResolutionSerializer(serializers.Serializer):
 
 
 class DamageFlagSerializer(serializers.ModelSerializer):
-    borrower_id = serializers.IntegerField(source="borrower.borrower_id", read_only=True)
+    borrower_id = serializers.IntegerField(
+        source="borrower.borrower_id", read_only=True
+    )
     borrower_name = serializers.SerializerMethodField()
     equipment_id = serializers.IntegerField(source="asset.asset_id", read_only=True)
     equipment_name = serializers.CharField(source="asset.name", read_only=True)

@@ -124,6 +124,8 @@ export default function LoanFilters({
             <option value="all">All statuses</option>
             <option value="available">Available</option>
             <option value="on_loan">On Loan</option>
+            <option value="under_maintenance">Under Maintenance</option>
+            <option value="retired">Retired</option>
           </select>
         </label>
 

@@ -39,6 +39,8 @@ describe('LoanFilters', () => {
     expect(html).toContain('All statuses')
     expect(html).toContain('Available')
     expect(html).toContain('On Loan')
+    expect(html).toContain('Under Maintenance')
+    expect(html).toContain('Retired')
 
     const selects =
       html.match(/<select[^>]*>[\s\S]*?<\/select>/g) ?? []
