@@ -62,7 +62,7 @@ export default function LendingPage() {
             onClick={() => setShowCheckoutModal(true)}
             className="inline-flex min-h-[38px] items-center justify-center rounded-lg border border-primary bg-primary px-[15px] text-[11px] font-semibold text-white hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
           >
-            + Check Out Equipment
+            + New Loan
           </button>
         }
       />

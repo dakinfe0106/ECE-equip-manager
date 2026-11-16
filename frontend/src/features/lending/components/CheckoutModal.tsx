@@ -103,7 +103,7 @@ export default function CheckoutModal({
         .finally(() => {
           if (!controller.signal.aborted) setBorrowersLoading(false)
         })
-    }, 250)
+    }, 300)
     return () => {
       window.clearTimeout(timeout)
       controller.abort()
@@ -166,6 +166,8 @@ export default function CheckoutModal({
 
   const handleBorrowerSearch = (value: string) => {
     setBorrowerSearch(value)
+    setBorrowersLoading(true)
+    setBorrowersError('')
     setSelectedBorrower(null)
     setBorrowerDetails(null)
     setBorrowerDetailsError('')
@@ -257,13 +259,13 @@ export default function CheckoutModal({
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-divider px-[22px] py-5">
           <div>
             <p className="mb-[7px] text-[10px] font-bold uppercase tracking-[0.1em] text-primary">
-              Lending
+              NEW RECORD
             </p>
             <h2
               id="checkout-modal-title"
-              className="m-0 text-[15px] font-[650] text-heading"
+              className="m-0 text-[15px] font-normal text-heading"
             >
-              Checkout Equipment
+              New Loan
             </h2>
             <p className="mb-0 mt-[6px] text-[11px] text-muted">
               Assign an available asset to an active borrower.
@@ -315,27 +317,31 @@ export default function CheckoutModal({
                 <option value="">
                   {assetsLoading ? 'Loading assets...' : 'Select an asset'}
                 </option>
-                {assets.map((asset) => (
-                  <option
-                    key={asset.asset_id}
-                    value={asset.asset_id}
-                    disabled={asset.status !== 'Available'}
-                  >
-                    {asset.asset_identifier} · {asset.name} —{' '}
-                    {assetStatusLabels[asset.status]}
-                  </option>
-                ))}
+                {assets
+                  .filter((asset) => asset.status === 'Available')
+                  .map((asset) => (
+                    <option
+                      key={asset.asset_id}
+                      value={asset.asset_id}
+                      disabled={asset.status !== 'Available'}
+                    >
+                      {asset.asset_identifier} · {asset.name} —{' '}
+                      {assetStatusLabels[asset.status]}
+                    </option>
+                  ))}
               </select>
               {assetsError && (
                 <p role="alert" className="mb-0 mt-2 text-[10px] text-danger">
                   {assetsError}
                 </p>
               )}
-              {!assetsLoading && !assetsError && assets.length === 0 && (
-                <p className="mb-0 mt-2 text-[10px] text-muted">
-                  No active assets were returned by the server.
-                </p>
-              )}
+              {!assetsLoading &&
+                !assetsError &&
+                !assets.some((asset) => asset.status === 'Available') && (
+                  <p className="mb-0 mt-2 text-[10px] text-muted">
+                    No equipment is currently available for checkout.
+                  </p>
+                )}
               {selectedAsset && (
                 <div className="mt-3 rounded-lg border border-line bg-page px-3 py-3">
                   <p className="m-0 text-[11px] font-semibold text-heading">
@@ -384,7 +390,7 @@ export default function CheckoutModal({
                   role="listbox"
                   className="absolute left-0 right-0 top-full z-10 mt-1 max-h-[210px] overflow-y-auto rounded-lg border border-line bg-white py-1 shadow-[0_12px_30px_rgb(15_27_45_/_12%)]"
                 >
-                  {borrowersLoading && (
+                  {borrowersLoading && borrowerResults.length === 0 && (
                     <p
                       role="status"
                       className="mb-0 px-3 py-3 text-[10px] text-muted"
@@ -407,8 +413,7 @@ export default function CheckoutModal({
                         No borrowers found. Try another name or UNB ID.
                       </p>
                     )}
-                  {!borrowersLoading &&
-                    !borrowersError &&
+                  {!borrowersError &&
                     borrowerResults.map((borrower) => (
                       <button
                         type="button"
@@ -417,8 +422,9 @@ export default function CheckoutModal({
                           selectedBorrower?.borrower_id === borrower.borrower_id
                         }
                         key={borrower.borrower_id}
+                        disabled={borrowersLoading}
                         onClick={() => selectBorrower(borrower)}
-                        className="flex w-full items-center justify-between gap-3 border-0 bg-white px-3 py-2.5 text-left hover:bg-page focus-visible:bg-primary-soft focus-visible:outline-none"
+                        className="flex w-full items-center justify-between gap-3 border-0 bg-white px-3 py-2.5 text-left hover:bg-page focus-visible:bg-primary-soft focus-visible:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <span className="min-w-0">
                           <strong className="block truncate text-[11px] font-semibold text-body">
@@ -460,11 +466,10 @@ export default function CheckoutModal({
                           Damage-based eligibility
                         </span>
                         <span
-                          className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${
-                            borrowerDetails.damage_eligible
-                              ? 'bg-success-soft text-success'
-                              : 'bg-danger-soft text-danger'
-                          }`}
+                          className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${borrowerDetails.damage_eligible
+                            ? 'bg-success-soft text-success'
+                            : 'bg-danger-soft text-danger'
+                            }`}
                         >
                           {borrowerDetails.damage_eligible
                             ? 'Eligible'
