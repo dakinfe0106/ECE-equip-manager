@@ -7,6 +7,7 @@ import LoanFilters from '../features/lending/components/LoanFilters'
 import LoanSearch from '../features/lending/components/LoanSearch'
 import LoanTable from '../features/lending/components/LoanTable'
 import useLoans from '../features/lending/hooks/useLoans'
+import CheckoutModal from '../features/lending/components/CheckoutModal'
 import {
   defaultLoanFilters,
   type LoanFilters as LoanFiltersType,
@@ -14,6 +15,9 @@ import {
 } from '../features/lending/types'
 
 export default function LendingPage() {
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [checkoutSuccessMessage, setCheckoutSuccessMessage] = useState('')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filters, setFilters] = useState<LoanFiltersType>({
@@ -34,6 +38,7 @@ export default function LendingPage() {
   const { loans, isLoading, errorMessage } = useLoans(
     filters,
     debouncedSearch,
+    refreshKey,
   )
 
   // Count only filters that differ from their default values.
@@ -51,7 +56,33 @@ export default function LendingPage() {
       <PageIntro
         title="Lending"
         description="Manage checkouts, returns, and complete lending history."
+        actions={
+          <button
+            type="button"
+            onClick={() => setShowCheckoutModal(true)}
+            className="inline-flex min-h-[38px] items-center justify-center rounded-lg border border-primary bg-primary px-[15px] text-[11px] font-semibold text-white hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+          >
+            + Check Out Equipment
+          </button>
+        }
       />
+      {checkoutSuccessMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-success/20 bg-success-soft px-4 py-3 text-[11px] text-success"
+        >
+          <span>{checkoutSuccessMessage}</span>
+          <button
+            type="button"
+            aria-label="Dismiss checkout confirmation"
+            onClick={() => setCheckoutSuccessMessage('')}
+            className="rounded px-2 py-1 font-semibold hover:bg-white/50"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <Panel>
         <div className="flex min-h-[66px] items-center justify-between gap-[18px] border-b border-divider px-[17px] py-[14px] max-[520px]:flex-col max-[520px]:items-stretch max-[520px]:gap-[10px]">
@@ -129,6 +160,19 @@ export default function LendingPage() {
         loan={selectedLoan}
         onClose={() => setSelectedLoan(null)}
       />
+
+      {showCheckoutModal && (
+        <CheckoutModal
+          onClose={() => setShowCheckoutModal(false)}
+          onSuccess={(loan) => {
+            setShowCheckoutModal(false)
+            setCheckoutSuccessMessage(
+              `${loan.equipment_name} was checked out to ${loan.borrower_name}.`,
+            )
+            setRefreshKey((current) => current + 1)
+        }}
+      />
+    )}
     </section>
   )
 }
