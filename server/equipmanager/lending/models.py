@@ -42,6 +42,59 @@ class Borrower(models.Model):
         return f"{self.first_name} {self.last_name}".strip()
 
 
+class Loan(models.Model):
+    class ReturnCondition(models.TextChoices):
+        INTACT = "Intact", "Intact"
+        DAMAGED = "Damaged", "Damaged"
+
+    loan_id = models.AutoField(primary_key=True)
+    asset = models.ForeignKey("inventory.Asset", on_delete=models.PROTECT)
+    borrower = models.ForeignKey(Borrower, on_delete=models.PROTECT)
+    checkout_date = models.DateField()
+    expected_return_date = models.DateField()
+    actual_return_date = models.DateField(null=True, blank=True)
+    return_condition = models.CharField(
+        max_length=20,
+        choices=ReturnCondition.choices,
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        constraints = (
+            CheckConstraint(
+                condition=Q(expected_return_date__gte=models.F("checkout_date")),
+                name="lending_loan_expected_date_order",
+            ),
+            CheckConstraint(
+                condition=Q(actual_return_date__isnull=True)
+                | Q(actual_return_date__gte=models.F("checkout_date")),
+                name="lending_loan_actual_date_order",
+            ),
+            CheckConstraint(
+                condition=(
+                    Q(actual_return_date__isnull=True)
+                    & Q(return_condition__isnull=True)
+                )
+                | (
+                    Q(actual_return_date__isnull=False)
+                    & Q(return_condition__isnull=False)
+                ),
+                name="lending_loan_return_complete",
+            ),
+            CheckConstraint(
+                condition=Q(return_condition__isnull=True)
+                | Q(return_condition__in=["Intact", "Damaged"]),
+                name="lending_loan_return_condition_valid",
+            ),
+            UniqueConstraint(
+                fields=("asset",),
+                condition=Q(actual_return_date__isnull=True),
+                name="lending_loan_one_open_loan_per_asset",
+            ),
+        )
+
+
 class DamageFlag(models.Model):
     class Status(models.TextChoices):
         UNRESOLVED = "unresolved", "Unresolved"
@@ -84,7 +137,11 @@ class DamageFlag(models.Model):
         related_name="resolved_damage_flags",
     )
     resolved_at = models.DateTimeField(null=True, blank=True)
-    resolution_reason = models.CharField(max_length=1000, blank=True, default="")
+    resolution_reason = models.CharField(
+        max_length=1000,
+        blank=True,
+        default="",
+    )
 
     class Meta:
         constraints = (
@@ -125,7 +182,10 @@ class DamageFlag(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Damage flag {self.damage_flag_id} for borrower {self.borrower_id}"
+        return (
+            f"Damage flag {self.damage_flag_id} "
+            f"for borrower {self.borrower_id}"
+        )
 
 
 class DamageFlagEditAudit(models.Model):
@@ -145,4 +205,7 @@ class DamageFlagEditAudit(models.Model):
     changed_fields = models.JSONField()
 
     def __str__(self):
-        return f"Edit audit {self.damage_flag_edit_audit_id} for damage flag {self.damage_flag_id}"
+        return (
+            f"Edit audit {self.damage_flag_edit_audit_id} "
+            f"for damage flag {self.damage_flag_id}"
+        )
