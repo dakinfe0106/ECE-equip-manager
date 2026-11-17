@@ -84,10 +84,17 @@ describe('CompleteMaintenanceDialog', () => {
 
     const today = new Date().toLocaleDateString('en-CA')
     const dateInput = screen.getByLabelText(/Completion Date/)
-    expect(screen.getByText('SHOP-005')).toBeTruthy()
     expect(dateInput.getAttribute('min')).toBe('2026-11-01')
     expect(dateInput.getAttribute('max')).toBe(today)
     expect(dateInput).toHaveProperty('value', today)
+  })
+
+  it('shows the asset, type and technician as read-only details', () => {
+    renderDialog()
+
+    expect(screen.getByText('SHOP-005 · Oscilloscope')).toBeTruthy()
+    expect(screen.getByText('Repair')).toBeTruthy()
+    expect(screen.getByText('Shop Technician')).toBeTruthy()
   })
 
   it('needs an outcome before the completion can be confirmed', async () => {
@@ -109,18 +116,38 @@ describe('CompleteMaintenanceDialog', () => {
     await userEvent.click(screen.getByLabelText(/Return to Service/))
     await userEvent.click(screen.getByRole('button', { name: 'Confirm Completion' }))
 
-    await waitFor(() => expect(onCompleted).toHaveBeenCalledWith('Available'))
+    await waitFor(() =>
+      expect(onCompleted).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'Completed' }),
+        'Available',
+      ),
+    )
     expect(sentBody).toEqual({ end_date: '2026-11-05', outcome: 'Available' })
   })
 
-  it('can retire the asset instead of returning it to service', async () => {
+  it('retires the asset after the user confirms the warning', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     const { onCompleted } = renderDialog()
 
     await userEvent.click(screen.getByLabelText(/Retire Asset/))
     await userEvent.click(screen.getByRole('button', { name: 'Confirm Completion' }))
 
-    await waitFor(() => expect(onCompleted).toHaveBeenCalledWith('Retired'))
+    await waitFor(() =>
+      expect(onCompleted).toHaveBeenCalledWith(expect.anything(), 'Retired'),
+    )
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Retire this asset?'))
     expect(sentBody).toMatchObject({ outcome: 'Retired' })
+  })
+
+  it('sends nothing when the retire warning is declined', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const { onCompleted } = renderDialog()
+
+    await userEvent.click(screen.getByLabelText(/Retire Asset/))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm Completion' }))
+
+    expect(sentBody).toBeUndefined()
+    expect(onCompleted).not.toHaveBeenCalled()
   })
 
   it('shows the server error and stays open when completion is rejected', async () => {
@@ -134,7 +161,9 @@ describe('CompleteMaintenanceDialog', () => {
     await userEvent.click(screen.getByLabelText(/Return to Service/))
     await userEvent.click(screen.getByRole('button', { name: 'Confirm Completion' }))
 
-    expect((await screen.findByRole('alert')).textContent).toBe(
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('Unable to complete maintenance')
+    expect(alert.textContent).toContain(
       'This maintenance record has already been completed.',
     )
     expect(onCompleted).not.toHaveBeenCalled()

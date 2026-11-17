@@ -223,6 +223,13 @@ export function completeMaintenanceRecord(
   )
 }
 
+export function technicianName(technician: MaintenanceTechnician): string {
+  return (
+    [technician.first_name, technician.last_name].filter(Boolean).join(' ')
+    || technician.username
+  )
+}
+
 export function describeMaintenanceError(error: unknown, action: string): string {
   if (error instanceof MaintenanceRequestError && error.status === 403) {
     return 'Your account does not have permission to access maintenance records.'

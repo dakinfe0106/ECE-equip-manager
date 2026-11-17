@@ -345,8 +345,10 @@ export default function MaintenancePage() {
         <CompleteMaintenanceDialog
           record={recordToComplete}
           onClose={() => setRecordToComplete(undefined)}
-          onCompleted={(outcome) => {
+          onCompleted={(completed, outcome) => {
             setRecordToComplete(undefined)
+            setSelectedRecord(completed)
+            setDialogMode('details')
             setStatusMessage(
               outcome === 'Retired'
                 ? 'Maintenance completed and the asset was retired.'
