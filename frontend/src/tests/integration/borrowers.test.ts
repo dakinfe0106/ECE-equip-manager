@@ -4,7 +4,9 @@ import { setupServer } from 'msw/node'
 import { apiBaseUrl } from '../../api'
 import {
   BorrowerRequestError,
+  fetchBorrowerDetails,
   fetchBorrowers,
+  type BorrowerDetailsRecord,
   type PaginatedBorrowers,
 } from '../../features/borrowers/api'
 
@@ -22,8 +24,24 @@ const response: PaginatedBorrowers = {
   ],
 }
 
+const borrowerDetails: BorrowerDetailsRecord = {
+  borrower_id: 1,
+  unb_id: '0000101',
+  first_name: 'Ada',
+  last_name: 'Lovelace',
+  negligent_damage_flag: false,
+  unresolved_damage_flag_count: 0,
+  damage_warning_level: 'no_warning',
+  damage_eligible: true,
+}
+
 const server = setupServer(
   http.get(`${apiBaseUrl}/borrowers/`, () => HttpResponse.json(response)),
+  http.get(`${apiBaseUrl}/borrowers/:borrowerId/`, ({ params }) => (
+    Number(params.borrowerId) === borrowerDetails.borrower_id
+      ? HttpResponse.json(borrowerDetails)
+      : new HttpResponse(null, { status: 404 })
+  )),
 )
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
@@ -59,5 +77,27 @@ describe('Borrowers API client', () => {
     await expect(fetchBorrowers(1, '   ')).rejects.toBeInstanceOf(BorrowerRequestError)
     await expect(fetchBorrowers()).rejects.toMatchObject({ status: 403 })
     expect(new URL(requestedUrl).searchParams.has('search')).toBe(false)
+  })
+
+  it('loads details using the selected numeric borrower ID', async () => {
+    let requestedUrl = ''
+    server.use(http.get(`${apiBaseUrl}/borrowers/:borrowerId/`, ({ request }) => {
+      requestedUrl = request.url
+      return HttpResponse.json(borrowerDetails)
+    }))
+
+    await expect(fetchBorrowerDetails(1)).resolves.toEqual(borrowerDetails)
+    expect(requestedUrl).toBe(`${apiBaseUrl}/borrowers/1/`)
+  })
+
+  it('reports details authorization and not-found failures', async () => {
+    server.use(http.get(`${apiBaseUrl}/borrowers/:borrowerId/`, ({ params }) => (
+      Number(params.borrowerId) === 1
+        ? new HttpResponse(null, { status: 403 })
+        : new HttpResponse(null, { status: 404 })
+    )))
+
+    await expect(fetchBorrowerDetails(1)).rejects.toMatchObject({ status: 403 })
+    await expect(fetchBorrowerDetails(2)).rejects.toBeInstanceOf(BorrowerRequestError)
   })
 })
