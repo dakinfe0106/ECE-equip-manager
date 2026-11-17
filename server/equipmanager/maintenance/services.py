@@ -68,3 +68,27 @@ def start_maintenance(
     asset.status = Asset.Status.UNDER_MAINTENANCE
     asset.save(update_fields=("status",))
     return record
+
+
+@transaction.atomic
+def complete_maintenance(*, record_id: int, end_date) -> MaintenanceRecord:
+    asset_id = MaintenanceRecord.objects.values_list("asset_id", flat=True).get(
+        pk=record_id
+    )
+    asset = Asset.objects.select_for_update(of=("self",)).get(pk=asset_id)
+    record = MaintenanceRecord.objects.select_for_update().get(pk=record_id)
+
+    if record.end_date is not None:
+        raise MaintenanceRuleError(
+            {"end_date": "This maintenance record is already completed."}
+        )
+    if end_date < record.start_date:
+        raise MaintenanceRuleError(
+            {"end_date": "Completion date cannot be earlier than the start date."}
+        )
+
+    record.end_date = end_date
+    record.save(update_fields=("end_date",))
+    asset.status = Asset.Status.AVAILABLE
+    asset.save(update_fields=("status",))
+    return record
