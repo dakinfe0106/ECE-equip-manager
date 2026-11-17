@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from inventory.models import Asset
 
@@ -71,7 +72,17 @@ def start_maintenance(
 
 
 @transaction.atomic
-def complete_maintenance(*, record_id: int, end_date) -> MaintenanceRecord:
+def complete_maintenance(
+    *,
+    record_id: int,
+    end_date,
+    outcome: str = Asset.Status.AVAILABLE,
+) -> MaintenanceRecord:
+    if outcome not in (Asset.Status.AVAILABLE, Asset.Status.RETIRED):
+        raise MaintenanceRuleError(
+            {"outcome": "Outcome must be Available or Retired."}
+        )
+
     asset_id = MaintenanceRecord.objects.values_list("asset_id", flat=True).get(
         pk=record_id
     )
@@ -80,15 +91,19 @@ def complete_maintenance(*, record_id: int, end_date) -> MaintenanceRecord:
 
     if record.end_date is not None:
         raise MaintenanceRuleError(
-            {"end_date": "This maintenance record is already completed."}
+            {"end_date": "This maintenance record has already been completed."}
         )
     if end_date < record.start_date:
         raise MaintenanceRuleError(
-            {"end_date": "Completion date cannot be earlier than the start date."}
+            {"end_date": "Completion date cannot precede the maintenance start date."}
+        )
+    if end_date > timezone.localdate():
+        raise MaintenanceRuleError(
+            {"end_date": "Completion date cannot be in the future."}
         )
 
     record.end_date = end_date
     record.save(update_fields=("end_date",))
-    asset.status = Asset.Status.AVAILABLE
+    asset.status = outcome
     asset.save(update_fields=("status",))
     return record

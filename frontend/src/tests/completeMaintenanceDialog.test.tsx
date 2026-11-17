@@ -7,6 +7,7 @@ import { setupServer } from 'msw/node'
 import { apiBaseUrl } from '../api'
 import type { MaintenanceRecord } from '../features/maintenance/api'
 import CompleteMaintenanceDialog from '../features/maintenance/components/CompleteMaintenanceDialog'
+import MaintenanceRecordDialog from '../features/maintenance/components/MaintenanceRecordDialog'
 
 const record: MaintenanceRecord = {
   maintenance_id: 17,
@@ -78,43 +79,63 @@ function renderDialog() {
 }
 
 describe('CompleteMaintenanceDialog', () => {
-  it('shows the record and a date that cannot be before the start date', () => {
+  it('limits the date to between the start date and today', () => {
     renderDialog()
 
-    expect(screen.getByText('SHOP-005')).toBeTruthy()
-    expect(screen.getByText(/Oscilloscope/)).toBeTruthy()
+    const today = new Date().toLocaleDateString('en-CA')
     const dateInput = screen.getByLabelText(/Completion Date/)
+    expect(screen.getByText('SHOP-005')).toBeTruthy()
     expect(dateInput.getAttribute('min')).toBe('2026-11-01')
-    expect(dateInput).toHaveProperty(
-      'value',
-      new Date().toLocaleDateString('en-CA'),
-    )
+    expect(dateInput.getAttribute('max')).toBe(today)
+    expect(dateInput).toHaveProperty('value', today)
   })
 
-  it('sends the chosen date and reports completion', async () => {
+  it('needs an outcome before the completion can be confirmed', async () => {
+    renderDialog()
+    const confirm = screen.getByRole('button', { name: 'Confirm Completion' })
+
+    expect(confirm).toHaveProperty('disabled', true)
+    await userEvent.click(screen.getByLabelText(/Return to Service/))
+
+    expect(confirm).toHaveProperty('disabled', false)
+  })
+
+  it('sends the chosen date and outcome and reports completion', async () => {
     const { onCompleted } = renderDialog()
 
     fireEvent.change(screen.getByLabelText(/Completion Date/), {
       target: { value: '2026-11-05' },
     })
-    await userEvent.click(screen.getByRole('button', { name: 'Complete Maintenance' }))
+    await userEvent.click(screen.getByLabelText(/Return to Service/))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm Completion' }))
 
-    await waitFor(() => expect(onCompleted).toHaveBeenCalledTimes(1))
-    expect(sentBody).toEqual({ end_date: '2026-11-05' })
+    await waitFor(() => expect(onCompleted).toHaveBeenCalledWith('Available'))
+    expect(sentBody).toEqual({ end_date: '2026-11-05', outcome: 'Available' })
+  })
+
+  it('can retire the asset instead of returning it to service', async () => {
+    const { onCompleted } = renderDialog()
+
+    await userEvent.click(screen.getByLabelText(/Retire Asset/))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm Completion' }))
+
+    await waitFor(() => expect(onCompleted).toHaveBeenCalledWith('Retired'))
+    expect(sentBody).toMatchObject({ outcome: 'Retired' })
   })
 
   it('shows the server error and stays open when completion is rejected', async () => {
     completeResponse = () =>
       HttpResponse.json(
-        { end_date: 'This maintenance record is already completed.' },
+        { end_date: 'This maintenance record has already been completed.' },
         { status: 400 },
       )
     const { onCompleted } = renderDialog()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Complete Maintenance' }))
+    await userEvent.click(screen.getByLabelText(/Return to Service/))
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm Completion' }))
 
     expect((await screen.findByRole('alert')).textContent).toBe(
-      'This maintenance record is already completed.',
+      'This maintenance record has already been completed.',
     )
     expect(onCompleted).not.toHaveBeenCalled()
   })
@@ -127,5 +148,48 @@ describe('CompleteMaintenanceDialog', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(onCompleted).not.toHaveBeenCalled()
     expect(sentBody).toBeUndefined()
+  })
+})
+
+describe('MaintenanceRecordDialog complete action', () => {
+  it('offers Complete Maintenance for an in-progress record', async () => {
+    const onComplete = vi.fn()
+    render(
+      <MaintenanceRecordDialog
+        mode="details"
+        record={record}
+        onClose={() => {}}
+        onCreated={() => {}}
+        onComplete={onComplete}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Complete Maintenance' }))
+
+    expect(onComplete).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not offer it for a completed record or without permission', () => {
+    const completed = { ...record, status: 'Completed' as const, end_date: '2026-11-05' }
+    const { rerender } = render(
+      <MaintenanceRecordDialog
+        mode="details"
+        record={completed}
+        onClose={() => {}}
+        onCreated={() => {}}
+        onComplete={() => {}}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'Complete Maintenance' })).toBeNull()
+
+    rerender(
+      <MaintenanceRecordDialog
+        mode="details"
+        record={record}
+        onClose={() => {}}
+        onCreated={() => {}}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'Complete Maintenance' })).toBeNull()
   })
 })

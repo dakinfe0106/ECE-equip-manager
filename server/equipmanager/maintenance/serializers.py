@@ -61,3 +61,7 @@ class MaintenanceRecordCreateSerializer(serializers.Serializer):
 
 class MaintenanceRecordCompleteSerializer(serializers.Serializer):
     end_date = serializers.DateField(required=False)
+    outcome = serializers.ChoiceField(
+        choices=(Asset.Status.AVAILABLE.value, Asset.Status.RETIRED.value),
+        required=False,
+    )

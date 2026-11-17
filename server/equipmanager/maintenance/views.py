@@ -143,9 +143,13 @@ class MaintenanceRecordComplete(APIView):
     def post(self, request, pk):
         serializer = MaintenanceRecordCompleteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        end_date = serializer.validated_data.get("end_date") or timezone.localdate()
+        values = serializer.validated_data
         try:
-            record = complete_maintenance(record_id=pk, end_date=end_date)
+            record = complete_maintenance(
+                record_id=pk,
+                end_date=values.get("end_date") or timezone.localdate(),
+                outcome=values.get("outcome", Asset.Status.AVAILABLE),
+            )
         except MaintenanceRuleError as exc:
             raise ValidationError(exc.detail) from exc
         except MaintenanceRecord.DoesNotExist as exc:

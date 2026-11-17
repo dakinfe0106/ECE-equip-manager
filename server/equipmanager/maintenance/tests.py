@@ -1,5 +1,5 @@
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -378,8 +378,61 @@ def test_complete_maintenance_rejects_date_before_start(
     assert response.status_code == 400
     assert (
         response.data["end_date"]
-        == "Completion date cannot be earlier than the start date."
+        == "Completion date cannot precede the maintenance start date."
     )
+    maintenance_record.refresh_from_db()
+    maintenance_record.asset.refresh_from_db()
+    assert maintenance_record.end_date is None
+    assert maintenance_record.asset.status == Asset.Status.UNDER_MAINTENANCE
+
+
+def test_complete_maintenance_rejects_future_date(
+    authenticated_client, maintenance_record
+):
+    tomorrow = timezone.localdate() + timedelta(days=1)
+
+    response = complete_record(
+        authenticated_client, maintenance_record, end_date=tomorrow.isoformat()
+    )
+
+    assert response.status_code == 400
+    assert response.data["end_date"] == "Completion date cannot be in the future."
+    maintenance_record.refresh_from_db()
+    maintenance_record.asset.refresh_from_db()
+    assert maintenance_record.end_date is None
+    assert maintenance_record.asset.status == Asset.Status.UNDER_MAINTENANCE
+
+
+def test_complete_maintenance_can_retire_the_asset(
+    authenticated_client, maintenance_record
+):
+    response = complete_record(
+        authenticated_client,
+        maintenance_record,
+        end_date="2025-01-12",
+        outcome="Retired",
+    )
+
+    assert response.status_code == 200
+    assert response.data["status"] == "Completed"
+    assert response.data["asset"]["status"] == "Retired"
+    maintenance_record.asset.refresh_from_db()
+    assert maintenance_record.asset.status == Asset.Status.RETIRED
+
+
+@pytest.mark.parametrize("outcome", ["Under_Maintenance", "On_Loan", "Other"])
+def test_complete_maintenance_rejects_other_outcomes(
+    authenticated_client, maintenance_record, outcome
+):
+    response = complete_record(
+        authenticated_client,
+        maintenance_record,
+        end_date="2025-01-12",
+        outcome=outcome,
+    )
+
+    assert response.status_code == 400
+    assert "outcome" in response.data
     maintenance_record.refresh_from_db()
     maintenance_record.asset.refresh_from_db()
     assert maintenance_record.end_date is None
@@ -411,7 +464,10 @@ def test_complete_maintenance_rejects_already_completed_record(
 
     assert first.status_code == 200
     assert second.status_code == 400
-    assert second.data["end_date"] == "This maintenance record is already completed."
+    assert (
+        second.data["end_date"]
+        == "This maintenance record has already been completed."
+    )
     maintenance_record.refresh_from_db()
     assert maintenance_record.end_date == date(2025, 1, 12)
 

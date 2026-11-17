@@ -3,14 +3,32 @@ import {
   completeMaintenanceRecord,
   describeMaintenanceError,
   maintenanceTypeLabels,
+  type MaintenanceOutcome,
   type MaintenanceRecord,
 } from '../api'
 
 interface CompleteMaintenanceDialogProps {
   record: MaintenanceRecord
   onClose: () => void
-  onCompleted: () => void
+  onCompleted: (outcome: MaintenanceOutcome) => void
 }
+
+const outcomeOptions: {
+  value: MaintenanceOutcome
+  label: string
+  description: string
+}[] = [
+  {
+    value: 'Available',
+    label: 'Return to Service',
+    description: 'Maintenance was successful, and the equipment is ready for use.',
+  },
+  {
+    value: 'Retired',
+    label: 'Retire Asset',
+    description: 'Equipment is no longer suitable for use and cannot be checked out.',
+  },
+]
 
 export default function CompleteMaintenanceDialog({
   record,
@@ -18,7 +36,9 @@ export default function CompleteMaintenanceDialog({
   onCompleted,
 }: CompleteMaintenanceDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
-  const [endDate, setEndDate] = useState(() => new Date().toLocaleDateString('en-CA'))
+  const today = new Date().toLocaleDateString('en-CA')
+  const [endDate, setEndDate] = useState(today)
+  const [outcome, setOutcome] = useState<MaintenanceOutcome | ''>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
@@ -34,11 +54,16 @@ export default function CompleteMaintenanceDialog({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!outcome) {
+      setErrorMessage('Select a maintenance outcome before confirming completion.')
+      return
+    }
+
     setIsSubmitting(true)
     setErrorMessage('')
     try {
-      await completeMaintenanceRecord(record.maintenance_id, endDate)
-      onCompleted()
+      await completeMaintenanceRecord(record.maintenance_id, endDate, outcome)
+      onCompleted(outcome)
     } catch (error) {
       setErrorMessage(
         describeMaintenanceError(error, 'complete the maintenance record'),
@@ -51,7 +76,7 @@ export default function CompleteMaintenanceDialog({
   return (
     <dialog
       ref={dialogRef}
-      className="m-auto max-h-[calc(100dvh-32px)] w-[min(520px,calc(100vw-32px))] overflow-y-auto rounded-[13px] border border-line bg-white p-0 text-body shadow-[0_24px_60px_rgb(15_27_45_/_28%)] backdrop:bg-[rgb(20_33_54_/_45%)]"
+      className="m-auto max-h-[calc(100dvh-32px)] w-[min(560px,calc(100vw-32px))] overflow-y-auto rounded-[13px] border border-line bg-white p-0 text-body shadow-[0_24px_60px_rgb(15_27_45_/_28%)] backdrop:bg-[rgb(20_33_54_/_45%)]"
       aria-labelledby="complete-maintenance-title"
       onCancel={(event) => {
         event.preventDefault()
@@ -64,21 +89,19 @@ export default function CompleteMaintenanceDialog({
       <form onSubmit={submit}>
         <header className="border-b border-divider px-6 py-5">
           <p className="m-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
-            Maintenance record · {record.maintenance_id}
+            Complete maintenance · {record.maintenance_id}
           </p>
           <h2
             className="mb-0 mt-1 text-[19px] font-bold text-heading"
             id="complete-maintenance-title"
           >
-            Complete Maintenance
+            {record.asset.name}
           </h2>
         </header>
 
         <div className="flex flex-col gap-4 px-6 py-5">
           <p className="m-0 text-[12px] text-body">
             <span className="font-semibold">{record.asset.asset_identifier}</span>
-            {' · '}
-            {record.asset.name}
             {' · '}
             {maintenanceTypeLabels[record.maintenance_type]}
             {' · started '}
@@ -91,14 +114,41 @@ export default function CompleteMaintenanceDialog({
               type="date"
               required
               min={record.start_date}
+              max={today}
               value={endDate}
-              onChange={(event) => setEndDate(event.target.value)}
+              onChange={(event) => {
+                setEndDate(event.target.value)
+                setErrorMessage('')
+              }}
             />
           </label>
-          <p className="m-0 text-[11px] text-muted">
-            The equipment will be marked Available and this record will stay in
-            the maintenance history.
-          </p>
+          <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
+            <legend className="mb-1.5 p-0 text-[11px] font-semibold text-body">
+              Maintenance Outcome *
+            </legend>
+            {outcomeOptions.map((option) => (
+              <label
+                key={option.value}
+                className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-input px-3 py-2.5 text-[11px] has-[:checked]:border-primary has-[:checked]:bg-primary-soft"
+              >
+                <input
+                  className="mt-0.5"
+                  type="radio"
+                  name="maintenance-outcome"
+                  value={option.value}
+                  checked={outcome === option.value}
+                  onChange={() => {
+                    setOutcome(option.value)
+                    setErrorMessage('')
+                  }}
+                />
+                <span className="flex flex-col gap-0.5">
+                  <strong className="text-heading">{option.label}</strong>
+                  <span className="text-muted">{option.description}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
           {errorMessage && (
             <p
               className="m-0 rounded-lg border border-danger/20 bg-danger-soft px-3 py-2 text-[12px] text-danger"
@@ -121,9 +171,9 @@ export default function CompleteMaintenanceDialog({
           <button
             className="min-h-9 rounded-lg bg-primary px-4 text-[12px] font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
             type="submit"
-            disabled={isSubmitting || !endDate}
+            disabled={isSubmitting || !endDate || !outcome}
           >
-            {isSubmitting ? 'Saving…' : 'Complete Maintenance'}
+            {isSubmitting ? 'Saving…' : 'Confirm Completion'}
           </button>
         </footer>
       </form>

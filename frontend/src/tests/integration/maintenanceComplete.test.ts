@@ -56,13 +56,19 @@ afterEach(() => {
 afterAll(() => server.close())
 
 describe('completeMaintenanceRecord', () => {
-  it('posts the completion date with the CSRF token and returns the record', async () => {
-    const record = await completeMaintenanceRecord(17, '2026-11-05')
+  it('posts the date and outcome with the CSRF token and returns the record', async () => {
+    const record = await completeMaintenanceRecord(17, '2026-11-05', 'Available')
 
-    expect(requestBody).toEqual({ end_date: '2026-11-05' })
+    expect(requestBody).toEqual({ end_date: '2026-11-05', outcome: 'Available' })
     expect(csrfHeader).toBe('test-csrf-token')
     expect(record.status).toBe('Completed')
     expect(record.asset.status).toBe('Available')
+  })
+
+  it('can retire the asset when completing', async () => {
+    await completeMaintenanceRecord(17, '2026-11-05', 'Retired')
+
+    expect(requestBody).toEqual({ end_date: '2026-11-05', outcome: 'Retired' })
   })
 
   it('surfaces the server message when completion is rejected', async () => {
@@ -72,7 +78,7 @@ describe('completeMaintenanceRecord', () => {
         { status: 400 },
       )
 
-    const error = await completeMaintenanceRecord(17, '2026-10-01').catch(
+    const error = await completeMaintenanceRecord(17, '2026-10-01', 'Available').catch(
       (reason: unknown) => reason,
     )
 

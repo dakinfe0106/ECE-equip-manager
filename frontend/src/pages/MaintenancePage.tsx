@@ -86,11 +86,6 @@ export default function MaintenancePage() {
     setStatusMessage('')
   }
 
-  const openComplete = (record: MaintenanceRecord) => {
-    setRecordToComplete(record)
-    setStatusMessage('')
-  }
-
   const closeDialog = () => {
     setDialogMode(null)
     setSelectedRecord(undefined)
@@ -278,15 +273,6 @@ export default function MaintenancePage() {
                     >
                       View
                     </button>
-                    {canComplete && record.status === 'In Progress' && (
-                      <button
-                        className="ml-3 font-semibold text-primary hover:underline"
-                        type="button"
-                        onClick={() => openComplete(record)}
-                      >
-                        Complete
-                      </button>
-                    )}
                   </td>
                 </tr>
               ))}
@@ -342,6 +328,16 @@ export default function MaintenancePage() {
             setStatusMessage('Maintenance record created. Equipment is now under maintenance.')
             refreshRecords()
           }}
+          onComplete={
+            canComplete && selectedRecord
+              ? () => {
+                  const record = selectedRecord
+                  closeDialog()
+                  setRecordToComplete(record)
+                  setStatusMessage('')
+                }
+              : undefined
+          }
         />
       )}
 
@@ -349,9 +345,13 @@ export default function MaintenancePage() {
         <CompleteMaintenanceDialog
           record={recordToComplete}
           onClose={() => setRecordToComplete(undefined)}
-          onCompleted={() => {
+          onCompleted={(outcome) => {
             setRecordToComplete(undefined)
-            setStatusMessage('Maintenance completed. Equipment is now available.')
+            setStatusMessage(
+              outcome === 'Retired'
+                ? 'Maintenance completed and the asset was retired.'
+                : 'Maintenance completed and the asset was returned to service.',
+            )
             refreshRecords()
           }}
         />
