@@ -46,7 +46,7 @@ describe('Sidebar navigation', () => {
 
 describe('Demo page routes', () => {
   it.each([
-    ['/loans', 'Lending'], ['/maintenance', 'Maintenance'],
+    ['/maintenance', 'Maintenance'],
     ['/analytics', 'Analytics'], ['/import-export', 'Import & Export'], ['/users', 'Users & Access'],
   ])('renders an honest placeholder at %s', (path, title) => {
     const html = pageHtml(path)

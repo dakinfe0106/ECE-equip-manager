@@ -4,13 +4,15 @@ import type { BorrowerRecord } from '../api'
 const headerClassName =
   'sticky top-0 z-[1] border-b border-line bg-page px-[17px] py-[11px] text-left text-[9px] font-bold uppercase tracking-[0.04em] text-muted'
 const cellClassName = 'border-b border-divider px-[17px] py-[13px] text-[11px] text-muted'
+const interactiveTargetSelector =
+  'a, button, input, select, textarea, summary, [contenteditable="true"], [role="button"], [role="link"], [role="checkbox"], [role="menuitem"], [tabindex]:not([tabindex="-1"])'
 
 interface BorrowerTableProps {
   appliedSearch: string
   borrowers: BorrowerRecord[]
   errorMessage: string
   isLoading: boolean
-  onSelect: (borrower: BorrowerRecord) => void
+  onViewDetails: (borrower: BorrowerRecord) => void
 }
 
 export default function BorrowerTable({
@@ -18,7 +20,7 @@ export default function BorrowerTable({
   borrowers,
   errorMessage,
   isLoading,
-  onSelect,
+  onViewDetails,
 }: BorrowerTableProps) {
   return (
     <div className="min-h-0 flex-1 overflow-auto">
@@ -32,19 +34,31 @@ export default function BorrowerTable({
         </thead>
         <tbody>
           {borrowers.map((borrower) => (
-            <tr key={borrower.borrower_id} className="hover:bg-page">
+            <tr
+              key={borrower.borrower_id}
+              tabIndex={0}
+              aria-label={`View details for ${[borrower.first_name, borrower.last_name].filter(Boolean).join(' ')}, UNB ID ${borrower.unb_id}`}
+              onClick={(event) => {
+                const target = event.target instanceof Element
+                  ? event.target.closest(interactiveTargetSelector)
+                  : null
+                if (target && target !== event.currentTarget) return
+                onViewDetails(borrower)
+              }}
+              onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  onViewDetails(borrower)
+                }
+              }}
+              className="cursor-pointer hover:bg-page focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-[-2px]"
+            >
               <td className={`${cellClassName} font-mono font-[650] text-body`}>
                 {borrower.unb_id}
               </td>
               <td className={`${cellClassName} font-[650] text-body`}>
-                <button
-                  type="button"
-                  className="cursor-pointer rounded-sm text-left font-semibold text-body hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                  aria-label={`Edit borrower ${[borrower.first_name, borrower.last_name].filter(Boolean).join(' ')} (UNB ID ${borrower.unb_id})`}
-                  onClick={() => onSelect(borrower)}
-                >
-                  {[borrower.first_name, borrower.last_name].filter(Boolean).join(' ')}
-                </button>
+                {[borrower.first_name, borrower.last_name].filter(Boolean).join(' ')}
               </td>
               <td className={cellClassName}>
                 <Badge tone="neutral">

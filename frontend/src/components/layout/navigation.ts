@@ -18,7 +18,7 @@ const staffRoles: readonly UserRole[] = ['ADMINISTRATOR', 'TECHNICIAN']
 export const navigationItems: readonly NavigationItem[] = [
   { label: 'Dashboard', path: '/', icon: 'dashboard', roles: allRoles, group: 'workspace' },
   { label: 'Assets', path: '/assets', icon: 'assets', roles: allRoles, group: 'workspace' },
-  { label: 'Lending', path: '/loans', icon: 'lending', roles: staffRoles, group: 'workspace', inProgress: true },
+  { label: 'Lending', path: '/loans', icon: 'lending', roles: staffRoles, group: 'workspace' },
   { label: 'Borrowers', path: '/borrowers', icon: 'borrowers', roles: staffRoles, group: 'workspace' },
   { label: 'Maintenance', path: '/maintenance', icon: 'maintenance', roles: staffRoles, group: 'workspace', inProgress: true },
   { label: 'Analytics', path: '/analytics', icon: 'analytics', roles: allRoles, group: 'workspace', inProgress: true },

@@ -88,7 +88,7 @@ describe('Dashboard live inventory and demo previews', () => {
   })
 
   it('keeps the layout and sample labels visible while inventory is loading', () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}))
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => { }))
     renderDashboard()
     expect(screen.getByRole('status').textContent).toContain('Loading dashboard information')
     expect(within(screen.getByRole('article', { name: 'Total Assets' })).getByText('\u2014')).toBeTruthy()
@@ -106,13 +106,50 @@ describe('Dashboard live inventory and demo previews', () => {
     expect(screen.getByText('In 3 days')).toBeTruthy()
   })
 
-  it('opens the in-progress Lending page from View all', async () => {
-    const fetchSpy = mockSummary()
+  it('opens the Lending page from View all', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof Request
+            ? input.url
+            : input.toString()
+
+      if (url.includes('/api/dashboard/')) {
+        return Promise.resolve(
+          new Response(JSON.stringify(summary), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+      }
+
+      if (url.includes('/api/loans/')) {
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+      }
+
+      return Promise.resolve(new Response(null, { status: 404 }))
+    })
+
     renderDashboard('ADMINISTRATOR', true)
-    await screen.findByRole('img', { name: 'Equipment availability: 450 assets' })
+
+    await screen.findByRole('img', {
+      name: 'Equipment availability: 450 assets',
+    })
+
     await userEvent.click(screen.getByRole('link', { name: 'View all' }))
-    expect(await screen.findByRole('heading', { name: 'Lending', level: 1 })).toBeTruthy()
-    expect(screen.getByText('This page is still in progress.')).toBeTruthy()
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Lending', level: 1 }),
+    ).toBeTruthy()
+
+    expect(await screen.findByText('No loans found.')).toBeTruthy()
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
   })
 })
