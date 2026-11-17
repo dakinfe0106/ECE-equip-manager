@@ -447,7 +447,7 @@ The response must include the header `Access-Control-Allow-Origin: http://localh
 
 **4. Automated checks.** `server/equipmanager/tests/test_health.py` verifies the response and CORS header through Django's test client. It runs with `python -m pytest` and in CI. The frontend's MSW tests exercise the API client with mocked HTTP responses; they do not verify connectivity to a running backend.
 
-Protected DRF endpoints require a logged-in Django session (see [Authentication](Architecture.md#9-authentication-and-authorization)) and return `403` for unauthenticated requests with the current configuration. The inventory app provides category and equipment-type lookups and asset list, create, and update routes. The lending app provides borrower list/detail and damage-flag endpoints, plus read-only loan history; checkout, returns, and extensions are not yet implemented. Maintenance provides role-protected record creation and technician lookup endpoints. `/api/health/` is public and is the endpoint to use for connection checks.
+Protected DRF endpoints require a logged-in Django session (see [Authentication](Architecture.md#9-authentication-and-authorization)) and return `403` for unauthenticated requests with the current configuration. The inventory app provides category and equipment-type lookups and asset list, create, and update routes. The lending app provides borrower list/detail and damage-flag endpoints, plus read-only loan history; checkout, returns, and extensions are not yet implemented. Maintenance provides role-protected record list/create/detail and technician lookup endpoints. `/api/health/` is public and is the endpoint to use for connection checks.
 
 ---
 
@@ -485,7 +485,9 @@ All endpoints live under `/api/` and end with a trailing slash.
 | POST | `/api/assets/` | Authenticated. Creates an asset with an active `equipment_type_id`; status starts as `Available`. |
 | GET | `/api/assets/<asset_id>/` | Authenticated. Returns one asset. |
 | PATCH | `/api/assets/<asset_id>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
+| GET | `/api/maintenance-records/` | Technician or Administrator. Lists maintenance history; supports `status` (`all`, `in_progress`, `completed`), `maintenance_type`, `priority`, `asset_identifier`, and `asset_id` filters. |
 | POST | `/api/maintenance-records/` | Technician or Administrator. Creates an open maintenance record and sets the eligible asset to `Under_Maintenance` transactionally. |
+| GET | `/api/maintenance-records/<id>/` | Technician or Administrator. Returns a maintenance record, including completed history. |
 | GET | `/api/maintenance-records/technicians/` | Technician or Administrator. Lists active Technician accounts for assignment. |
 
 The general asset edit endpoint keeps `asset_identifier`, `equipment_type`, and `status` read-only. Status transitions must use their corresponding loan, maintenance, retirement, or reactivation workflow so related records and state changes remain consistent.

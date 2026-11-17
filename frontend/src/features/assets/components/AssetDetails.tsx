@@ -16,6 +16,7 @@ import {
 
 import { hasPermission } from '../../auth/api'
 import { useAuth } from '../../auth/useAuth'
+import MaintenanceHistory from '../../maintenance/components/MaintenanceHistory'
 
 interface AssetDetailsProps {
   asset: AssetRecord
@@ -47,7 +48,10 @@ export default function AssetDetails({
 }: AssetDetailsProps) {
   const { user } = useAuth()
   const canEdit = hasPermission(user, 'inventory.change_asset')
-
+  const canViewMaintenance = hasPermission(
+    user,
+    'maintenance.view_maintenancerecord',
+  )
   const dialogRef = useRef<HTMLDialogElement>(null)
 
   const [isEditing, setIsEditing] = useState(canEdit)
@@ -589,6 +593,7 @@ export default function AssetDetails({
           {statusMessage}
         </p>
       )}
+      {canViewMaintenance && <MaintenanceHistory assetId={asset.asset_id} />}
     </dialog>
   )
 }
