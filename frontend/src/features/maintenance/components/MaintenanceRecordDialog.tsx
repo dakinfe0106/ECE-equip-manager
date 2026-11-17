@@ -62,6 +62,8 @@ export default function MaintenanceRecordDialog({
   const isCreate = mode === 'create'
   const isEditable = !isCreate && canEdit && record?.status === 'In Progress'
   const needsTechnicians = isCreate || isEditable
+  const [savedRecord, setSavedRecord] = useState<MaintenanceRecord>()
+  const current = savedRecord ?? record
   const [assetSearch, setAssetSearch] = useState('')
   const [assets, setAssets] = useState<AssetRecord[]>([])
   const [technicians, setTechnicians] = useState<MaintenanceTechnician[]>([])
@@ -145,11 +147,11 @@ export default function MaintenanceRecordDialog({
   }, [needsTechnicians])
 
   const changes: MaintenanceUpdate = {}
-  if (record && maintenanceType !== record.maintenance_type) {
+  if (current && maintenanceType !== current.maintenance_type) {
     changes.maintenance_type = maintenanceType
   }
-  if (record && priority !== record.priority) changes.priority = priority
-  if (record && Number(selectedTechnicianId) !== record.technician.id) {
+  if (current && priority !== current.priority) changes.priority = priority
+  if (current && Number(selectedTechnicianId) !== current.technician.id) {
     changes.technician_id = Number(selectedTechnicianId)
   }
   const hasChanges = Object.keys(changes).length > 0
@@ -185,12 +187,12 @@ export default function MaintenanceRecordDialog({
 
   const submitEdit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!record || !hasChanges) return
+    if (!current || !hasChanges) return
 
     setIsSubmitting(true)
     setErrorMessage('')
     try {
-      await updateMaintenanceRecord(record.maintenance_id, changes)
+      setSavedRecord(await updateMaintenanceRecord(current.maintenance_id, changes))
       onUpdated?.()
     } catch (error) {
       setErrorMessage(
@@ -202,10 +204,10 @@ export default function MaintenanceRecordDialog({
   }
 
   const technicianOptions = technicians.some(
-    (technician) => technician.id === record?.technician.id,
-  ) || !record
+    (technician) => technician.id === current?.technician.id,
+  ) || !current
     ? technicians
-    : [record.technician, ...technicians]
+    : [current.technician, ...technicians]
 
   return (
     <dialog
@@ -244,6 +246,14 @@ export default function MaintenanceRecordDialog({
         </header>
 
         <div className="grid grid-cols-2 gap-4 px-6 py-5 max-[600px]:grid-cols-1">
+          {savedRecord && !hasChanges && (
+            <p
+              className="col-span-full m-0 rounded-lg border border-success/20 bg-success-soft px-3 py-2 text-[12px] text-success"
+              role="status"
+            >
+              <strong>Maintenance record updated.</strong> Your changes have been saved successfully.
+            </p>
+          )}
           {isCreate ? (
             <>
               <label className="flex flex-col gap-1.5 text-[11px] font-semibold text-body">
@@ -353,16 +363,16 @@ export default function MaintenanceRecordDialog({
                 </select>
               </label>
             </>
-          ) : record ? (
+          ) : current ? (
             <>
               <ReadOnlyField
                 label="Maintenance Type"
-                value={maintenanceTypeLabels[record.maintenance_type]}
+                value={maintenanceTypeLabels[current.maintenance_type]}
               />
-              <ReadOnlyField label="Priority" value={record.priority} badge />
+              <ReadOnlyField label="Priority" value={current.priority} badge />
               <ReadOnlyField
                 label="Responsible Technician"
-                value={displayTechnician(record.technician)}
+                value={displayTechnician(current.technician)}
               />
             </>
           ) : null}
@@ -377,16 +387,16 @@ export default function MaintenanceRecordDialog({
                 onChange={(event) => setStartDate(event.target.value)}
               />
             </label>
-          ) : record ? (
+          ) : current ? (
             <>
-              <ReadOnlyField label="Start Date" value={record.start_date} />
-              <ReadOnlyField label="Completion Date" value={record.end_date ?? 'Not completed'} />
+              <ReadOnlyField label="Start Date" value={current.start_date} />
+              <ReadOnlyField label="Completion Date" value={current.end_date ?? 'Not completed'} />
               <div className="col-span-full flex items-center gap-2">
-                <span className={`rounded-full px-3 py-1 text-[10px] font-semibold ${badgeClass(record.status)}`}>
-                  {record.status}
+                <span className={`rounded-full px-3 py-1 text-[10px] font-semibold ${badgeClass(current.status)}`}>
+                  {current.status}
                 </span>
-                <span className={`rounded-full px-3 py-1 text-[10px] font-semibold ${badgeClass(record.priority)}`}>
-                  {record.priority} priority
+                <span className={`rounded-full px-3 py-1 text-[10px] font-semibold ${badgeClass(current.priority)}`}>
+                  {current.priority} priority
                 </span>
               </div>
             </>

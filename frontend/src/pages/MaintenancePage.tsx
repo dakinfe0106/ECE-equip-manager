@@ -327,11 +327,7 @@ export default function MaintenancePage() {
             setStatusMessage('Maintenance record created. Equipment is now under maintenance.')
             refreshRecords()
           }}
-          onUpdated={() => {
-            closeDialog()
-            setStatusMessage('Maintenance record updated.')
-            refreshRecords()
-          }}
+          onUpdated={refreshRecords}
         />
       )}
     </section>

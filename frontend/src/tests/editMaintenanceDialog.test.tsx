@@ -114,6 +114,8 @@ describe('Editing a maintenance record', () => {
   })
 
   it('sends only the fields that changed and reports the update', async () => {
+    patchResponse = () =>
+      HttpResponse.json({ ...record, maintenance_type: 'Calibration', technician: labTech })
     const { onUpdated } = renderDetails(record)
 
     await waitFor(() =>
@@ -128,6 +130,27 @@ describe('Editing a maintenance record', () => {
 
     await waitFor(() => expect(onUpdated).toHaveBeenCalled())
     expect(sentBody).toEqual({ maintenance_type: 'Calibration', technician_id: 3 })
+  })
+
+  it('stays open after saving and confirms the update until the next edit', async () => {
+    patchResponse = () => HttpResponse.json({ ...record, priority: 'Urgent' })
+    renderDetails(record)
+
+    expect(screen.queryByText(/Maintenance record updated/)).toBeNull()
+    await userEvent.selectOptions(screen.getByLabelText(/Priority/), 'Urgent')
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+
+    expect((await screen.findByRole('status')).textContent).toContain(
+      'Maintenance record updated.',
+    )
+    expect(screen.getByText('Urgent priority')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Save Changes' })).toHaveProperty(
+      'disabled',
+      true,
+    )
+
+    await userEvent.selectOptions(screen.getByLabelText(/Priority/), 'Low')
+    expect(screen.queryByRole('status')).toBeNull()
   })
 
   it('shows the server error and stays open when the update is rejected', async () => {
