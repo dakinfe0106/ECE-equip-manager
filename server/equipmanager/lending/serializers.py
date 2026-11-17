@@ -6,6 +6,14 @@ from .models import Borrower, DamageFlag, Loan
 from .services import damage_warning_level_for_count
 
 
+class AnalyticsQuerySerializer(serializers.Serializer):
+    year = serializers.IntegerField(required=False, min_value=1, max_value=9999)
+    category_id = serializers.IntegerField(required=False, min_value=1)
+    equipment_type_id = serializers.IntegerField(required=False, min_value=1)
+    search = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
+    export = serializers.ChoiceField(required=False, choices=("xlsx",))
+
+
 class BorrowerListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Borrower

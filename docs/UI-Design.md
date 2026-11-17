@@ -33,14 +33,14 @@ The sidebar has a **Workspace** group and, for Administrators only, an **Adminis
 | Lending | `/loans` | Technician, Administrator | `loans/` |
 | Borrowers | `/borrowers` | Technician, Administrator | Active borrower list with search by UNB ID/name, read-only details, and reviewed damage incident history/management. Damage warning level and damage-based eligibility are calculated from unresolved reviewed incidents; overall standing and overdue-loan eligibility await Loan integration. |
 | Maintenance | `/maintenance` | Technician, Administrator | `maintenance-records/` |
-| Analytics | `/analytics` | Everyone | Pending ([Backend.md §9](Backend.md#9-pending-decisions)) |
+| Analytics | `/analytics` | Everyone | Availability, utilization, borrowing, and borrower analytics APIs. |
 | Import & Export | `/import-export` | Technician, Administrator | Pending |
 | Users & Access | `/users` | Administrator | `users/` |
 
 - Roles follow [database.md §5](database.md#5-permissions-scope). The prototype only demos Administrator and Technician; Faculty see view-only pages with no create, edit, or workflow buttons.
 - Use query parameters for filters so links work, for example a dashboard card linking to `/loans?status=Overdue`.
 - **Demo navigation:** `/categories` and `/equipment-types` have been removed from frontend navigation and routing. Their existing source components and backend lookup APIs are retained for future integration and asset forms. `/assets/new` remains the working Add Asset route.
-- **In-progress pages:** Lending, Maintenance, Analytics, Import & Export, and Users & Access display "This page is still in progress." Navigation and direct page access follow the roles in the table above; these frontend guards do not replace backend authorization when those APIs are implemented.
+- **In-progress pages:** Lending, Maintenance, Import & Export, and Users & Access display "This page is still in progress." Navigation and direct page access follow the roles in the table above; these frontend guards do not replace backend authorization when those APIs are implemented.
 - **Sidebar:** the desktop sidebar follows the prototype at 248px, with the brand mark, Workspace links, administrator-only Administration group, and signed-in profile/sign-out footer. Below 760px it retains an accessible 60px icon rail; a slide-in menu remains future work.
 
 ## 3. Design tokens

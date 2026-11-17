@@ -225,6 +225,7 @@ SystemUser is the logical record for people who sign in to the application. It i
 
 - Spreadsheet imports initialize inventory and eligible borrowers. Reject conflicts with existing identifiers or normalized names, report problematic rows, and allow correction and re-import; never overwrite silently.
 - Preserve lending and maintenance history for availability, utilization, borrowing, and borrower analytics. Derive overdue status from open loans whose expected return date is before today's date.
+- Availability analytics counts non-deleted assets by current status, including Retired. Utilization counts loans per asset and measures each loan from checkout through its actual return date, or through `timezone.localdate()` for an open loan. Borrowing and borrower activity filters use the loan's checkout year; completed, active, overdue, and return-condition counts derive from each loan's current return fields. Historical borrower rows remain reportable after borrower soft deletion.
 - **Current development policy:** retain records indefinitely; no automatic purging or archival. **Production caveat:** project sponsor must review retention/disposal and personal information handling for RTIPPA compliance before real deployment. Indefinite retention is not itself a compliance determination.
 - Use dates (not timestamps) for loan and maintenance fields, consistent with the ER diagram. The requested “busiest lending times” analysis will therefore be limited to date-level patterns (e.g. day/month), not time of day.
 

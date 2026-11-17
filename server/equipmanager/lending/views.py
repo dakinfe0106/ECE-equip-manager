@@ -5,14 +5,23 @@ from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from equipmanager.excel import excel_response
 from inventory.models import Asset
 
+from .analytics import (
+    available_loan_years,
+    borrower_activity,
+    borrowing_summary,
+    utilization_report,
+)
 from .models import Borrower, DamageFlag, Loan
 from .permissions import BorrowerListPermissions, LoanReadPermissions
 from .serializers import (
+    AnalyticsQuerySerializer,
     BorrowerDetailSerializer,
     BorrowerListSerializer,
     DamageFlagResolutionSerializer,
@@ -235,3 +244,133 @@ class BorrowerDamageFlagDetail(APIView):
                 "summary": summary,
             }
         )
+
+
+def _analytics_params(request):
+    serializer = AnalyticsQuerySerializer(data=request.query_params)
+    serializer.is_valid(raise_exception=True)
+    return serializer.validated_data
+
+
+class AnalyticsYears(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        return Response({"years": available_loan_years()})
+
+
+class UtilizationAnalytics(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        params = _analytics_params(request)
+        rows = utilization_report(
+            year=params.get("year"),
+            category_id=params.get("category_id"),
+            equipment_type_id=params.get("equipment_type_id"),
+        )
+        if params.get("export") == "xlsx":
+            return excel_response(
+                filename="equipment-utilization.xlsx",
+                sheet_title="Utilization",
+                headers=(
+                    "Asset ID",
+                    "Asset Name",
+                    "Category",
+                    "Equipment Type",
+                    "Loan Count",
+                    "Total Loan Days",
+                    "Average Loan Days",
+                ),
+                rows=(
+                    (
+                        row["asset_identifier"],
+                        row["asset_name"],
+                        row["category_name"],
+                        row["equipment_type_name"],
+                        row["loan_count"],
+                        row["total_loan_days"],
+                        row["average_loan_days"],
+                    )
+                    for row in rows
+                ),
+            )
+        return Response({"year": params.get("year"), "results": rows})
+
+
+class BorrowingAnalytics(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        params = _analytics_params(request)
+        summary = borrowing_summary(
+            year=params.get("year"),
+            category_id=params.get("category_id"),
+            equipment_type_id=params.get("equipment_type_id"),
+        )
+        if params.get("export") == "xlsx":
+            return excel_response(
+                filename="borrowing-activity.xlsx",
+                sheet_title="Borrowing Activity",
+                headers=(
+                    "Year",
+                    "Total Loans",
+                    "Completed Loans",
+                    "Active Loans",
+                    "Overdue Loans",
+                    "Returned Intact",
+                    "Returned Damaged",
+                ),
+                rows=((
+                    params.get("year") or "All years",
+                    summary["total_loans"],
+                    summary["completed_loans"],
+                    summary["active_loans"],
+                    summary["overdue_loans"],
+                    summary["intact_returns"],
+                    summary["damaged_returns"],
+                ),),
+            )
+        return Response({"year": params.get("year"), **summary})
+
+
+class BorrowerAnalytics(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        params = _analytics_params(request)
+        rows = borrower_activity(
+            year=params.get("year"),
+            category_id=params.get("category_id"),
+            equipment_type_id=params.get("equipment_type_id"),
+            search=params.get("search", ""),
+        )
+        if params.get("export") == "xlsx":
+            return excel_response(
+                filename="borrower-activity.xlsx",
+                sheet_title="Borrower Activity",
+                headers=(
+                    "Borrower ID",
+                    "UNB ID",
+                    "Borrower Name",
+                    "Total Loans",
+                    "Completed Loans",
+                    "Active Loans",
+                    "Overdue Loans",
+                    "Damaged Returns",
+                ),
+                rows=(
+                    (
+                        row["borrower_id"],
+                        row["unb_id"],
+                        f'{row["first_name"]} {row["last_name"]}'.strip(),
+                        row["total_loans"],
+                        row["completed_loans"],
+                        row["active_loans"],
+                        row["overdue_loans"],
+                        row["damaged_returns"],
+                    )
+                    for row in rows
+                ),
+            )
+        return Response({"year": params.get("year"), "results": rows})

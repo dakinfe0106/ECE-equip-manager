@@ -8,6 +8,7 @@ import LendingPage from './pages/LendingPage'
 import LoginPage from './pages/LoginPage'
 import RequireAuth from './features/auth/RequireAuth'
 import InProgressPage from './pages/InProgressPage'
+import AnalyticsPage from './pages/AnalyticsPage'
 import { navigationItems } from './components/layout/navigation'
 
 export default function AppRoutes() {
@@ -36,6 +37,10 @@ export default function AppRoutes() {
             }
           >
             <Route path="/loans" element={<LendingPage />} />
+          </Route>
+
+          <Route element={<RequireAuth roles={['ADMINISTRATOR', 'TECHNICIAN', 'FACULTY']} />}>
+            <Route path="/analytics" element={<AnalyticsPage />} />
           </Route>
 
           {navigationItems

@@ -202,7 +202,7 @@ The frontend uses:
 - ESLint
 - Vitest
 
-Tailwind CSS is configured through `@tailwindcss/vite` and `frontend/src/index.css`. React Router uses declarative routing with `BrowserRouter` and `frontend/src/AppRoutes.tsx`. `/login` is public and outside the sidebar layout. `/` shows the dashboard and `/assets` shows the assets page; `/assets/new` remains the asset creation route. `/borrowers` renders the API-backed borrower list for Technicians and Administrators. `/loans`, `/maintenance`, `/analytics`, `/import-export`, and `/users` are role-guarded in-progress pages. `/categories` and `/equipment-types` are no longer frontend routes; the backend lookups remain available. Application pages require a session and use the shared sidebar and header in `App.tsx`. The header shows the route name, backend role label, the first two letters of the display name (falling back to username), and a disabled notification placeholder. The page body scrolls below it. Unknown paths show a fallback page. The dashboard keeps inventory summaries and availability live, while clearly labelled synthetic lending previews fill the unfinished dashboard sections for Technicians and Administrators. These samples are frontend-only and do not create or query lending records.
+Tailwind CSS is configured through `@tailwindcss/vite` and `frontend/src/index.css`. React Router uses declarative routing with `BrowserRouter` and `frontend/src/AppRoutes.tsx`. `/login` is public and outside the sidebar layout. `/` shows the dashboard and `/assets` shows the assets page; `/assets/new` remains the asset creation route. `/borrowers` renders the API-backed borrower list for Technicians and Administrators. `/analytics` renders availability, utilization, borrowing, and borrower reports for authenticated roles, including Faculty in read-only mode. `/loans`, `/maintenance`, `/import-export`, and `/users` remain role-guarded in-progress pages. `/categories` and `/equipment-types` are no longer frontend routes; the backend lookups remain available. Application pages require a session and use the shared sidebar and header in `App.tsx`. The header shows the route name, backend role label, the first two letters of the display name (falling back to username), and a disabled notification placeholder. The page body scrolls below it. Unknown paths show a fallback page. The dashboard keeps inventory summaries and availability live, while clearly labelled synthetic lending previews fill the unfinished dashboard sections for Technicians and Administrators. These samples are frontend-only and do not create or query lending records.
 
 Frontend code conventions are in [Frontend-Standards.md](Frontend-Standards.md).
 
@@ -236,7 +236,6 @@ In-progress routes (without business API integration) include:
 ```text
 /loans
 /maintenance
-/analytics
 /import-export
 /users
 ```
@@ -338,6 +337,8 @@ Examples:
 ```text
 Add an equipment status field     -> inventory
 Implement equipment checkout      -> lending
+Report current inventory status   -> inventory
+Report lending and borrower use   -> lending
 Record a repair                    -> maintenance
 Add a new user permission          -> users
 ```
