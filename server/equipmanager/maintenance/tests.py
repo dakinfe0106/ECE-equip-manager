@@ -296,3 +296,157 @@ def test_missing_record_returns_not_found(authenticated_client):
     response = authenticated_client.get("/api/maintenance-records/9999/")
 
     assert response.status_code == 404
+
+
+def edit_record(client, record, **payload):
+    return client.patch(
+        f"/api/maintenance-records/{record.maintenance_id}/",
+        payload,
+        format="json",
+    )
+
+
+def test_maintenance_edit_requires_authentication(maintenance_record):
+    response = edit_record(APIClient(), maintenance_record, priority="Low")
+
+    assert response.status_code == 403
+    maintenance_record.refresh_from_db()
+    assert maintenance_record.priority == MaintenanceRecord.Priority.HIGH
+
+
+def test_faculty_cannot_edit_maintenance(db, maintenance_record):
+    faculty = get_user_model().objects.create_user(
+        username="faculty",
+        password="test-password",
+        role="FACULTY",
+    )
+    client = APIClient()
+    client.force_authenticate(user=faculty)
+
+    response = edit_record(client, maintenance_record, priority="Low")
+
+    assert response.status_code == 403
+    maintenance_record.refresh_from_db()
+    assert maintenance_record.priority == MaintenanceRecord.Priority.HIGH
+
+
+def test_edit_maintenance_updates_type_and_priority_without_new_record(
+    authenticated_client, maintenance_record
+):
+    response = edit_record(
+        authenticated_client,
+        maintenance_record,
+        maintenance_type="Calibration",
+        priority="Low",
+    )
+
+    assert response.status_code == 200
+    assert response.data["maintenance_type"] == "Calibration"
+    assert response.data["priority"] == "Low"
+    maintenance_record.refresh_from_db()
+    assert maintenance_record.maintenance_type == "Calibration"
+    assert maintenance_record.priority == "Low"
+    assert maintenance_record.start_date == date(2025, 1, 10)
+    assert maintenance_record.end_date is None
+    assert MaintenanceRecord.objects.count() == 1
+
+
+def test_edit_maintenance_changes_technician(authenticated_client, maintenance_record):
+    other = get_user_model().objects.create_user(
+        username="other-tech",
+        password="test-password",
+        role="TECHNICIAN",
+    )
+
+    response = edit_record(
+        authenticated_client, maintenance_record, technician_id=other.pk
+    )
+
+    assert response.status_code == 200
+    assert response.data["technician"]["id"] == other.pk
+    maintenance_record.refresh_from_db()
+    assert maintenance_record.technician_id == other.pk
+
+
+def test_edit_maintenance_keeps_unsent_fields_and_asset_status(
+    authenticated_client, maintenance_record
+):
+    response = edit_record(authenticated_client, maintenance_record, priority="Low")
+
+    assert response.status_code == 200
+    maintenance_record.refresh_from_db()
+    maintenance_record.asset.refresh_from_db()
+    assert maintenance_record.maintenance_type == "Repair"
+    assert maintenance_record.asset.status == Asset.Status.UNDER_MAINTENANCE
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("maintenance_type", "Other"), ("priority", "Critical")],
+)
+def test_edit_maintenance_validates_input(
+    authenticated_client, maintenance_record, field, value
+):
+    response = edit_record(authenticated_client, maintenance_record, **{field: value})
+
+    assert response.status_code == 400
+    assert field in response.data
+
+
+def test_edit_maintenance_requires_active_technician(
+    authenticated_client, maintenance_record
+):
+    inactive = get_user_model().objects.create_user(
+        username="inactive-tech",
+        password="test-password",
+        role="TECHNICIAN",
+        is_active=False,
+    )
+
+    response = edit_record(
+        authenticated_client, maintenance_record, technician_id=inactive.pk
+    )
+
+    assert response.status_code == 400
+    assert "technician_id" in response.data
+    maintenance_record.refresh_from_db()
+    assert maintenance_record.technician.username == "maintenance-tech"
+
+
+def test_edit_maintenance_rejects_completed_record(
+    authenticated_client, maintenance_record
+):
+    maintenance_record.end_date = date(2025, 1, 12)
+    maintenance_record.save(update_fields=("end_date",))
+
+    response = edit_record(authenticated_client, maintenance_record, priority="Low")
+
+    assert response.status_code == 400
+    assert (
+        response.data["maintenance_id"]
+        == "Completed maintenance records cannot be edited."
+    )
+    maintenance_record.refresh_from_db()
+    assert maintenance_record.priority == MaintenanceRecord.Priority.HIGH
+
+
+def test_edit_unknown_record_returns_not_found(authenticated_client):
+    response = authenticated_client.patch(
+        "/api/maintenance-records/9999/",
+        {"priority": "Low"},
+        format="json",
+    )
+
+    assert response.status_code == 404
+
+
+def test_maintenance_record_does_not_allow_put(
+    authenticated_client, maintenance_record
+):
+    response = authenticated_client.put(
+        f"/api/maintenance-records/{maintenance_record.maintenance_id}/",
+        {"priority": "Low"},
+        format="json",
+    )
+
+    assert response.status_code == 405

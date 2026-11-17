@@ -57,3 +57,18 @@ class MaintenanceRecordCreateSerializer(serializers.Serializer):
     )
     priority = serializers.ChoiceField(choices=MaintenanceRecord.Priority.choices)
     start_date = serializers.DateField()
+
+
+class MaintenanceRecordUpdateSerializer(serializers.Serializer):
+    technician_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(is_active=True, role=User.Role.TECHNICIAN),
+        required=False,
+    )
+    maintenance_type = serializers.ChoiceField(
+        choices=MaintenanceRecord.MaintenanceType.choices,
+        required=False,
+    )
+    priority = serializers.ChoiceField(
+        choices=MaintenanceRecord.Priority.choices,
+        required=False,
+    )
