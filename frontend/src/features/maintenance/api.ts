@@ -210,6 +210,17 @@ export function createMaintenanceRecord(
   )
 }
 
+export function completeMaintenanceRecord(
+  recordId: number,
+  endDate: string,
+): Promise<MaintenanceRecord> {
+  return sendMaintenanceRequest(
+    `${apiBaseUrl}/maintenance-records/${recordId}/complete/`,
+    'Maintenance completion',
+    { end_date: endDate },
+  )
+}
+
 export function describeMaintenanceError(error: unknown, action: string): string {
   if (error instanceof MaintenanceRequestError && error.status === 403) {
     return 'Your account does not have permission to access maintenance records.'

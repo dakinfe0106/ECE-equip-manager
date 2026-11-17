@@ -3,6 +3,7 @@ import PageIntro from '../components/ui/PageIntro'
 import Panel from '../components/ui/Panel'
 import { hasPermission } from '../features/auth/api'
 import { useAuth } from '../features/auth/useAuth'
+import CompleteMaintenanceDialog from '../features/maintenance/components/CompleteMaintenanceDialog'
 import MaintenanceRecordDialog from '../features/maintenance/components/MaintenanceRecordDialog'
 import {
   maintenanceTypeLabels,
@@ -49,6 +50,7 @@ export default function MaintenancePage() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [dialogMode, setDialogMode] = useState<'create' | 'details' | null>(null)
   const [selectedRecord, setSelectedRecord] = useState<MaintenanceRecord | undefined>()
+  const [recordToComplete, setRecordToComplete] = useState<MaintenanceRecord | undefined>()
   const [statusMessage, setStatusMessage] = useState('')
   const {
     records,
@@ -59,6 +61,7 @@ export default function MaintenancePage() {
     pageSize,
   } = useMaintenanceRecords(filters, page, refreshKey)
   const canCreate = hasPermission(user, 'maintenance.add_maintenancerecord')
+  const canComplete = hasPermission(user, 'maintenance.change_maintenancerecord')
 
   const applySearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -80,6 +83,11 @@ export default function MaintenancePage() {
   const openDetails = (record: MaintenanceRecord) => {
     setSelectedRecord(record)
     setDialogMode('details')
+    setStatusMessage('')
+  }
+
+  const openComplete = (record: MaintenanceRecord) => {
+    setRecordToComplete(record)
     setStatusMessage('')
   }
 
@@ -270,6 +278,15 @@ export default function MaintenancePage() {
                     >
                       View
                     </button>
+                    {canComplete && record.status === 'In Progress' && (
+                      <button
+                        className="ml-3 font-semibold text-primary hover:underline"
+                        type="button"
+                        onClick={() => openComplete(record)}
+                      >
+                        Complete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -323,6 +340,18 @@ export default function MaintenancePage() {
           onCreated={() => {
             closeDialog()
             setStatusMessage('Maintenance record created. Equipment is now under maintenance.')
+            refreshRecords()
+          }}
+        />
+      )}
+
+      {recordToComplete && (
+        <CompleteMaintenanceDialog
+          record={recordToComplete}
+          onClose={() => setRecordToComplete(undefined)}
+          onCompleted={() => {
+            setRecordToComplete(undefined)
+            setStatusMessage('Maintenance completed. Equipment is now available.')
             refreshRecords()
           }}
         />
