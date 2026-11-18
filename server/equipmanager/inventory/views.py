@@ -196,6 +196,12 @@ class AssetListCreateAPIView(generics.ListCreateAPIView):
                     {"equipment_type_id": "Must be a valid equipment type ID."}
                 ) from exc
             assets = assets.filter(type_id=equipment_type_id)
+
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            if status_filter not in Asset.Status.values:
+                raise ValidationError({"status": "Select a valid asset status."})
+            assets = assets.filter(status=status_filter)
         return assets
 
     def get_serializer_class(self):

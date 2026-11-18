@@ -2,6 +2,7 @@ import { Link, Route, Routes } from 'react-router'
 import App from './App'
 import AddAssetForm from './features/assets/components/AddAssetForm'
 import AssetsPage from './pages/AssetsPage'
+import MaintenancePage from './pages/MaintenancePage'
 import BorrowersPage from './pages/BorrowersPage'
 import DashboardPage from './pages/DashboardPage'
 import LendingPage from './pages/LendingPage'
@@ -25,6 +26,9 @@ export default function AppRoutes() {
           <Route element={<RequireAuth permission="inventory.add_asset" />}>
             <Route path="/assets/new" element={<AddAssetForm />} />
           </Route>
+          <Route element={<RequireAuth permission="maintenance.view_maintenancerecord" />}>
+            <Route path="/maintenance" element={<MaintenancePage />} />
+          </Route>
 
           <Route element={<RequireAuth permission="lending.view_borrower" />}>
             <Route path="/borrowers" element={<BorrowersPage />} />
@@ -41,17 +45,14 @@ export default function AppRoutes() {
           {navigationItems
             .filter(
               (item) =>
-                item.inProgress && item.path !== '/loans',
+                item.inProgress
+                && item.path !== '/maintenance'
+                && item.path !== '/borrowers'
+                && item.path !== '/loans',
             )
             .map((item) => (
-              <Route
-                key={item.path}
-                element={<RequireAuth roles={item.roles} />}
-              >
-                <Route
-                  path={item.path}
-                  element={<InProgressPage title={item.label} />}
-                />
+              <Route key={item.path} element={<RequireAuth roles={item.roles} />}>
+                <Route path={item.path} element={<InProgressPage title={item.label} />} />
               </Route>
             ))}
         </Route>
