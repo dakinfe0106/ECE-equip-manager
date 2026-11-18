@@ -180,9 +180,11 @@ class BorrowerDetail(generics.RetrieveUpdateAPIView):
         return BorrowerDetailSerializer
 
     def update(self, request, *args, **kwargs):
-        response = super().update(request, *args, **kwargs)
+        super().update(request, *args, **kwargs)
         instance = self.get_object()
-        serializer = BorrowerDetailSerializer(instance, context=self.get_serializer_context())
+        serializer = BorrowerDetailSerializer(
+            instance, context=self.get_serializer_context()
+        )
         return Response(serializer.data)
 
 

@@ -78,6 +78,9 @@ export default function BorrowerDetailsModal({
     }
   }
 
+  const detailsErrorMessage =
+    detailsLoadState && 'message' in detailsLoadState ? detailsLoadState.message : ''
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-[rgb(9_18_32_/_48%)] p-5 backdrop-blur-[2px]"
@@ -157,7 +160,7 @@ export default function BorrowerDetailsModal({
             {(detailsLoadState?.status === 'error' || saveError) && (
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-danger/20 bg-danger-soft px-3 py-2">
                 <p role="alert" className="m-0 text-[11px] text-danger">
-                  {saveError || `Unable to load borrower details. ${(detailsLoadState as any)?.message ?? ''}`}
+                  {saveError || `Unable to load borrower details. ${detailsErrorMessage}`}
                 </p>
                 {detailsLoadState?.status === 'error' && onRetryDetails && (
                   <button

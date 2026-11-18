@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import PageIntro from '../components/ui/PageIntro'
 import Panel from '../components/ui/Panel'
 import BorrowerDetailsWorkflow from '../features/borrowers/components/BorrowerDetailsWorkflow'
 import BorrowerPagination from '../features/borrowers/components/BorrowerPagination'
@@ -58,11 +57,21 @@ export default function BorrowersPage() {
     totalCount,
   } = useBorrowers(currentPage, appliedSearch)
 
-  const [localBorrowers, setLocalBorrowers] = useState<BorrowerRecord[]>([])
+  const [addedBorrowers, setAddedBorrowers] = useState<BorrowerRecord[]>([])
+  const [updatedBorrowersById, setUpdatedBorrowersById] = useState<
+    Record<number, Partial<BorrowerRecord>>
+  >({})
 
-  useEffect(() => {
-    setLocalBorrowers(initialBorrowers)
-  }, [initialBorrowers])
+  const localBorrowers = [
+    ...addedBorrowers.filter(
+      (added) => !initialBorrowers.some((b) => b.borrower_id === added.borrower_id),
+    ),
+    ...initialBorrowers,
+  ].map((borrower) =>
+    updatedBorrowersById[borrower.borrower_id]
+      ? { ...borrower, ...updatedBorrowersById[borrower.borrower_id] }
+      : borrower,
+  )
 
   useEffect(() => {
     if (!selectedBorrower) return
@@ -188,7 +197,7 @@ export default function BorrowersPage() {
 
   const handleCreateBorrower = async (data: BorrowerCreateInput) => {
     const newRecord = await createBorrower(data)
-    setLocalBorrowers((prev) => [newRecord, ...prev])
+    setAddedBorrowers((prev) => [newRecord, ...prev])
   }
 
   const handleSaveBorrower = async (updatedData: { first_name: string }) => {
@@ -199,13 +208,12 @@ export default function BorrowersPage() {
       ...selectedBorrower,
       first_name: updatedRecord.first_name,
     })
-    setLocalBorrowers((prev) =>
-      prev.map((b) =>
-        b.borrower_id === selectedBorrower.borrower_id
-          ? { ...b, first_name: updatedRecord.first_name }
-          : b
-      )
-    )
+    setUpdatedBorrowersById((prev) => ({
+      ...prev,
+      [selectedBorrower.borrower_id]: {
+        first_name: updatedRecord.first_name,
+      },
+    }))
   }
 
   return (
@@ -214,18 +222,25 @@ export default function BorrowersPage() {
         className="mx-auto flex h-full min-h-0 w-full max-w-[1500px] flex-col px-[34px] pt-[34px] pb-[50px] max-[760px]:px-4 max-[760px]:pt-6 max-[760px]:pb-10"
         aria-labelledby="page-title"
       >
-        <div className="mb-[27px] flex flex-wrap items-end justify-between gap-x-6 gap-y-[18px] max-[760px]:items-start max-[520px]:block">
-          <PageIntro
-            title="Borrowers"
-            description="Find borrowers and review their records."
-          />
-          <button
-            type="button"
-            onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex min-h-[38px] items-center justify-center gap-[7px] whitespace-nowrap rounded-lg border border-primary bg-primary px-[15px] text-[12px] font-[650] text-white shadow-[0_4px_10px_rgb(47_111_237_/_22%)] hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+        <div className="mb-[27px]">
+          <h1
+            id="page-title"
+            className="m-0 text-[22px] font-[750] tracking-[-0.01em] text-heading mb-1"
           >
-            + Add Borrower
-          </button>
+            Borrowers
+          </h1>
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-[18px] max-[760px]:items-start max-[520px]:block">
+            <p className="m-0 text-[13px] text-muted">
+              Find borrowers and review their records.
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsAddModalOpen(true)}
+              className="inline-flex min-h-[38px] items-center justify-center gap-[7px] whitespace-nowrap rounded-lg border border-primary bg-primary px-[15px] text-[12px] font-[650] text-white shadow-[0_4px_10px_rgb(47_111_237_/_22%)] hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+            >
+              + Add Borrower
+            </button>
+          </div>
         </div>
 
         <Panel className="flex min-h-0 flex-1 flex-col overflow-hidden" label="Borrower search results">
