@@ -1,10 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import PageIntro from '../components/ui/PageIntro'
 import Panel from '../components/ui/Panel'
-import BorrowerDetailsWorkflow from '../features/borrowers/components/BorrowerDetailsWorkflow'
-import BorrowerPagination from '../features/borrowers/components/BorrowerPagination'
-import BorrowerSearchToolbar from '../features/borrowers/components/BorrowerSearchToolbar'
-import BorrowerTable from '../features/borrowers/components/BorrowerTable'
 import { fetchAllAssets } from '../features/assets/api'
 import {
   describeBorrowerDetailsError,
@@ -12,6 +8,12 @@ import {
   type BorrowerDetailsRecord,
   type BorrowerRecord,
 } from '../features/borrowers/api'
+import AddBorrowerAction from '../features/borrowers/components/AddBorrowersAction'
+import AddBorrowerModal from '../features/borrowers/components/AddBorrowersModal'
+import BorrowerDetailsWorkflow from '../features/borrowers/components/BorrowerDetailsWorkflow'
+import BorrowerPagination from '../features/borrowers/components/BorrowerPagination'
+import BorrowerSearchToolbar from '../features/borrowers/components/BorrowerSearchToolbar'
+import BorrowerTable from '../features/borrowers/components/BorrowerTable'
 import {
   createDamageFlag,
   fetchDamageFlags,
@@ -30,6 +32,8 @@ export default function BorrowersPage() {
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [isAddBorrowerOpen, setIsAddBorrowerOpen] = useState(false)
+  const [createdBorrower, setCreatedBorrower] = useState<BorrowerRecord | null>(null)
   const [selectedBorrower, setSelectedBorrower] = useState<BorrowerRecord | null>(null)
   const [borrowerDetailsRecord, setBorrowerDetailsRecord] = useState<BorrowerDetailsRecord | null>(null)
   const [detailsResult, setDetailsResult] = useState<{
@@ -45,11 +49,13 @@ export default function BorrowersPage() {
     error: string
   }>()
   const {
+    addBorrower,
     borrowers,
     errorMessage,
     isLoading,
     pageCount,
     pageSize,
+    replaceBorrower,
     totalCount,
   } = useBorrowers(currentPage, appliedSearch)
 
@@ -147,14 +153,40 @@ export default function BorrowersPage() {
 
   const searchBorrowers = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    setCreatedBorrower(null)
     setCurrentPage(1)
     setAppliedSearch(search.trim())
   }
 
   const clearSearch = () => {
     setSearch('')
+    setCreatedBorrower(null)
     setCurrentPage(1)
     setAppliedSearch('')
+  }
+
+  const handleBorrowerCreated = (borrower: BorrowerRecord) => {
+    setIsAddBorrowerOpen(false)
+    setCreatedBorrower(borrower)
+    addBorrower(borrower)
+  }
+
+  const handleBorrowerUpdated = (updatedViewModel: BorrowerDetailsViewModel) => {
+    const updatedRecord: BorrowerRecord = {
+      borrower_id: updatedViewModel.borrower_id,
+      unb_id: updatedViewModel.unb_id,
+      first_name: updatedViewModel.borrower_name.split(' ')[0] ?? '',
+      last_name: updatedViewModel.borrower_name.split(' ').slice(1).join(' '),
+      is_manual_enrollment: updatedViewModel.is_manual_enrollment,
+    }
+    replaceBorrower(updatedRecord)
+    if (borrowerDetailsRecord && borrowerDetailsRecord.borrower_id === updatedRecord.borrower_id) {
+      setBorrowerDetailsRecord({
+        ...borrowerDetailsRecord,
+        first_name: updatedRecord.first_name,
+        last_name: updatedRecord.last_name,
+      })
+    }
   }
 
   const borrowerDetails: BorrowerDetailsViewModel | null = selectedBorrower
@@ -167,6 +199,8 @@ export default function BorrowersPage() {
         .filter(Boolean)
         .join(' '),
       unb_id: currentDetailsRecord?.unb_id ?? selectedBorrower.unb_id,
+      is_manual_enrollment:
+        currentDetailsRecord?.is_manual_enrollment ?? selectedBorrower.is_manual_enrollment,
       negligent_damage_flag: currentDetailsRecord?.negligent_damage_flag,
       unresolved_damage_flag_count: currentDetailsRecord?.unresolved_damage_flag_count,
       damage_warning_level: currentDetailsRecord?.damage_warning_level,
@@ -183,6 +217,7 @@ export default function BorrowersPage() {
         <PageIntro
           title="Borrowers"
           description="Find borrowers and review their records."
+          actions={<AddBorrowerAction onClick={() => setIsAddBorrowerOpen(true)} />}
         />
 
         <Panel className="flex min-h-0 flex-1 flex-col overflow-hidden" label="Borrower search results">
@@ -193,6 +228,17 @@ export default function BorrowersPage() {
             onClear={clearSearch}
             search={search}
           />
+
+          {createdBorrower && (
+            <div
+              className="mx-[17px] mt-[13px] flex items-center justify-between gap-3 rounded-lg border border-success/25 bg-success-soft px-[11px] py-[7px] text-[11px] text-success"
+              role="status"
+            >
+              <span>
+                Borrower {[createdBorrower.first_name, createdBorrower.last_name].filter(Boolean).join(' ')} ({createdBorrower.unb_id}) was added successfully.
+              </span>
+            </div>
+          )}
 
           {errorMessage && (
             <p
@@ -224,13 +270,24 @@ export default function BorrowersPage() {
           <BorrowerPagination
             currentPage={currentPage}
             isLoading={isLoading}
-            onPageChange={setCurrentPage}
+            onPageChange={(page) => {
+              setCreatedBorrower(null)
+              setCurrentPage(page)
+            }}
             pageCount={pageCount}
             pageSize={pageSize}
             totalCount={totalCount}
           />
         </Panel>
       </section>
+
+      {isAddBorrowerOpen && (
+        <AddBorrowerModal
+          onClose={() => setIsAddBorrowerOpen(false)}
+          onCreated={handleBorrowerCreated}
+        />
+      )}
+
       {borrowerDetails && (
         <BorrowerDetailsWorkflow
           key={borrowerDetails.borrower_id}
@@ -252,6 +309,7 @@ export default function BorrowersPage() {
           equipmentOptions={equipmentOptions}
           equipmentOptionsError={equipmentOptionsError}
           onRetryEquipmentOptions={() => setEquipmentRetry((retry) => retry + 1)}
+          onBorrowerUpdated={handleBorrowerUpdated}
           onClose={() => setSelectedBorrower(null)}
         />
       )}

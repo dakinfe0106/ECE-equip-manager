@@ -1,7 +1,10 @@
+from django.db import IntegrityError, transaction
 from django.db.models import CharField, Count, Q, Value
 from django.db.models.functions import Concat
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import generics, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -13,6 +16,7 @@ from inventory.models import Asset
 from .models import Borrower, DamageFlag, Loan
 from .permissions import BorrowerListPermissions, LoanReadPermissions
 from .serializers import (
+    BorrowerCreateSerializer,
     BorrowerDetailSerializer,
     BorrowerListSerializer,
     DamageFlagResolutionSerializer,
@@ -35,10 +39,16 @@ class BorrowerPagination(PageNumberPagination):
     page_size = 20
 
 
-class BorrowerList(generics.ListAPIView):
+@method_decorator(ensure_csrf_cookie, name="dispatch")
+class BorrowerList(generics.ListCreateAPIView):
     serializer_class = BorrowerListSerializer
     pagination_class = BorrowerPagination
     permission_classes = (BorrowerListPermissions,)
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return BorrowerCreateSerializer
+        return BorrowerListSerializer
 
     def get_queryset(self):
         borrowers = Borrower.objects.filter(is_deleted=False)
@@ -59,6 +69,27 @@ class BorrowerList(generics.ListAPIView):
             )
         return borrowers.order_by("borrower_id")
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            with transaction.atomic():
+                borrower = serializer.save(is_manual_enrollment=True)
+        except IntegrityError as exc:
+            constraint_name = getattr(
+                getattr(exc.__cause__, "diag", None), "constraint_name", None
+            )
+            if constraint_name != "lending_borrower_unb_id_unique":
+                raise
+            raise ValidationError(
+                {"unb_id": ["A borrower with this UNB ID already exists."]}
+            ) from exc
+
+        return Response(
+            BorrowerListSerializer(borrower).data,
+            status=status.HTTP_201_CREATED,
+        )
+
 
 class LoanList(generics.ListAPIView):
     serializer_class = LoanListSerializer
@@ -66,18 +97,17 @@ class LoanList(generics.ListAPIView):
     pagination_class = None
 
     def get_queryset(self):
-        # Treat explicit blank filters as invalid, rather than omitted HTML fields.
         query = LoanQuerySerializer(data=self.request.query_params.dict())
         query.is_valid(raise_exception=True)
         params = query.validated_data
         self.today = timezone.localdate()
         loans = Loan.objects.select_related("borrower", "asset", "asset__type")
-        status = params.get("status")
-        if status == "returned":
+        status_param = params.get("status")
+        if status_param == "returned":
             loans = loans.filter(actual_return_date__isnull=False)
-        elif status in ("on_loan", "overdue"):
+        elif status_param in ("on_loan", "overdue"):
             loans = loans.filter(actual_return_date__isnull=True)
-            if status == "overdue":
+            if status_param == "overdue":
                 loans = loans.filter(expected_return_date__lt=self.today)
         if "expected_return_from" in params:
             loans = loans.filter(
@@ -116,9 +146,10 @@ class LoanList(generics.ListAPIView):
         return {**super().get_serializer_context(), "today": self.today}
 
 
-class BorrowerDetail(generics.RetrieveAPIView):
+class BorrowerDetail(generics.RetrieveUpdateAPIView):
     serializer_class = BorrowerDetailSerializer
     permission_classes = (BorrowerListPermissions,)
+    http_method_names = ["get", "patch", "head", "options"]
     queryset = Borrower.objects.filter(is_deleted=False).annotate(
         unresolved_damage_flag_count=Count(
             "damage_flags",
@@ -128,6 +159,15 @@ class BorrowerDetail(generics.RetrieveAPIView):
             ),
         )
     )
+
+    def update(self, request, *args, **kwargs):
+        allowed = {"first_name", "last_name"}
+        unknown = set(request.data.keys()) - allowed
+        if unknown:
+            raise ValidationError(
+                {field: "This field cannot be edited." for field in sorted(unknown)}
+            )
+        return super().update(request, *args, **kwargs)
 
 
 class BorrowerDamageFlagListCreate(APIView):
@@ -235,3 +275,4 @@ class BorrowerDamageFlagDetail(APIView):
                 "summary": summary,
             }
         )
+    

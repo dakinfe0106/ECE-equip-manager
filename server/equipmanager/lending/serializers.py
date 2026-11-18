@@ -9,8 +9,38 @@ from .services import damage_warning_level_for_count
 class BorrowerListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Borrower
-        fields = ("borrower_id", "unb_id", "first_name", "last_name")
+        fields = (
+            "borrower_id",
+            "unb_id",
+            "first_name",
+            "last_name",
+            "is_manual_enrollment",
+        )
         read_only_fields = fields
+
+
+class BorrowerCreateSerializer(serializers.ModelSerializer):
+    last_name = serializers.CharField(
+        max_length=255, required=False, allow_blank=True, default=""
+    )
+
+    class Meta:
+        model = Borrower
+        fields = (
+            "borrower_id",
+            "unb_id",
+            "first_name",
+            "last_name",
+            "is_manual_enrollment",
+        )
+        read_only_fields = ("borrower_id", "is_manual_enrollment")
+
+    def validate_unb_id(self, value):
+        if Borrower.objects.filter(unb_id=value).exists():
+            raise serializers.ValidationError(
+                "A borrower with this UNB ID already exists."
+            )
+        return value
 
 
 class LoanQuerySerializer(serializers.Serializer):
@@ -84,6 +114,9 @@ class LoanListSerializer(serializers.ModelSerializer):
 
 
 class BorrowerDetailSerializer(serializers.ModelSerializer):
+    last_name = serializers.CharField(
+        max_length=255, required=False, allow_blank=True
+    )
     unresolved_damage_flag_count = serializers.IntegerField(read_only=True)
     damage_warning_level = serializers.SerializerMethodField()
     damage_eligible = serializers.SerializerMethodField()
@@ -95,12 +128,32 @@ class BorrowerDetailSerializer(serializers.ModelSerializer):
             "unb_id",
             "first_name",
             "last_name",
+            "is_manual_enrollment",
             "negligent_damage_flag",
             "unresolved_damage_flag_count",
             "damage_warning_level",
             "damage_eligible",
         )
-        read_only_fields = fields
+        read_only_fields = (
+            "borrower_id",
+            "unb_id",
+            "is_manual_enrollment",
+            "negligent_damage_flag",
+            "unresolved_damage_flag_count",
+            "damage_warning_level",
+            "damage_eligible",
+        )
+
+    def validate_first_name(self, value):
+        trimmed = value.strip()
+        if not trimmed:
+            raise serializers.ValidationError("Enter a first name.")
+        return trimmed
+
+    def validate_last_name(self, value):
+        if value is None:
+            return ""
+        return value.strip()
 
     def get_damage_warning_level(self, borrower):
         return damage_warning_level_for_count(borrower.unresolved_damage_flag_count)
@@ -239,3 +292,4 @@ class DamageFlagSerializer(serializers.ModelSerializer):
 
     def get_reviewed(self, flag):
         return flag.reviewed_at is not None
+    

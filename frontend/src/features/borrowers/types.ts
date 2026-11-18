@@ -28,6 +28,7 @@ export interface BorrowerDetailsViewModel {
   borrower_id: number
   borrower_name: string
   unb_id: string
+  is_manual_enrollment?: boolean
   standing?: BorrowerStanding
   certifications?: string[]
   active_loans?: BorrowerLoanSummary[]

@@ -5,11 +5,11 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { apiBaseUrl } from '../api'
-import type { BorrowerDetails } from '../features/borrowers/api'
+import type { BorrowerDetailsRecord } from '../features/borrowers/api'
 import BorrowersPage from '../pages/BorrowersPage'
 import { withAuth } from './authTestUtils'
 
-let borrowers: BorrowerDetails[] = []
+let borrowers: BorrowerDetailsRecord[] = []
 let listRequests: { page: string; search: string | null }[] = []
 let detailRequests = 0
 let patchRequests: {
@@ -19,6 +19,14 @@ let patchRequests: {
 }[] = []
 
 const server = setupServer(
+  http.get(`${apiBaseUrl}/assets/`, () =>
+    HttpResponse.json({
+      count: 0,
+      next: null,
+      previous: null,
+      results: [],
+    }),
+  ),
   http.get(`${apiBaseUrl}/borrowers/`, ({ request }) => {
     const params = new URL(request.url).searchParams
     const page = params.get('page') ?? '1'
@@ -65,13 +73,25 @@ function renderBorrowersPage() {
   return render(withAuth(<BorrowersPage />))
 }
 
-function makeBorrowers(): BorrowerDetails[] {
+function makeBorrowers(): BorrowerDetailsRecord[] {
   return Array.from({ length: 22 }, (_, index) => ({
     borrower_id: index + 1,
     unb_id: `UNB-${String(index + 1).padStart(3, '0')}`,
     first_name: `Ada ${index + 1}`,
     last_name: `Person ${index + 1}`,
+    negligent_damage_flag: false,
+    unresolved_damage_flag_count: 0,
+    damage_warning_level: 'no_warning',
+    damage_eligible: true,
   }))
+}
+
+async function openEditModal(user: ReturnType<typeof userEvent.setup>, rowName: string) {
+  const row = screen.getByRole('row', { name: rowName })
+  await user.click(row)
+  const dialog = await screen.findByRole('dialog')
+  const editButton = within(dialog).getByRole('button', { name: /^edit$/i })
+  await user.click(editButton)
 }
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
@@ -99,11 +119,8 @@ describe('Borrower selection and editing', () => {
     await screen.findByText('Page 1 of 2')
     await user.click(screen.getByRole('button', { name: 'Next' }))
     await screen.findByText('Page 2 of 2')
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Edit borrower Ada 22 Person 22 (UNB ID UNB-022)',
-      }),
-    )
+
+    await openEditModal(user, 'View details for Ada 22 Person 22, UNB ID UNB-022')
 
     const dialog = await screen.findByRole('dialog', { name: 'Ada 22 Person 22' })
     const firstName = await screen.findByLabelText('First name')
@@ -153,11 +170,8 @@ describe('Borrower selection and editing', () => {
     const user = userEvent.setup()
     renderBorrowersPage()
     await screen.findByText('Ada 1 Person 1')
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Edit borrower Ada 1 Person 1 (UNB ID UNB-001)',
-      }),
-    )
+    await openEditModal(user, 'View details for Ada 1 Person 1, UNB ID UNB-001')
+
     const firstName = await screen.findByLabelText('First name')
     await user.clear(firstName)
     await user.type(firstName, 'Changed but cancelled')
@@ -172,11 +186,8 @@ describe('Borrower selection and editing', () => {
     const user = userEvent.setup()
     renderBorrowersPage()
     await screen.findByText('Ada 1 Person 1')
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Edit borrower Ada 1 Person 1 (UNB ID UNB-001)',
-      }),
-    )
+    await openEditModal(user, 'View details for Ada 1 Person 1, UNB ID UNB-001')
+
     const firstName = await screen.findByLabelText('First name')
     await user.clear(firstName)
     await user.type(firstName, '   ')
@@ -195,11 +206,8 @@ describe('Borrower selection and editing', () => {
     borrowers[1].first_name = 'LilyJ'
     renderBorrowersPage()
     await screen.findByText('Ada 1 Person 1')
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Edit borrower Ada 1 Person 1 (UNB ID UNB-001)',
-      }),
-    )
+    await openEditModal(user, 'View details for Ada 1 Person 1, UNB ID UNB-001')
+
     const firstName = await screen.findByLabelText('First name')
     await user.clear(firstName)
     await user.type(firstName, 'LilyJ')
@@ -231,11 +239,8 @@ describe('Borrower selection and editing', () => {
     )
     renderBorrowersPage()
     await screen.findByText('Ada 1 Person 1')
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Edit borrower Ada 1 Person 1 (UNB ID UNB-001)',
-      }),
-    )
+    await openEditModal(user, 'View details for Ada 1 Person 1, UNB ID UNB-001')
+
     expect(await screen.findByText('Loading borrower details…')).toBeTruthy()
     const firstName = await screen.findByLabelText('First name')
     await user.clear(firstName)
@@ -254,11 +259,8 @@ describe('Borrower selection and editing', () => {
     ))
     renderBorrowersPage()
     await screen.findByText('Ada 1 Person 1')
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Edit borrower Ada 1 Person 1 (UNB ID UNB-001)',
-      }),
-    )
+    await openEditModal(user, 'View details for Ada 1 Person 1, UNB ID UNB-001')
+
     await screen.findByLabelText('First name')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
@@ -274,11 +276,8 @@ describe('Borrower selection and editing', () => {
     ))
     renderBorrowersPage()
     await screen.findByText('Ada 1 Person 1')
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Edit borrower Ada 1 Person 1 (UNB ID UNB-001)',
-      }),
-    )
+    await openEditModal(user, 'View details for Ada 1 Person 1, UNB ID UNB-001')
+
     await screen.findByLabelText('First name')
     await user.click(screen.getByRole('button', { name: 'Save changes' }))
 
