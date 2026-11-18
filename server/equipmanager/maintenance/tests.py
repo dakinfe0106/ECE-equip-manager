@@ -1,9 +1,10 @@
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from inventory.models import Asset, Category, EquipmentType
@@ -294,5 +295,201 @@ def test_asset_history_includes_active_and_completed_records(
 
 def test_missing_record_returns_not_found(authenticated_client):
     response = authenticated_client.get("/api/maintenance-records/9999/")
+
+    assert response.status_code == 404
+
+
+def complete_record(client, record, **payload):
+    return client.post(
+        f"/api/maintenance-records/{record.maintenance_id}/complete/",
+        payload,
+        format="json",
+    )
+
+
+def test_complete_maintenance_requires_authentication(maintenance_record):
+    response = complete_record(APIClient(), maintenance_record, end_date="2025-01-12")
+
+    assert response.status_code == 403
+    maintenance_record.refresh_from_db()
+    assert maintenance_record.end_date is None
+
+
+def test_faculty_cannot_complete_maintenance(db, maintenance_record):
+    faculty = get_user_model().objects.create_user(
+        username="faculty",
+        password="test-password",
+        role="FACULTY",
+    )
+    client = APIClient()
+    client.force_authenticate(user=faculty)
+
+    response = complete_record(client, maintenance_record, end_date="2025-01-12")
+
+    assert response.status_code == 403
+    maintenance_record.refresh_from_db()
+    assert maintenance_record.end_date is None
+
+
+def test_complete_maintenance_sets_end_date_and_makes_asset_available(
+    authenticated_client, maintenance_record
+):
+    response = complete_record(
+        authenticated_client, maintenance_record, end_date="2025-01-12"
+    )
+
+    assert response.status_code == 200
+    assert response.data["end_date"] == "2025-01-12"
+    assert response.data["status"] == "Completed"
+    assert response.data["asset"]["status"] == "Available"
+    maintenance_record.refresh_from_db()
+    maintenance_record.asset.refresh_from_db()
+    assert maintenance_record.end_date == date(2025, 1, 12)
+    assert maintenance_record.asset.status == Asset.Status.AVAILABLE
+
+
+def test_complete_maintenance_defaults_to_today(
+    authenticated_client, maintenance_record
+):
+    response = complete_record(authenticated_client, maintenance_record)
+
+    assert response.status_code == 200
+    assert response.data["end_date"] == timezone.localdate().isoformat()
+
+
+def test_complete_maintenance_allows_same_day_completion(
+    authenticated_client, maintenance_record
+):
+    response = complete_record(
+        authenticated_client, maintenance_record, end_date="2025-01-10"
+    )
+
+    assert response.status_code == 200
+    assert response.data["end_date"] == "2025-01-10"
+
+
+def test_complete_maintenance_rejects_date_before_start(
+    authenticated_client, maintenance_record
+):
+    response = complete_record(
+        authenticated_client, maintenance_record, end_date="2025-01-09"
+    )
+
+    assert response.status_code == 400
+    assert (
+        response.data["end_date"]
+        == "Completion date cannot precede the maintenance start date."
+    )
+    maintenance_record.refresh_from_db()
+    maintenance_record.asset.refresh_from_db()
+    assert maintenance_record.end_date is None
+    assert maintenance_record.asset.status == Asset.Status.UNDER_MAINTENANCE
+
+
+def test_complete_maintenance_rejects_future_date(
+    authenticated_client, maintenance_record
+):
+    tomorrow = timezone.localdate() + timedelta(days=1)
+
+    response = complete_record(
+        authenticated_client, maintenance_record, end_date=tomorrow.isoformat()
+    )
+
+    assert response.status_code == 400
+    assert response.data["end_date"] == "Completion date cannot be in the future."
+    maintenance_record.refresh_from_db()
+    maintenance_record.asset.refresh_from_db()
+    assert maintenance_record.end_date is None
+    assert maintenance_record.asset.status == Asset.Status.UNDER_MAINTENANCE
+
+
+def test_complete_maintenance_can_retire_the_asset(
+    authenticated_client, maintenance_record
+):
+    response = complete_record(
+        authenticated_client,
+        maintenance_record,
+        end_date="2025-01-12",
+        outcome="Retired",
+    )
+
+    assert response.status_code == 200
+    assert response.data["status"] == "Completed"
+    assert response.data["asset"]["status"] == "Retired"
+    maintenance_record.asset.refresh_from_db()
+    assert maintenance_record.asset.status == Asset.Status.RETIRED
+
+
+@pytest.mark.parametrize("outcome", ["Under_Maintenance", "On_Loan", "Other"])
+def test_complete_maintenance_rejects_other_outcomes(
+    authenticated_client, maintenance_record, outcome
+):
+    response = complete_record(
+        authenticated_client,
+        maintenance_record,
+        end_date="2025-01-12",
+        outcome=outcome,
+    )
+
+    assert response.status_code == 400
+    assert "outcome" in response.data
+    maintenance_record.refresh_from_db()
+    maintenance_record.asset.refresh_from_db()
+    assert maintenance_record.end_date is None
+    assert maintenance_record.asset.status == Asset.Status.UNDER_MAINTENANCE
+
+
+def test_complete_maintenance_rejects_invalid_date(
+    authenticated_client, maintenance_record
+):
+    response = complete_record(
+        authenticated_client, maintenance_record, end_date="not-a-date"
+    )
+
+    assert response.status_code == 400
+    assert "end_date" in response.data
+    maintenance_record.refresh_from_db()
+    assert maintenance_record.end_date is None
+
+
+def test_complete_maintenance_rejects_already_completed_record(
+    authenticated_client, maintenance_record
+):
+    first = complete_record(
+        authenticated_client, maintenance_record, end_date="2025-01-12"
+    )
+    second = complete_record(
+        authenticated_client, maintenance_record, end_date="2025-01-15"
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 400
+    assert (
+        second.data["end_date"]
+        == "This maintenance record has already been completed."
+    )
+    maintenance_record.refresh_from_db()
+    assert maintenance_record.end_date == date(2025, 1, 12)
+
+
+def test_completed_maintenance_stays_in_history(
+    authenticated_client, maintenance_record
+):
+    complete_record(authenticated_client, maintenance_record, end_date="2025-01-12")
+
+    response = authenticated_client.get("/api/maintenance-records/?status=completed")
+
+    assert response.status_code == 200
+    assert [row["maintenance_id"] for row in response.data["results"]] == [
+        maintenance_record.maintenance_id
+    ]
+
+
+def test_complete_unknown_record_returns_not_found(authenticated_client):
+    response = authenticated_client.post(
+        "/api/maintenance-records/9999/complete/",
+        {"end_date": "2025-01-12"},
+        format="json",
+    )
 
     assert response.status_code == 404
