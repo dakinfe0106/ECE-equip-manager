@@ -24,14 +24,17 @@ from .serializers import (
     LoanCheckoutSerializer,
     LoanListSerializer,
     LoanQuerySerializer,
+    LoanReturnSerializer,
 )
 from .services import (
     CheckoutRuleError,
     DamageFlagRuleError,
+    LoanReturnRuleError,
     checkout_asset,
     damage_flag_summary,
     record_damage_flag,
     resolve_damage_flag,
+    return_loan,
     update_damage_flag,
 )
 
@@ -160,6 +163,27 @@ class LoanList(generics.ListCreateAPIView):
         if hasattr(self, "today"):
             context["today"] = self.today
         return context
+
+
+class LoanReturn(APIView):
+    permission_classes = (LoanReadPermissions,)
+
+    def post(self, request, pk):
+        serializer = LoanReturnSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            loan = return_loan(loan_id=pk, **serializer.validated_data)
+        except Loan.DoesNotExist as error:
+            raise NotFound("Loan not found.") from error
+        except LoanReturnRuleError as error:
+            raise ValidationError(error.errors) from error
+        return Response(
+            {
+                "loan": LoanListSerializer(loan, context={"today": timezone.localdate()}).data,
+                "maintenance_required": loan.return_condition == Loan.ReturnCondition.DAMAGED,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class BorrowerDetail(generics.RetrieveUpdateAPIView):

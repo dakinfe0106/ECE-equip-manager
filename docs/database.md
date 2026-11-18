@@ -196,7 +196,7 @@ SystemUser is the logical record for people who sign in to the application. It i
 
 1. The agreed checkout policy requires an active, non-soft-deleted borrower with fewer than three unresolved reviewed damage incidents and no overdue open loans; the borrower must have every certification required by the equipment type. The incident-based damage rule is implemented by the borrower detail and damage-flag APIs. POST /api/loans/ now enforces borrower overdue and damage standing during checkout. Certification checks remain pending because Certification, BorrowerCertification, and TypeCertification exist only in this specification, not in implemented models. Unexpired-certification verification for Issue #113 also needs an agreed expiry model; the current convention specifies no automatic expiry.
 2. The asset, its equipment type, and its category must not be soft-deleted. An asset must be `Available` to be checked out; `Retired` assets require explicit reactivation first.
-3. Checkout creates a Loan and sets Asset.status = `On_Loan` in a single database transaction. Returning it fills the return date/condition and makes the asset `Available`, or initiates maintenance directly if damaged or otherwise required.
+3. Checkout creates a Loan and sets Asset.status = `On_Loan` in a single database transaction. Returning it records the return date and condition atomically with the asset status. Intact returns set `Available`. Damaged returns set `Under_Maintenance` and hand off to maintenance-record creation.
 4. A borrower who later becomes ineligible may keep and return an existing loan, but may not start new loans.
 5. Loan rows are historical records: never remove them through ordinary user-facing deletion actions. Extensions update expected return date, without altering checkout history.
 
@@ -217,7 +217,7 @@ is required.
 
 ### Maintenance and retirement
 
-1. Starting maintenance requires an asset not currently on loan; set status to `Under_Maintenance` and create an open record in one transaction.
+1. Starting maintenance requires an asset with no active loan or open maintenance record. The asset must be `Available` for ordinary maintenance or already `Under_Maintenance` with its latest loan completed as `Damaged`. Create the open record and set or retain `Under_Maintenance` in one transaction.
 2. Only one maintenance record can be open for an asset; completing it fills `end_date` and makes the asset `Available` unless a separate permitted transition is needed.
 3. Retirement makes an asset unavailable for checkout. Reactivation is an explicit authorized operation; do not confuse retirement with soft deletion.
 4. Use `transaction.atomic()` and row locks (`select_for_update()`) for checkout, return, maintenance, retirement, and reactivation to guard concurrent requests. Also retain database unique constraints.
