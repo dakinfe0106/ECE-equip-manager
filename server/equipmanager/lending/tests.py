@@ -102,20 +102,6 @@ def test_borrower_list_denies_faculty(db):
     assert response.status_code == 403
 
 
-def test_borrower_list_is_read_only(borrower_client):
-    response = borrower_client.post(
-        "/api/borrowers/",
-        {
-            "unb_id": "UNB-001",
-            "first_name": "Ada",
-            "last_name": "Lovelace",
-        },
-        format="json",
-    )
-
-    assert response.status_code == 405
-
-
 def test_borrower_list_returns_documented_identity_fields(borrower_client):
     borrower = create_borrower(unb_id="UNB-001")
 
@@ -299,7 +285,6 @@ def test_loan_status_filters(borrower_client, loan_data, status, indices):
     "  aDA  ", "LOVElaCe", " ada lovelace ", "unb-loan", "OSCILLOSCOPE", "  shop-0  ",
 ])
 def test_loan_search(borrower_client, loan_data, search):
-    # An unrelated loan proves search restricts results rather than just returning all.
     other = create_borrower(unb_id="OTHER", first_name="Grace", last_name="Hopper")
     asset = Asset.objects.create(type=loan_data.loans[0].asset.type, name="Drill", asset_identifier="DRILL")
     Loan.objects.create(asset=asset, borrower=other, checkout_date=loan_data.today,
@@ -402,14 +387,12 @@ def test_loan_protects_related_records(db, loan_data, related):
 
 
 def test_loan_uses_configured_local_business_date(borrower_client, loan_data):
-    # UTC is Nov 14, while the Shop's local date is still Nov 13.
     with (
         override_settings(TIME_ZONE="America/Moncton"),
         patch("django.utils.timezone.now", return_value=datetime(
             2026, 11, 14, 1, tzinfo=UTC
         )),
     ):
-        # Temporarily restore the real localdate inside the fixture's patch.
         from django.utils.timezone import localtime
 
         with patch("lending.views.timezone.localdate", side_effect=lambda: localtime().date()):
@@ -418,13 +401,17 @@ def test_loan_uses_configured_local_business_date(borrower_client, loan_data):
             assert loan_ids(borrower_client.get("/api/loans/", {"status": "overdue"})) == [
                 loan_data.loans[0].pk
             ]
+
+
 @pytest.mark.parametrize("negligent_damage_flag", [False, True])
+@pytest.mark.parametrize("is_manual_enrollment", [False, True])
 def test_borrower_detail_returns_identity_and_negligent_damage_status(
-    borrower_client, negligent_damage_flag
+    borrower_client, negligent_damage_flag, is_manual_enrollment
 ):
     borrower = create_borrower(
         unb_id="UNB-DETAIL",
         negligent_damage_flag=negligent_damage_flag,
+        is_manual_enrollment=is_manual_enrollment,
     )
 
     response = borrower_client.get(f"/api/borrowers/{borrower.borrower_id}/")
@@ -439,6 +426,7 @@ def test_borrower_detail_returns_identity_and_negligent_damage_status(
         "unresolved_damage_flag_count": 0,
         "damage_warning_level": "no_warning",
         "damage_eligible": True,
+        "is_manual_enrollment": is_manual_enrollment,
     }
 
 
@@ -508,3 +496,97 @@ def test_borrower_detail_does_not_change_borrower_list_response(borrower_client)
             "last_name": "Lovelace",
         }
     ]
+
+
+def test_borrower_detail_patch_updates_first_name(borrower_client):
+    borrower = create_borrower(unb_id="UNB-EDIT", first_name="Ada", last_name="Lovelace")
+
+    response = borrower_client.patch(
+        f"/api/borrowers/{borrower.borrower_id}/",
+        {"first_name": "Adeline"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.data["first_name"] == "Adeline"
+    assert response.data["last_name"] == "Lovelace"
+
+    borrower.refresh_from_db()
+    assert borrower.first_name == "Adeline"
+
+
+def test_create_borrower_success(borrower_client):
+    response = borrower_client.post(
+        "/api/borrowers/",
+        {
+            "unb_id": "UNB-NEW-01",
+            "first_name": "Kobi",
+            "last_name": "Mensah",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["unb_id"] == "UNB-NEW-01"
+    assert response.data["first_name"] == "Kobi"
+    assert response.data["last_name"] == "Mensah"
+
+    borrower = Borrower.objects.get(unb_id="UNB-NEW-01")
+    assert borrower.is_manual_enrollment is True
+
+
+@pytest.mark.parametrize("is_deleted", [False, True])
+def test_create_borrower_prevents_duplicate_unb_id(borrower_client, is_deleted):
+    create_borrower(unb_id="UNB-DUP-01", is_deleted=is_deleted)
+
+    response = borrower_client.post(
+        "/api/borrowers/",
+        {
+            "unb_id": "UNB-DUP-01",
+            "first_name": "Duplicate",
+            "last_name": "User",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "unb_id" in response.data
+
+@pytest.mark.parametrize(
+    "payload,missing_field",
+    [
+        ({"first_name": "Kobi"}, "unb_id"),
+        ({"unb_id": "UNB-VAL-01"}, "first_name"),
+        ({"unb_id": "   ", "first_name": "Kobi"}, "unb_id"),
+        ({"unb_id": "UNB-VAL-01", "first_name": "   "}, "first_name"),
+    ],
+)
+def test_create_borrower_validates_required_fields(borrower_client, payload, missing_field):
+    response = borrower_client.post(
+        "/api/borrowers/",
+        payload,
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert missing_field in response.data
+
+
+def test_create_borrower_denies_faculty(db):
+    user = get_user_model().objects.create_user(
+        username="borrower-create-faculty",
+        role="FACULTY",
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.post(
+        "/api/borrowers/",
+        {
+            "unb_id": "UNB-FAC-01",
+            "first_name": "Unauthorized",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 403

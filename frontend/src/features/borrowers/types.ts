@@ -36,6 +36,7 @@ export interface BorrowerDetailsViewModel {
   unresolved_damage_flag_count?: number
   damage_warning_level?: DamageWarningLevel
   damage_eligible?: boolean
+  is_manual_enrollment?: boolean
 }
 
 export type BorrowerDetailsLoadState =

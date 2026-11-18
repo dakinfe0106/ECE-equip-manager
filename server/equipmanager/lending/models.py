@@ -15,6 +15,7 @@ class Borrower(models.Model):
     unb_id = models.CharField(max_length=100)
     negligent_damage_flag = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
+    is_manual_enrollment = models.BooleanField(default=True)
 
     class Meta:
         constraints = (
@@ -40,7 +41,6 @@ class Borrower(models.Model):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}".strip()
-
 
 class Loan(models.Model):
     class ReturnCondition(models.TextChoices):

@@ -66,6 +66,7 @@ Asset ID search trims surrounding whitespace and matches identifiers by case-ins
 | last_name             | varchar(255) | No       | Default empty string `""` (optional input); trimmed  |
 | unb_id                | varchar(100) | No       | Trimmed, nonempty; unique within Borrower            |
 | negligent_damage_flag | boolean      | No       | Default `False`; retained legacy indicator, separate from incident history |
+| is_manual_enrollment  | boolean      | No       | Default `False`; `True` when registered manually via the UI/API rather than annual import |
 | is_deleted            | boolean      | No       | Default `False`                                      |
 
 ### DamageFlag
