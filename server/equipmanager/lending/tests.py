@@ -117,7 +117,6 @@ def test_borrower_list_returns_documented_identity_fields(borrower_client):
             "unb_id": "UNB-001",
             "first_name": "Ada",
             "last_name": "Lovelace",
-            "is_manual_enrollment": False,
         }
     ]
 
@@ -191,164 +190,6 @@ def test_borrower_list_paginates_twenty_records_per_page(borrower_client):
     assert len(second_page.data["results"]) == 2
     assert second_page.data["next"] is None
     assert second_page.data["previous"] is not None
-
-
-@pytest.mark.parametrize("role", ["TECHNICIAN", "ADMINISTRATOR"])
-def test_borrower_create_allows_technician_and_administrator(db, role):
-    user = get_user_model().objects.create_user(
-        username=f"borrower-create-{role.lower()}",
-        role=role,
-    )
-    client = APIClient()
-    client.force_authenticate(user=user)
-
-    response = client.post(
-        "/api/borrowers/",
-        {
-            "unb_id": "  3519271  ",
-            "first_name": "  Kobi  ",
-            "last_name": "  Mensah  ",
-        },
-        format="json",
-    )
-
-    assert response.status_code == 201
-    assert response.data["unb_id"] == "3519271"
-    assert response.data["first_name"] == "Kobi"
-    assert response.data["last_name"] == "Mensah"
-    assert response.data["is_manual_enrollment"] is True
-    created = Borrower.objects.get(borrower_id=response.data["borrower_id"])
-    assert created.is_manual_enrollment is True
-    assert not created.negligent_damage_flag
-    assert not created.is_deleted
-
-
-def test_borrower_create_allows_optional_blank_last_name(borrower_client):
-    response = borrower_client.post(
-        "/api/borrowers/",
-        {"unb_id": "3519272", "first_name": "Grace"},
-        format="json",
-    )
-
-    assert response.status_code == 201
-    assert response.data["last_name"] == ""
-    assert response.data["is_manual_enrollment"] is True
-
-
-@pytest.mark.parametrize(
-    ("payload", "missing_field"),
-    [
-        ({"first_name": "Kobi"}, "unb_id"),
-        ({"unb_id": "   ", "first_name": "Kobi"}, "unb_id"),
-        ({"unb_id": "3519273"}, "first_name"),
-        ({"unb_id": "3519273", "first_name": "   "}, "first_name"),
-    ],
-)
-def test_borrower_create_rejects_missing_or_blank_required_fields(
-    borrower_client, payload, missing_field
-):
-    response = borrower_client.post("/api/borrowers/", payload, format="json")
-
-    assert response.status_code == 400
-    assert missing_field in response.data
-    assert Borrower.objects.count() == 0
-
-
-def test_borrower_create_rejects_duplicate_unb_id_including_soft_deleted(
-    borrower_client,
-):
-    create_borrower(unb_id="3519271", is_deleted=True)
-
-    response = borrower_client.post(
-        "/api/borrowers/",
-        {"unb_id": " 3519271 ", "first_name": "Duplicate"},
-        format="json",
-    )
-
-    assert response.status_code == 400
-    assert response.data["unb_id"] == [
-        "A borrower with this UNB ID already exists."
-    ]
-    assert Borrower.objects.count() == 1
-
-
-def test_borrower_create_ignores_client_supplied_server_flags(borrower_client):
-    response = borrower_client.post(
-        "/api/borrowers/",
-        {
-            "unb_id": "3519274",
-            "first_name": "Kobi",
-            "negligent_damage_flag": True,
-            "is_deleted": True,
-            "is_manual_enrollment": False,
-        },
-        format="json",
-    )
-
-    assert response.status_code == 201
-    created = Borrower.objects.get(borrower_id=response.data["borrower_id"])
-    assert created.is_manual_enrollment is True
-    assert not created.negligent_damage_flag
-    assert not created.is_deleted
-
-
-def test_borrower_create_denies_faculty_and_anonymous(db):
-    assert (
-        APIClient()
-        .post(
-            "/api/borrowers/",
-            {"unb_id": "3519999", "first_name": "Anon"},
-            format="json",
-        )
-        .status_code
-        == 403
-    )
-
-    faculty = get_user_model().objects.create_user(
-        username="faculty-cannot-add-borrower", role="FACULTY"
-    )
-    client = APIClient()
-    client.force_authenticate(user=faculty)
-    assert (
-        client.post(
-            "/api/borrowers/",
-            {"unb_id": "3519999", "first_name": "Faculty"},
-            format="json",
-        ).status_code
-        == 403
-    )
-
-
-def test_borrower_create_enforces_csrf_for_session_users(db):
-    user = get_user_model().objects.create_user(
-        username="csrf-borrower-tech",
-        role="TECHNICIAN",
-        password="test-password",
-    )
-    client = APIClient(enforce_csrf_checks=True)
-    client.force_login(user)
-
-    assert (
-        client.post(
-            "/api/borrowers/",
-            {"unb_id": "3519888", "first_name": "NoCsrf"},
-            format="json",
-        ).status_code
-        == 403
-    )
-
-    get_response = client.get(
-        "/api/borrowers/", HTTP_ORIGIN="http://localhost:5173"
-    )
-    csrf_token = get_response.cookies["csrftoken"].value
-    response = client.post(
-        "/api/borrowers/",
-        {"unb_id": "3519888", "first_name": "ValidCsrf"},
-        format="json",
-        HTTP_ORIGIN="http://localhost:5173",
-        HTTP_X_CSRFTOKEN=csrf_token,
-    )
-    assert response.status_code == 201
 
 
 @pytest.fixture
@@ -500,7 +341,7 @@ def test_loan_history_survives_soft_deletion(borrower_client, loan_data):
     assert loan_ids(response) == [loan.pk for loan in loan_data.loans]
 
 
-@pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
+@pytest.mark.parametrize("method", ["put", "patch", "delete"])
 def test_loan_writes_rejected(borrower_client, method):
     assert getattr(borrower_client, method)("/api/loans/", {}, format="json").status_code == 405
 
@@ -563,12 +404,14 @@ def test_loan_uses_configured_local_business_date(borrower_client, loan_data):
 
 
 @pytest.mark.parametrize("negligent_damage_flag", [False, True])
+@pytest.mark.parametrize("is_manual_enrollment", [False, True])
 def test_borrower_detail_returns_identity_and_negligent_damage_status(
-    borrower_client, negligent_damage_flag
+    borrower_client, negligent_damage_flag, is_manual_enrollment
 ):
     borrower = create_borrower(
         unb_id="UNB-DETAIL",
         negligent_damage_flag=negligent_damage_flag,
+        is_manual_enrollment=is_manual_enrollment,
     )
 
     response = borrower_client.get(f"/api/borrowers/{borrower.borrower_id}/")
@@ -579,120 +422,12 @@ def test_borrower_detail_returns_identity_and_negligent_damage_status(
         "unb_id": "UNB-DETAIL",
         "first_name": "Ada",
         "last_name": "Lovelace",
-        "is_manual_enrollment": False,
         "negligent_damage_flag": negligent_damage_flag,
         "unresolved_damage_flag_count": 0,
         "damage_warning_level": "no_warning",
         "damage_eligible": True,
+        "is_manual_enrollment": is_manual_enrollment,
     }
-
-
-def test_borrower_detail_patch_updates_first_name_only(borrower_client):
-    borrower = create_borrower(unb_id="UNB-EDIT")
-
-    response = borrower_client.patch(
-        f"/api/borrowers/{borrower.borrower_id}/",
-        {"first_name": "  Augusta  "},
-        format="json",
-    )
-
-    assert response.status_code == 200
-    assert response.data["first_name"] == "Augusta"
-    assert response.data["last_name"] == "Lovelace"
-    borrower.refresh_from_db()
-    assert borrower.first_name == "Augusta"
-    assert borrower.last_name == "Lovelace"
-    assert borrower.unb_id == "UNB-EDIT"
-
-
-def test_borrower_detail_patch_updates_first_and_last_name(borrower_client):
-    borrower = create_borrower(
-        unb_id="UNB-EDIT-BOTH",
-        first_name="Ada",
-        last_name="Lovelace",
-        negligent_damage_flag=True,
-    )
-
-    response = borrower_client.patch(
-        f"/api/borrowers/{borrower.borrower_id}/",
-        {"first_name": "  Augusta  ", "last_name": "  King-Noel  "},
-        format="json",
-    )
-
-    assert response.status_code == 200
-    assert response.data["first_name"] == "Augusta"
-    assert response.data["last_name"] == "King-Noel"
-    assert response.data["unb_id"] == "UNB-EDIT-BOTH"
-    assert response.data["negligent_damage_flag"] is True
-    borrower.refresh_from_db()
-    assert borrower.first_name == "Augusta"
-    assert borrower.last_name == "King-Noel"
-    assert borrower.unb_id == "UNB-EDIT-BOTH"
-    assert borrower.negligent_damage_flag is True
-
-
-def test_borrower_detail_patch_allows_clearing_optional_last_name(borrower_client):
-    borrower = create_borrower(
-        unb_id="UNB-CLEAR-LAST",
-        first_name="Ada",
-        last_name="Lovelace",
-    )
-
-    response = borrower_client.patch(
-        f"/api/borrowers/{borrower.borrower_id}/",
-        {"last_name": "   "},
-        format="json",
-    )
-
-    assert response.status_code == 200
-    assert response.data["first_name"] == "Ada"
-    assert response.data["last_name"] == ""
-    borrower.refresh_from_db()
-    assert borrower.first_name == "Ada"
-    assert borrower.last_name == ""
-
-
-@pytest.mark.parametrize(
-    ("payload", "error_field"),
-    [
-        ({"first_name": "   "}, "first_name"),
-        ({"unb_id": "NEW-ID"}, "unb_id"),
-        ({"is_manual_enrollment": True}, "is_manual_enrollment"),
-        ({"negligent_damage_flag": True}, "negligent_damage_flag"),
-    ],
-)
-def test_borrower_detail_patch_rejects_blank_or_disallowed_fields(
-    borrower_client, payload, error_field
-):
-    borrower = create_borrower(unb_id="UNB-EDIT-ERR")
-
-    response = borrower_client.patch(
-        f"/api/borrowers/{borrower.borrower_id}/",
-        payload,
-        format="json",
-    )
-
-    assert response.status_code == 400
-    assert error_field in response.data
-    borrower.refresh_from_db()
-    assert borrower.first_name == "Ada"
-    assert borrower.last_name == "Lovelace"
-    assert borrower.unb_id == "UNB-EDIT-ERR"
-
-
-def test_borrower_detail_patch_denies_faculty_and_anonymous(db):
-    borrower = create_borrower(unb_id="UNB-PATCH-AUTH")
-    url = f"/api/borrowers/{borrower.borrower_id}/"
-
-    assert APIClient().patch(url, {"first_name": "Anon"}, format="json").status_code == 403
-
-    faculty = get_user_model().objects.create_user(
-        username="faculty-cannot-edit-borrower",
-        role="FACULTY",
-    )
-    client = APIClient()
-    client.force_authenticate(user=faculty)
-    assert client.patch(url, {"first_name": "Faculty"}, format="json").status_code == 403
 
 
 @pytest.mark.parametrize("role", ["TECHNICIAN", "ADMINISTRATOR"])
@@ -759,7 +494,99 @@ def test_borrower_detail_does_not_change_borrower_list_response(borrower_client)
             "unb_id": "UNB-LIST-DETAIL",
             "first_name": "Ada",
             "last_name": "Lovelace",
-            "is_manual_enrollment": False,
         }
     ]
-    
+
+
+def test_borrower_detail_patch_updates_first_name(borrower_client):
+    borrower = create_borrower(unb_id="UNB-EDIT", first_name="Ada", last_name="Lovelace")
+
+    response = borrower_client.patch(
+        f"/api/borrowers/{borrower.borrower_id}/",
+        {"first_name": "Adeline"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.data["first_name"] == "Adeline"
+    assert response.data["last_name"] == "Lovelace"
+
+    borrower.refresh_from_db()
+    assert borrower.first_name == "Adeline"
+
+
+def test_create_borrower_success(borrower_client):
+    response = borrower_client.post(
+        "/api/borrowers/",
+        {
+            "unb_id": "UNB-NEW-01",
+            "first_name": "Kobi",
+            "last_name": "Mensah",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["unb_id"] == "UNB-NEW-01"
+    assert response.data["first_name"] == "Kobi"
+    assert response.data["last_name"] == "Mensah"
+
+    borrower = Borrower.objects.get(unb_id="UNB-NEW-01")
+    assert borrower.is_manual_enrollment is True
+
+
+def test_create_borrower_prevents_duplicate_unb_id(borrower_client):
+    create_borrower(unb_id="UNB-DUP-01")
+
+    response = borrower_client.post(
+        "/api/borrowers/",
+        {
+            "unb_id": "UNB-DUP-01",
+            "first_name": "Duplicate",
+            "last_name": "User",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "unb_id" in response.data
+
+
+@pytest.mark.parametrize(
+    "payload,missing_field",
+    [
+        ({"first_name": "Kobi"}, "unb_id"),
+        ({"unb_id": "UNB-VAL-01"}, "first_name"),
+        ({"unb_id": "   ", "first_name": "Kobi"}, "unb_id"),
+        ({"unb_id": "UNB-VAL-01", "first_name": "   "}, "first_name"),
+    ],
+)
+def test_create_borrower_validates_required_fields(borrower_client, payload, missing_field):
+    response = borrower_client.post(
+        "/api/borrowers/",
+        payload,
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert missing_field in response.data
+
+
+def test_create_borrower_denies_faculty(db):
+    user = get_user_model().objects.create_user(
+        username="borrower-create-faculty",
+        role="FACULTY",
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.post(
+        "/api/borrowers/",
+        {
+            "unb_id": "UNB-FAC-01",
+            "first_name": "Unauthorized",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 403

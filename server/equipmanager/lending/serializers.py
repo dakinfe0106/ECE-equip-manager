@@ -9,38 +9,96 @@ from .services import damage_warning_level_for_count
 class BorrowerListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Borrower
-        fields = (
-            "borrower_id",
-            "unb_id",
-            "first_name",
-            "last_name",
-            "is_manual_enrollment",
-        )
+        fields = ("borrower_id", "unb_id", "first_name", "last_name")
         read_only_fields = fields
 
 
 class BorrowerCreateSerializer(serializers.ModelSerializer):
+    unb_id = serializers.CharField(
+        max_length=100,
+        trim_whitespace=True,
+        error_messages={
+            "blank": "Enter a UNB ID.",
+            "required": "Enter a UNB ID.",
+        },
+    )
+    first_name = serializers.CharField(
+        max_length=255,
+        trim_whitespace=True,
+        error_messages={
+            "blank": "Enter a first name.",
+            "required": "Enter a first name.",
+        },
+    )
     last_name = serializers.CharField(
-        max_length=255, required=False, allow_blank=True, default=""
+        max_length=255,
+        required=False,
+        allow_blank=True,
+        default="",
+        trim_whitespace=True,
     )
 
     class Meta:
         model = Borrower
-        fields = (
-            "borrower_id",
-            "unb_id",
-            "first_name",
-            "last_name",
-            "is_manual_enrollment",
-        )
-        read_only_fields = ("borrower_id", "is_manual_enrollment")
+        fields = ("unb_id", "first_name", "last_name", "is_manual_enrollment")
+        read_only_fields = ("is_manual_enrollment",)
 
     def validate_unb_id(self, value):
-        if Borrower.objects.filter(unb_id=value).exists():
+        trimmed = value.strip()
+        if not trimmed:
+            raise serializers.ValidationError("Enter a UNB ID.")
+        if Borrower.objects.filter(unb_id=trimmed).exists():
             raise serializers.ValidationError(
                 "A borrower with this UNB ID already exists."
             )
-        return value
+        return trimmed
+
+    def validate_first_name(self, value):
+        trimmed = value.strip()
+        if not trimmed:
+            raise serializers.ValidationError("Enter a first name.")
+        return trimmed
+
+    def validate_last_name(self, value):
+        return value.strip() if value else ""
+
+    def create(self, validated_data):
+        validated_data["is_manual_enrollment"] = True
+        return super().create(validated_data)
+
+
+class BorrowerUpdateSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(max_length=255, trim_whitespace=True)
+    last_name = serializers.CharField(
+        max_length=255, required=False, allow_blank=True, trim_whitespace=True
+    )
+
+    class Meta:
+        model = Borrower
+        fields = ("first_name", "last_name")
+
+    def validate_first_name(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Enter a first name.")
+        return value.strip()
+
+    def validate_last_name(self, value):
+        return value.strip() if value else ""
+
+
+class LoanCheckoutSerializer(serializers.Serializer):
+    asset_id = serializers.IntegerField(min_value=1)
+    borrower_id = serializers.IntegerField(min_value=1)
+    expected_return_date = serializers.DateField(input_formats=["%Y-%m-%d"])
+
+    def to_internal_value(self, data):
+        if hasattr(data, "keys"):
+            unknown = set(data.keys()) - set(self.fields)
+            if unknown:
+                raise serializers.ValidationError(
+                    {field: "This field is not accepted." for field in sorted(unknown)}
+                )
+        return super().to_internal_value(data)
 
 
 class LoanQuerySerializer(serializers.Serializer):
@@ -114,9 +172,6 @@ class LoanListSerializer(serializers.ModelSerializer):
 
 
 class BorrowerDetailSerializer(serializers.ModelSerializer):
-    last_name = serializers.CharField(
-        max_length=255, required=False, allow_blank=True
-    )
     unresolved_damage_flag_count = serializers.IntegerField(read_only=True)
     damage_warning_level = serializers.SerializerMethodField()
     damage_eligible = serializers.SerializerMethodField()
@@ -128,32 +183,13 @@ class BorrowerDetailSerializer(serializers.ModelSerializer):
             "unb_id",
             "first_name",
             "last_name",
-            "is_manual_enrollment",
             "negligent_damage_flag",
             "unresolved_damage_flag_count",
             "damage_warning_level",
             "damage_eligible",
-        )
-        read_only_fields = (
-            "borrower_id",
-            "unb_id",
             "is_manual_enrollment",
-            "negligent_damage_flag",
-            "unresolved_damage_flag_count",
-            "damage_warning_level",
-            "damage_eligible",
         )
-
-    def validate_first_name(self, value):
-        trimmed = value.strip()
-        if not trimmed:
-            raise serializers.ValidationError("Enter a first name.")
-        return trimmed
-
-    def validate_last_name(self, value):
-        if value is None:
-            return ""
-        return value.strip()
+        read_only_fields = fields
 
     def get_damage_warning_level(self, borrower):
         return damage_warning_level_for_count(borrower.unresolved_damage_flag_count)

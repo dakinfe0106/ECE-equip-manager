@@ -28,7 +28,6 @@ export interface BorrowerDetailsViewModel {
   borrower_id: number
   borrower_name: string
   unb_id: string
-  is_manual_enrollment?: boolean
   standing?: BorrowerStanding
   certifications?: string[]
   active_loans?: BorrowerLoanSummary[]
@@ -37,6 +36,7 @@ export interface BorrowerDetailsViewModel {
   unresolved_damage_flag_count?: number
   damage_warning_level?: DamageWarningLevel
   damage_eligible?: boolean
+  is_manual_enrollment?: boolean
 }
 
 export type BorrowerDetailsLoadState =

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   describeBorrowerError,
   fetchBorrowers,
@@ -8,7 +8,6 @@ import {
 const pageSize = 20
 
 export default function useBorrowers(page: number, search: string) {
-  const [refreshVersion, setRefreshVersion] = useState(0)
   const [result, setResult] = useState<{
     borrowers: BorrowerRecord[]
     errorMessage: string
@@ -46,56 +45,18 @@ export default function useBorrowers(page: number, search: string) {
     )
 
     return () => controller.abort()
-  }, [page, search, refreshVersion])
-
-  const addBorrower = useCallback(
-    (createdBorrower: BorrowerRecord) => {
-      setResult((current) => {
-        const base =
-          current && current.page === page && current.search === search
-            ? current
-            : { borrowers: [], errorMessage: '', page, search, totalCount: 0 }
-        return {
-          ...base,
-          borrowers: [
-            createdBorrower,
-            ...base.borrowers.filter(
-              (item) => item.borrower_id !== createdBorrower.borrower_id,
-            ),
-          ].slice(0, pageSize),
-          totalCount: base.totalCount + 1,
-          errorMessage: '',
-        }
-      })
-    },
-    [page, search],
-  )
-
-  const replaceBorrower = useCallback((updatedBorrower: BorrowerRecord) => {
-    setResult((current) => {
-      if (!current) return current
-      return {
-        ...current,
-        borrowers: current.borrowers.map((borrower) =>
-          borrower.borrower_id === updatedBorrower.borrower_id ? updatedBorrower : borrower,
-        ),
-      }
-    })
-  }, [])
+  }, [page, search])
 
   const current = result?.page === page && result.search === search ? result : null
   const borrowers = current?.borrowers ?? []
   const totalCount = current?.totalCount ?? 0
 
   return {
-    addBorrower,
     borrowers,
     errorMessage: current?.errorMessage ?? '',
     isLoading: current === null,
     pageCount: Math.max(1, Math.ceil(totalCount / pageSize)),
     pageSize,
     totalCount,
-    refresh: () => setRefreshVersion((version) => version + 1),
-    replaceBorrower,
   }
 }

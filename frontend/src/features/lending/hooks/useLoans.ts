@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react'
 import { fetchLoans, LoanLookupError } from '../api'
 import {
@@ -24,6 +23,7 @@ interface LoanState {
 export default function useLoans(
   filters: LoanFilters = defaultLoanFilters,
   search = '',
+  refreshKey = 0,
 ) {
   const requestKey = [
     filters.loanState,
@@ -31,6 +31,7 @@ export default function useLoans(
     filters.expectedReturnDateTo,
     filters.assetStatus,
     search,
+    refreshKey,
   ].join('|')
 
   const [state, setState] = useState<LoanState>({
@@ -65,7 +66,7 @@ export default function useLoans(
     return () => {
       isCurrent = false
     }
-  }, [filters, search, requestKey])
+  }, [filters, search, refreshKey, requestKey])
 
   return {
     loans: state.loans,

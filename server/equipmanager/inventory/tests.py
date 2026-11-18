@@ -220,6 +220,29 @@ def test_full_asset_identifier_matches_one_result(
     assert response.data["results"][0]["asset_identifier"] == asset_record.asset_identifier
 
 
+def test_asset_list_filters_by_status(authenticated_client, asset_record, inventory_type):
+    unavailable_asset = Asset.objects.create(
+        type=inventory_type,
+        asset_identifier="SHOP-002",
+        name="Unavailable drill",
+        status=Asset.Status.UNDER_MAINTENANCE,
+    )
+
+    response = authenticated_client.get("/api/assets/", {"status": "Available"})
+
+    assert response.status_code == 200
+    assert response.data["count"] == 1
+    assert response.data["results"][0]["asset_id"] == asset_record.asset_id
+    assert unavailable_asset.asset_id != response.data["results"][0]["asset_id"]
+
+
+def test_asset_list_rejects_invalid_status_filter(authenticated_client):
+    response = authenticated_client.get("/api/assets/", {"status": "Broken"})
+
+    assert response.status_code == 400
+    assert "status" in response.data
+
+
 def test_asset_list_search_matches_name_case_insensitively(
     authenticated_client, asset_record
 ):

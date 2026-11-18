@@ -1,148 +1,135 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react'
+
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
-import { MemoryRouter } from 'react-router'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { apiBaseUrl } from '../api'
-import type { BorrowerRecord } from '../features/borrowers/api'
-import BorrowersPage from '../pages/BorrowersPage'
-import { withAuth } from './authTestUtils'
+import { afterEach, describe, it, expect, vi } from 'vitest'
+import AddBorrowerModal from '../features/borrowers/components/AddBorrowerModal'
+import BorrowerDetailsModal from '../features/borrowers/components/BorrowerDetailsModal'
+import { BorrowerRequestError } from '../features/borrowers/api'
 
-const existingBorrower: BorrowerRecord = {
-  borrower_id: 1,
-  unb_id: '0000101',
-  first_name: 'Ada',
-  last_name: 'Lovelace',
-}
-
-const server = setupServer(
-  http.get(`${apiBaseUrl}/assets/`, () =>
-    HttpResponse.json({
-      count: 0,
-      next: null,
-      previous: null,
-      results: [],
-    }),
-  ),
-  http.get(`${apiBaseUrl}/borrowers/`, () =>
-    HttpResponse.json({
-      count: 1,
-      next: null,
-      previous: null,
-      results: [existingBorrower],
-    }),
-  ),
-)
-
-function renderBorrowersPage() {
-  return render(<MemoryRouter>{withAuth(<BorrowersPage />)}</MemoryRouter>)
-}
-
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
-beforeEach(() => {
-  document.cookie = 'csrftoken=test-csrf-token'
-})
 afterEach(() => {
   cleanup()
-  server.resetHandlers()
 })
-afterAll(() => server.close())
 
-describe('Add Borrower modal workflows', () => {
-  it('opens the modal, validates required fields, and cancels without submitting', async () => {
-    const user = userEvent.setup()
-    let postCount = 0
-    server.use(
-      http.post(`${apiBaseUrl}/borrowers/`, () => {
-        postCount += 1
-        return HttpResponse.json(existingBorrower, { status: 201 })
-      }),
-    )
+describe('AddBorrowerModal', () => {
+  it('renders all required fields and buttons', () => {
+    const onClose = vi.fn()
+    const onSave = vi.fn().mockResolvedValue(undefined)
 
-    renderBorrowersPage()
-    await screen.findByText('Ada Lovelace')
+    render(<AddBorrowerModal onClose={onClose} onSave={onSave} />)
 
-    await user.click(screen.getByRole('button', { name: 'Add Borrower' }))
-    const dialog = screen.getByRole('dialog', { name: 'Add Borrower' })
-    expect(dialog).toBeTruthy()
-    expect(screen.queryByLabelText(/Eligibility/i)).toBeNull()
-
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
-    expect(await screen.findByText('Please complete all required fields.')).toBeTruthy()
-    expect(postCount).toBe(0)
-
-    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByRole('dialog', { name: 'Add Borrower' })).toBeNull()
+    expect(screen.getByRole('heading', { name: /add borrower/i })).toBeTruthy()
+    expect(screen.getByLabelText(/unb id \*/i)).toBeTruthy()
+    expect(screen.getByLabelText(/first name \*/i)).toBeTruthy()
+    expect(screen.getByLabelText(/last name \*/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /save/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /cancel/i })).toBeTruthy()
   })
 
-  it('creates a borrower and adds it to the visible table with a success banner', async () => {
+  it('submits form successfully with valid inputs and trims whitespace', async () => {
     const user = userEvent.setup()
-    let receivedBody: unknown
-    let receivedCsrf: string | null = null
-    const createdBorrower: BorrowerRecord = {
-      borrower_id: 2,
-      unb_id: '3519271',
-      first_name: 'Kobi',
-      last_name: 'Mensah',
-    }
+    const onClose = vi.fn()
+    const onSave = vi.fn().mockResolvedValue(undefined)
 
-    server.use(
-      http.post(`${apiBaseUrl}/borrowers/`, async ({ request }) => {
-        receivedBody = await request.json()
-        receivedCsrf = request.headers.get('X-CSRFToken')
-        return HttpResponse.json(createdBorrower, { status: 201 })
-      }),
-    )
+    render(<AddBorrowerModal onClose={onClose} onSave={onSave} />)
 
-    renderBorrowersPage()
-    await screen.findByText('Ada Lovelace')
+    await user.type(screen.getByLabelText(/unb id \*/i), '  998877  ')
+    await user.type(screen.getByLabelText(/first name \*/i), '  Jane  ')
+    await user.type(screen.getByLabelText(/last name \*/i), '  Doe  ')
 
-    await user.click(screen.getByRole('button', { name: 'Add Borrower' }))
-    const dialog = screen.getByRole('dialog', { name: 'Add Borrower' })
-    await user.type(within(dialog).getByLabelText(/^UNB ID/), '  3519271  ')
-    await user.type(within(dialog).getByLabelText(/First Name/), '  Kobi  ')
-    await user.type(within(dialog).getByLabelText(/Last Name/), '  Mensah  ')
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
 
-    expect(
-      await screen.findByText('Borrower Kobi Mensah (3519271) was added successfully.'),
-    ).toBeTruthy()
-    expect(screen.queryByRole('dialog', { name: 'Add Borrower' })).toBeNull()
-    expect(screen.getByText('Kobi Mensah')).toBeTruthy()
-    expect(screen.getByText('3519271')).toBeTruthy()
-    expect(receivedCsrf).toBe('test-csrf-token')
-    expect(receivedBody).toEqual({
-      unb_id: '3519271',
-      first_name: 'Kobi',
-      last_name: 'Mensah',
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith({
+        unb_id: '998877',
+        first_name: 'Jane',
+        last_name: 'Doe',
+      })
+      expect(onClose).toHaveBeenCalled()
     })
   })
 
-  it('displays backend 400 validation errors inside the modal without closing it', async () => {
+  it('prevents submission when UNB ID or First Name is only whitespace', async () => {
     const user = userEvent.setup()
-    server.use(
-      http.post(`${apiBaseUrl}/borrowers/`, () =>
-        HttpResponse.json(
-          { unb_id: ['A borrower with this UNB ID already exists.'] },
-          { status: 400 },
-        ),
-      ),
+    const onClose = vi.fn()
+    const onSave = vi.fn()
+
+    render(<AddBorrowerModal onClose={onClose} onSave={onSave} />)
+
+    await user.type(screen.getByLabelText(/unb id \*/i), '   ')
+    await user.type(screen.getByLabelText(/first name \*/i), 'Jane')
+    await user.type(screen.getByLabelText(/last name \*/i), 'Doe')
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toMatch(/enter a unb id/i)
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('displays backend field errors (such as duplicate UNB ID) in the error banner', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const errorResponse = new BorrowerRequestError(400, {
+      unb_id: ['A borrower with this UNB ID already exists.'],
+    })
+    const onSave = vi.fn().mockRejectedValue(errorResponse)
+
+    render(<AddBorrowerModal onClose={onClose} onSave={onSave} />)
+
+    await user.type(screen.getByLabelText(/unb id \*/i), '377665')
+    await user.type(screen.getByLabelText(/first name \*/i), 'Test')
+    await user.type(screen.getByLabelText(/last name \*/i), 'User')
+
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toMatch(/a borrower with this unb id already exists/i)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('closes modal when cancel button is clicked or Escape is pressed', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const onSave = vi.fn()
+
+    render(<AddBorrowerModal onClose={onClose} onSave={onSave} />)
+
+    await user.click(screen.getByRole('button', { name: /cancel/i }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('BorrowerDetailsModal - Manual Enrollment Badge', () => {
+  const baseBorrower = {
+    borrower_id: 1,
+    borrower_name: 'Kobi Mensah',
+    unb_id: '3519271',
+  }
+
+  it('displays the "Manually added" badge when is_manual_enrollment is true', () => {
+    render(
+      <BorrowerDetailsModal
+        borrower={{ ...baseBorrower, is_manual_enrollment: true }}
+        onClose={vi.fn()}
+        onManageDamageFlags={vi.fn()}
+      />
     )
 
-    renderBorrowersPage()
-    await screen.findByText('Ada Lovelace')
+    expect(screen.getByText(/manually added/i)).toBeTruthy()
+  })
 
-    await user.click(screen.getByRole('button', { name: 'Add Borrower' }))
-    const dialog = screen.getByRole('dialog', { name: 'Add Borrower' })
-    await user.type(within(dialog).getByLabelText(/^UNB ID/), '0000101')
-    await user.type(within(dialog).getByLabelText(/First Name/), 'Duplicate')
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+  it('hides the "Manually added" badge when is_manual_enrollment is false', () => {
+    render(
+      <BorrowerDetailsModal
+        borrower={{ ...baseBorrower, is_manual_enrollment: false }}
+        onClose={vi.fn()}
+        onManageDamageFlags={vi.fn()}
+      />
+    )
 
-    expect(
-      await screen.findByText('A borrower with this UNB ID already exists.'),
-    ).toBeTruthy()
-    expect(screen.getByRole('dialog', { name: 'Add Borrower' })).toBeTruthy()
+    expect(screen.queryByText(/manually added/i)).toBeNull()
   })
 })

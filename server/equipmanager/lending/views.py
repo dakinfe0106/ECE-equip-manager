@@ -1,10 +1,7 @@
-from django.db import IntegrityError, transaction
 from django.db.models import CharField, Count, Q, Value
 from django.db.models.functions import Concat
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import generics, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -19,15 +16,19 @@ from .serializers import (
     BorrowerCreateSerializer,
     BorrowerDetailSerializer,
     BorrowerListSerializer,
+    BorrowerUpdateSerializer,
     DamageFlagResolutionSerializer,
     DamageFlagSerializer,
     DamageFlagUpdateSerializer,
     DamageFlagWriteSerializer,
+    LoanCheckoutSerializer,
     LoanListSerializer,
     LoanQuerySerializer,
 )
 from .services import (
+    CheckoutRuleError,
     DamageFlagRuleError,
+    checkout_asset,
     damage_flag_summary,
     record_damage_flag,
     resolve_damage_flag,
@@ -39,7 +40,6 @@ class BorrowerPagination(PageNumberPagination):
     page_size = 20
 
 
-@method_decorator(ensure_csrf_cookie, name="dispatch")
 class BorrowerList(generics.ListCreateAPIView):
     serializer_class = BorrowerListSerializer
     pagination_class = BorrowerPagination
@@ -49,6 +49,17 @@ class BorrowerList(generics.ListCreateAPIView):
         if self.request.method == "POST":
             return BorrowerCreateSerializer
         return BorrowerListSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        borrower = serializer.save()
+        return Response(
+            BorrowerListSerializer(
+                borrower, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     def get_queryset(self):
         borrowers = Borrower.objects.filter(is_deleted=False)
@@ -69,34 +80,36 @@ class BorrowerList(generics.ListCreateAPIView):
             )
         return borrowers.order_by("borrower_id")
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        try:
-            with transaction.atomic():
-                borrower = serializer.save(is_manual_enrollment=True)
-        except IntegrityError as exc:
-            constraint_name = getattr(
-                getattr(exc.__cause__, "diag", None), "constraint_name", None
-            )
-            if constraint_name != "lending_borrower_unb_id_unique":
-                raise
-            raise ValidationError(
-                {"unb_id": ["A borrower with this UNB ID already exists."]}
-            ) from exc
 
-        return Response(
-            BorrowerListSerializer(borrower).data,
-            status=status.HTTP_201_CREATED,
-        )
-
-
-class LoanList(generics.ListAPIView):
+class LoanList(generics.ListCreateAPIView):
     serializer_class = LoanListSerializer
     permission_classes = (LoanReadPermissions,)
     pagination_class = None
 
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return LoanCheckoutSerializer
+        return LoanListSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            loan = checkout_asset(**serializer.validated_data)
+        except Asset.DoesNotExist as error:
+            raise NotFound("Asset not found.") from error
+        except Borrower.DoesNotExist as error:
+            raise NotFound("Borrower not found.") from error
+        except CheckoutRuleError as error:
+            raise ValidationError(error.errors) from error
+        self.today = loan.checkout_date
+        return Response(
+            LoanListSerializer(loan, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
+
     def get_queryset(self):
+        # Treat explicit blank filters as invalid, rather than omitted HTML fields.
         query = LoanQuerySerializer(data=self.request.query_params.dict())
         query.is_valid(raise_exception=True)
         params = query.validated_data
@@ -143,13 +156,14 @@ class LoanList(generics.ListAPIView):
         return loans.order_by("loan_id")
 
     def get_serializer_context(self):
-        return {**super().get_serializer_context(), "today": self.today}
+        context = super().get_serializer_context()
+        if hasattr(self, "today"):
+            context["today"] = self.today
+        return context
 
 
 class BorrowerDetail(generics.RetrieveUpdateAPIView):
-    serializer_class = BorrowerDetailSerializer
     permission_classes = (BorrowerListPermissions,)
-    http_method_names = ["get", "patch", "head", "options"]
     queryset = Borrower.objects.filter(is_deleted=False).annotate(
         unresolved_damage_flag_count=Count(
             "damage_flags",
@@ -160,14 +174,16 @@ class BorrowerDetail(generics.RetrieveUpdateAPIView):
         )
     )
 
+    def get_serializer_class(self):
+        if self.request.method in ("PUT", "PATCH"):
+            return BorrowerUpdateSerializer
+        return BorrowerDetailSerializer
+
     def update(self, request, *args, **kwargs):
-        allowed = {"first_name", "last_name"}
-        unknown = set(request.data.keys()) - allowed
-        if unknown:
-            raise ValidationError(
-                {field: "This field cannot be edited." for field in sorted(unknown)}
-            )
-        return super().update(request, *args, **kwargs)
+        response = super().update(request, *args, **kwargs)
+        instance = self.get_object()
+        serializer = BorrowerDetailSerializer(instance, context=self.get_serializer_context())
+        return Response(serializer.data)
 
 
 class BorrowerDamageFlagListCreate(APIView):

@@ -36,7 +36,7 @@ afterEach(() => {
 })
 
 describe('BorrowerDetailsModal', () => {
-  it('renders supplied borrower information without adding eligibility', () => {
+  it('renders supplied borrower information including eligibility status', () => {
     render(
       <BorrowerDetailsModal
         borrower={borrower}
@@ -51,14 +51,14 @@ describe('BorrowerDetailsModal', () => {
     expect(screen.getByText('0000142')).toBeTruthy()
     expect(screen.getAllByText('Overdue')).toHaveLength(2)
     expect(screen.getByText('Lab Safety, Electrical')).toBeTruthy()
+    expect(screen.getByText('Eligibility Status *')).toBeTruthy()
     expect(screen.getByText('Oscilloscope')).toBeTruthy()
     expect(screen.getByText('ECE-OSC-005')).toBeTruthy()
     expect(screen.getByText('Thermal Camera')).toBeTruthy()
     expect(screen.getByText('Flag recorded')).toBeTruthy()
-    expect(screen.queryByText(/eligible/i)).toBeNull()
     expect(screen.getByRole('button', { name: /View Borrowing Records/ })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Manage Damage Flags' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Save Changes' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Save Changes' })).toBeTruthy()
   })
 
   it('reports omitted data as unavailable and supplied empty or false values accurately', () => {
@@ -83,7 +83,7 @@ describe('BorrowerDetailsModal', () => {
     expect(screen.getByText('No active loans.')).toBeTruthy()
     expect(screen.getByText('No overdue equipment.')).toBeTruthy()
     expect(screen.getByText('No flag recorded')).toBeTruthy()
-    expect(screen.queryByText(/eligible/i)).toBeNull()
+    expect(screen.getByText('Eligibility Status *')).toBeTruthy()
   })
 
   it('distinguishes an empty certification list from unavailable information', () => {
@@ -147,8 +147,8 @@ describe('BorrowerDetailsModal', () => {
     expect(closeButton.closest('[role="dialog"]')?.parentElement?.className).toContain('backdrop-blur-[2px]')
     expect(screen.getByRole('dialog').querySelector('footer')?.className).toContain('min-h-[70px]')
 
-    const cancelButton = screen.getByRole('button', { name: 'Cancel' })
-    cancelButton.focus()
+    const saveButton = screen.getByRole('button', { name: 'Save Changes' })
+    saveButton.focus()
     fireEvent.keyDown(document, { key: 'Tab' })
     expect(document.activeElement).toBe(closeButton)
 
@@ -160,7 +160,7 @@ describe('BorrowerDetailsModal', () => {
     trigger.remove()
   })
 
-  it('closes from the cancel button and backdrop', async () => {
+  it('closes from the close action and backdrop', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
     const { container } = render(
@@ -172,11 +172,104 @@ describe('BorrowerDetailsModal', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Close borrower details' }))
     expect(onClose).toHaveBeenCalledOnce()
 
     onClose.mockClear()
     fireEvent.mouseDown(container.firstElementChild!)
     expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('disables the Save Changes button when no changes have been made', () => {
+    render(
+      <BorrowerDetailsModal
+        borrower={borrower}
+        onClose={() => {}}
+        onManageDamageFlags={() => {}}
+        onSave={() => {}}
+      />,
+    )
+
+    const saveButton = screen.getByRole('button', { name: 'Save Changes' }) as HTMLButtonElement
+    expect(saveButton.disabled).toBe(true)
+  })
+
+  it('enables the Save Changes button when first name is edited and triggers onSave successfully', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <BorrowerDetailsModal
+        borrower={borrower}
+        onClose={() => {}}
+        onManageDamageFlags={() => {}}
+        onSave={onSave}
+      />,
+    )
+
+    const firstNameInput = screen.getByRole('textbox', { name: /First name/i })
+    const saveButton = screen.getByRole('button', { name: 'Save Changes' }) as HTMLButtonElement
+
+    expect(saveButton.disabled).toBe(true)
+
+    await user.clear(firstNameInput)
+    await user.type(firstNameInput, 'Jonathan')
+
+    expect(saveButton.disabled).toBe(false)
+
+    await user.click(saveButton)
+
+    expect(onSave).toHaveBeenCalledOnce()
+    expect(onSave).toHaveBeenCalledWith({ first_name: 'Jonathan' })
+    expect(await screen.findByText('Borrower updated')).toBeTruthy()
+    expect(screen.getByText('Your changes have been saved successfully.')).toBeTruthy()
+  })
+
+  it('displays an error and prevents saving if the first name is empty or whitespace', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn()
+
+    render(
+      <BorrowerDetailsModal
+        borrower={borrower}
+        onClose={() => {}}
+        onManageDamageFlags={() => {}}
+        onSave={onSave}
+      />,
+    )
+
+    const firstNameInput = screen.getByRole('textbox', { name: /First name/i })
+    const saveButton = screen.getByRole('button', { name: 'Save Changes' })
+
+    await user.clear(firstNameInput)
+    await user.type(firstNameInput, '   ')
+    await user.click(saveButton)
+
+    expect(screen.getByText('Enter a first name.')).toBeTruthy()
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
+  it('displays an error message when saving fails', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockRejectedValue(new Error('Network error while updating.'))
+
+    render(
+      <BorrowerDetailsModal
+        borrower={borrower}
+        onClose={() => {}}
+        onManageDamageFlags={() => {}}
+        onSave={onSave}
+      />,
+    )
+
+    const firstNameInput = screen.getByRole('textbox', { name: /First name/i })
+    const saveButton = screen.getByRole('button', { name: 'Save Changes' })
+
+    await user.clear(firstNameInput)
+    await user.type(firstNameInput, 'Jonathan')
+    await user.click(saveButton)
+
+    expect(await screen.findByText('Network error while updating.')).toBeTruthy()
+    expect(screen.queryByText('Your changes have been saved successfully.')).toBeNull()
   })
 })

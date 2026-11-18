@@ -75,6 +75,7 @@ beforeEach(() => {
     unresolved_damage_flag_count: 0,
     damage_warning_level: 'no_warning',
     damage_eligible: true,
+    is_manual_enrollment: false,
   }))
   fetchAllAssetsMock.mockResolvedValue([])
   fetchDamageFlagsMock.mockResolvedValue({
@@ -102,7 +103,7 @@ function renderAtBorrowers(auth = technicianAuth): string {
 }
 
 describe('Borrowers route', () => {
-  it('renders the borrower list loading state, Add Borrower action, and role-gated navigation', () => {
+  it('renders the borrower list loading state and role-gated navigation', () => {
     const html = renderAtBorrowers()
 
     expect(html).toContain('>Borrowers</h1>')
@@ -184,15 +185,13 @@ describe('BorrowerTable', () => {
     const onViewDetails = vi.fn()
     const secondBorrower = { ...borrower, borrower_id: 22, unb_id: '0000022' }
     render(
-      withAuth(
-        <BorrowerTable
-          appliedSearch=""
-          borrowers={[borrower, secondBorrower]}
-          errorMessage=""
-          isLoading={false}
-          onViewDetails={onViewDetails}
-        />,
-      ),
+      <BorrowerTable
+        appliedSearch=""
+        borrowers={[borrower, secondBorrower]}
+        errorMessage=""
+        isLoading={false}
+        onViewDetails={onViewDetails}
+      />,
     )
 
     const row = screen.getByRole('row', {
@@ -213,15 +212,13 @@ describe('BorrowerTable', () => {
     const user = userEvent.setup()
     const onViewDetails = vi.fn()
     render(
-      withAuth(
-        <BorrowerTable
-          appliedSearch=""
-          borrowers={[borrower]}
-          errorMessage=""
-          isLoading={false}
-          onViewDetails={onViewDetails}
-        />,
-      ),
+      <BorrowerTable
+        appliedSearch=""
+        borrowers={[borrower]}
+        errorMessage=""
+        isLoading={false}
+        onViewDetails={onViewDetails}
+      />,
     )
 
     const row = screen.getByRole('row', {
@@ -246,15 +243,13 @@ describe('BorrowerTable', () => {
     const user = userEvent.setup()
     const onViewDetails = vi.fn()
     render(
-      withAuth(
-        <BorrowerTable
-          appliedSearch=""
-          borrowers={[borrower]}
-          errorMessage=""
-          isLoading={false}
-          onViewDetails={onViewDetails}
-        />,
-      ),
+      <BorrowerTable
+        appliedSearch=""
+        borrowers={[borrower]}
+        errorMessage=""
+        isLoading={false}
+        onViewDetails={onViewDetails}
+      />,
     )
 
     const row = screen.getByRole('row', {
@@ -328,7 +323,7 @@ describe('BorrowersPage details integration', () => {
       isLoading: false,
       totalCount: duplicateNameBorrowers.length,
     })
-    render(withAuth(<BorrowersPage />))
+    render(<BorrowersPage />)
 
     const selectedRow = screen.getByRole('row', {
       name: 'View details for Ada Lovelace, UNB ID 0000022',
@@ -370,7 +365,7 @@ describe('BorrowersPage details integration', () => {
       isLoading: false,
       totalCount: duplicateNameBorrowers.length,
     })
-    render(withAuth(<BorrowersPage />))
+    render(<BorrowersPage />)
 
     await user.click(screen.getByRole('row', {
       name: 'View details for Riley, UNB ID 0000023',
@@ -378,7 +373,7 @@ describe('BorrowersPage details integration', () => {
     expect(await screen.findByRole('dialog', { name: 'Riley' })).toBeTruthy()
     expect(screen.getByText('Borrower details · UNB ID 0000023')).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Close borrower details' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
@@ -392,6 +387,7 @@ describe('BorrowersPage details integration', () => {
         first_name: 'Ada',
         last_name: 'Lovelace',
         negligent_damage_flag: true,
+        is_manual_enrollment: false,
       })
     useBorrowersMock.mockReturnValue({
       ...defaultBorrowerList,
@@ -399,7 +395,7 @@ describe('BorrowersPage details integration', () => {
       isLoading: false,
       totalCount: duplicateNameBorrowers.length,
     })
-    render(withAuth(<BorrowersPage />))
+    render(<BorrowersPage />)
 
     await user.click(screen.getByRole('row', {
       name: 'View details for Ada Lovelace, UNB ID 0000022',
@@ -410,7 +406,7 @@ describe('BorrowersPage details integration', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }))
     expect(await screen.findByText('Flag recorded')).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Close borrower details' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
@@ -434,6 +430,7 @@ describe('BorrowersPage details integration', () => {
         unresolved_damage_flag_count: 0,
         damage_warning_level: 'no_warning',
         damage_eligible: true,
+        is_manual_enrollment: false,
       })
     })
     useBorrowersMock.mockReturnValue({
@@ -442,7 +439,7 @@ describe('BorrowersPage details integration', () => {
       isLoading: false,
       totalCount: duplicateNameBorrowers.length,
     })
-    render(withAuth(<BorrowersPage />))
+    render(<BorrowersPage />)
 
     await user.click(screen.getByRole('row', {
       name: 'View details for Ada Lovelace, UNB ID 0000022',
@@ -464,6 +461,7 @@ describe('BorrowersPage details integration', () => {
         unresolved_damage_flag_count: 2,
         damage_warning_level: 'final_warning',
         damage_eligible: true,
+        is_manual_enrollment: false,
       })
     })
     expect(screen.getByText('No flag recorded')).toBeTruthy()

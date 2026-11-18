@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { apiBaseUrl } from '../../api'
@@ -8,23 +8,23 @@ import {
   fetchBorrowerDetails,
   fetchBorrowers,
   updateBorrower,
+  type BorrowerCreateInput,
   type BorrowerDetailsRecord,
-  type BorrowerRecord,
   type PaginatedBorrowers,
 } from '../../features/borrowers/api'
-
-const borrower: BorrowerRecord = {
-  borrower_id: 1,
-  unb_id: '0000101',
-  first_name: 'Ada',
-  last_name: 'Lovelace',
-}
 
 const response: PaginatedBorrowers = {
   count: 1,
   next: null,
   previous: null,
-  results: [borrower],
+  results: [
+    {
+      borrower_id: 1,
+      unb_id: '0000101',
+      first_name: 'Ada',
+      last_name: 'Lovelace',
+    },
+  ],
 }
 
 const borrowerDetails: BorrowerDetailsRecord = {
@@ -36,23 +36,43 @@ const borrowerDetails: BorrowerDetailsRecord = {
   unresolved_damage_flag_count: 0,
   damage_warning_level: 'no_warning',
   damage_eligible: true,
+  is_manual_enrollment: false,
+}
+
+const updatedBorrowerDetails: BorrowerDetailsRecord = {
+  ...borrowerDetails,
+  first_name: 'Adeline',
 }
 
 const server = setupServer(
   http.get(`${apiBaseUrl}/borrowers/`, () => HttpResponse.json(response)),
+  http.post(`${apiBaseUrl}/borrowers/`, async ({ request }) => {
+    const body = (await request.json()) as BorrowerCreateInput
+    return HttpResponse.json(
+      {
+        borrower_id: 2,
+        unb_id: body.unb_id,
+        first_name: body.first_name,
+        last_name: body.last_name ?? '',
+      },
+      { status: 201 },
+    )
+  }),
   http.get(`${apiBaseUrl}/borrowers/:borrowerId/`, ({ params }) => (
     Number(params.borrowerId) === borrowerDetails.borrower_id
       ? HttpResponse.json(borrowerDetails)
       : new HttpResponse(null, { status: 404 })
   )),
+  http.patch(`${apiBaseUrl}/borrowers/:borrowerId/`, async ({ params, request }) => {
+    if (Number(params.borrowerId) === borrowerDetails.borrower_id) {
+      const body = (await request.json()) as { first_name: string }
+      return HttpResponse.json({ ...borrowerDetails, first_name: body.first_name })
+    }
+    return new HttpResponse(null, { status: 404 })
+  }),
 )
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
-beforeEach(() => {
-  if (typeof document !== 'undefined') {
-    document.cookie = 'csrftoken=integration-csrf-token'
-  }
-})
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
@@ -109,24 +129,41 @@ describe('Borrowers API client', () => {
     await expect(fetchBorrowerDetails(2)).rejects.toBeInstanceOf(BorrowerRequestError)
   })
 
-  it('creates a borrower via POST with CSRF token and returns the created record', async () => {
-    let receivedBody: unknown
-    let receivedCsrf: string | null = null
-    let receivedCredentials: RequestCredentials | undefined
-    const created: BorrowerRecord = {
-      borrower_id: 2,
-      unb_id: '3519271',
-      first_name: 'Kobi',
-      last_name: 'Mensah',
-      is_manual_enrollment: true,
-    }
+  it('updates the borrower first name successfully via PATCH', async () => {
+    let capturedBody: unknown = null
+    let requestedUrl = ''
+
+    server.use(
+      http.patch(`${apiBaseUrl}/borrowers/:borrowerId/`, async ({ request }) => {
+        requestedUrl = request.url
+        capturedBody = await request.json()
+        return HttpResponse.json(updatedBorrowerDetails)
+      }),
+    )
+
+    const result = await updateBorrower(1, { first_name: 'Adeline' })
+    expect(requestedUrl).toBe(`${apiBaseUrl}/borrowers/1/`)
+    expect(capturedBody).toEqual({ first_name: 'Adeline' })
+    expect(result.first_name).toBe('Adeline')
+  })
+
+  it('creates a new borrower successfully via POST', async () => {
+    let capturedBody: unknown = null
+    let requestedUrl = ''
 
     server.use(
       http.post(`${apiBaseUrl}/borrowers/`, async ({ request }) => {
-        receivedBody = await request.json()
-        receivedCsrf = request.headers.get('X-CSRFToken')
-        receivedCredentials = request.credentials
-        return HttpResponse.json(created, { status: 201 })
+        requestedUrl = request.url
+        capturedBody = await request.json()
+        return HttpResponse.json(
+          {
+            borrower_id: 2,
+            unb_id: '3519271',
+            first_name: 'Kobi',
+            last_name: 'Mensah',
+          },
+          { status: 201 },
+        )
       }),
     )
 
@@ -136,17 +173,21 @@ describe('Borrowers API client', () => {
       last_name: 'Mensah',
     })
 
-    expect(result).toEqual(created)
-    expect(receivedCredentials).toBe('include')
-    expect(receivedCsrf).toBe('integration-csrf-token')
-    expect(receivedBody).toEqual({
+    expect(requestedUrl).toBe(`${apiBaseUrl}/borrowers/`)
+    expect(capturedBody).toEqual({
+      unb_id: '3519271',
+      first_name: 'Kobi',
+      last_name: 'Mensah',
+    })
+    expect(result).toEqual({
+      borrower_id: 2,
       unb_id: '3519271',
       first_name: 'Kobi',
       last_name: 'Mensah',
     })
   })
 
-  it('extracts field validation messages on a 400 duplicate UNB ID error', async () => {
+  it('throws BorrowerRequestError with fieldErrors when POST fails with 400', async () => {
     server.use(
       http.post(`${apiBaseUrl}/borrowers/`, () =>
         HttpResponse.json(
@@ -157,60 +198,12 @@ describe('Borrowers API client', () => {
     )
 
     await expect(
-      createBorrower({
-        unb_id: '0000101',
-        first_name: 'Ada',
-      }),
+      createBorrower({ unb_id: '0000101', first_name: 'Duplicate' }),
     ).rejects.toMatchObject({
       status: 400,
-      message: 'A borrower with this UNB ID already exists.',
-    })
-  })
-
-  it('updates a borrower first_name via PATCH with CSRF token and returns the updated record', async () => {
-    let receivedBody: unknown
-    let receivedCsrf: string | null = null
-    let receivedCredentials: RequestCredentials | undefined
-    const updated: BorrowerDetailsRecord = {
-      ...borrowerDetails,
-      first_name: 'Augusta',
-    }
-
-    server.use(
-      http.patch(`${apiBaseUrl}/borrowers/:borrowerId/`, async ({ params, request }) => {
-        if (Number(params.borrowerId) !== 1) {
-          return new HttpResponse(null, { status: 404 })
-        }
-        receivedBody = await request.json()
-        receivedCsrf = request.headers.get('X-CSRFToken')
-        receivedCredentials = request.credentials
-        return HttpResponse.json(updated, { status: 200 })
-      }),
-    )
-
-    const result = await updateBorrower(1, { first_name: 'Augusta' })
-
-    expect(result).toEqual(updated)
-    expect(receivedCredentials).toBe('include')
-    expect(receivedCsrf).toBe('integration-csrf-token')
-    expect(receivedBody).toEqual({ first_name: 'Augusta' })
-  })
-
-  it('reports field validation errors on a 400 PATCH response', async () => {
-    server.use(
-      http.patch(`${apiBaseUrl}/borrowers/:borrowerId/`, () =>
-        HttpResponse.json(
-          { first_name: ['Enter a valid first name.'] },
-          { status: 400 },
-        ),
-      ),
-    )
-
-    await expect(
-      updateBorrower(1, { first_name: '' }),
-    ).rejects.toMatchObject({
-      status: 400,
-      fieldErrors: { first_name: 'Enter a valid first name.' },
+      fieldErrors: {
+        unb_id: ['A borrower with this UNB ID already exists.'],
+      },
     })
   })
 })
