@@ -535,8 +535,9 @@ def test_create_borrower_success(borrower_client):
     assert borrower.is_manual_enrollment is True
 
 
-def test_create_borrower_prevents_duplicate_unb_id(borrower_client):
-    create_borrower(unb_id="UNB-DUP-01")
+@pytest.mark.parametrize("is_deleted", [False, True])
+def test_create_borrower_prevents_duplicate_unb_id(borrower_client, is_deleted):
+    create_borrower(unb_id="UNB-DUP-01", is_deleted=is_deleted)
 
     response = borrower_client.post(
         "/api/borrowers/",
@@ -550,7 +551,6 @@ def test_create_borrower_prevents_duplicate_unb_id(borrower_client):
 
     assert response.status_code == 400
     assert "unb_id" in response.data
-
 
 @pytest.mark.parametrize(
     "payload,missing_field",

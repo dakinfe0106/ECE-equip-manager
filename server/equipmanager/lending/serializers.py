@@ -40,8 +40,14 @@ class BorrowerCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Borrower
-        fields = ("unb_id", "first_name", "last_name", "is_manual_enrollment")
-        read_only_fields = ("is_manual_enrollment",)
+        fields = (
+            "borrower_id",
+            "unb_id",
+            "first_name",
+            "last_name",
+            "is_manual_enrollment",
+        )
+        read_only_fields = ("borrower_id", "is_manual_enrollment")
 
     def validate_unb_id(self, value):
         trimmed = value.strip()
@@ -328,4 +334,3 @@ class DamageFlagSerializer(serializers.ModelSerializer):
 
     def get_reviewed(self, flag):
         return flag.reviewed_at is not None
-    
