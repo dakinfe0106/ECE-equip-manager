@@ -1,22 +1,25 @@
 
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import generics, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from inventory.models import Asset
 
 from .models import MaintenanceRecord
 from .permissions import MaintenanceRolePermissions
 from .serializers import (
+    MaintenanceRecordCompleteSerializer,
     MaintenanceRecordCreateSerializer,
     MaintenanceRecordSerializer,
     MaintenanceTechnicianSerializer,
 )
-from .services import MaintenanceRuleError, start_maintenance
+from .services import MaintenanceRuleError, complete_maintenance, start_maintenance
 
 User = get_user_model()
 
@@ -131,3 +134,25 @@ class MaintenanceTechnicianList(generics.ListAPIView):
     ).order_by("last_name", "first_name", "username")
     serializer_class = MaintenanceTechnicianSerializer
     permission_classes = (MaintenanceRolePermissions,)
+
+
+@method_decorator(ensure_csrf_cookie, name="dispatch")
+class MaintenanceRecordComplete(APIView):
+    permission_classes = (MaintenanceRolePermissions,)
+
+    def post(self, request, pk):
+        serializer = MaintenanceRecordCompleteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        values = serializer.validated_data
+        try:
+            record = complete_maintenance(
+                record_id=pk,
+                end_date=values.get("end_date") or timezone.localdate(),
+                outcome=values.get("outcome", Asset.Status.AVAILABLE),
+            )
+        except MaintenanceRuleError as exc:
+            raise ValidationError(exc.detail) from exc
+        except MaintenanceRecord.DoesNotExist as exc:
+            raise NotFound("The maintenance record does not exist.") from exc
+
+        return Response(MaintenanceRecordSerializer(record).data)

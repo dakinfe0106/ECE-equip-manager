@@ -1,7 +1,71 @@
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from .models import Borrower, DamageFlag, DamageFlagEditAudit
+from inventory.models import Asset
+
+from .models import Borrower, DamageFlag, DamageFlagEditAudit, Loan
+
+
+class CheckoutRuleError(Exception):
+    def __init__(self, field, message):
+        self.errors = {field: message}
+        super().__init__(message)
+
+
+@transaction.atomic
+def checkout_asset(*, asset_id, borrower_id, expected_return_date):
+    # Damage-flag services lock this same row before changing standing.
+    # Always take the borrower lock before the asset lock.
+    borrower = Borrower.objects.select_for_update().get(pk=borrower_id)
+    if borrower.is_deleted:
+        raise CheckoutRuleError("borrower_id", "This borrower is not active.")
+    asset = (
+        Asset.objects.select_for_update(of=("self",))
+        .select_related("type__category")
+        .get(pk=asset_id)
+    )
+    if (
+        asset.is_deleted
+        or asset.type.is_deleted
+        or asset.type.category.is_deleted
+        or asset.status != Asset.Status.AVAILABLE
+    ):
+        raise CheckoutRuleError("asset_id", "This asset is not available for checkout.")
+    if Loan.objects.filter(asset=asset, actual_return_date__isnull=True).exists():
+        raise CheckoutRuleError("asset_id", "This asset already has an open loan.")
+
+    today = timezone.localdate()
+    if expected_return_date < today:
+        raise CheckoutRuleError(
+            "expected_return_date", "Must be on or after the checkout date."
+        )
+    if Loan.objects.filter(
+        borrower=borrower, actual_return_date__isnull=True,
+        expected_return_date__lt=today,
+    ).exists():
+        raise CheckoutRuleError("borrower_id", "This borrower has overdue equipment.")
+    if not damage_flag_summary(borrower=borrower)["damage_eligible"]:
+        raise CheckoutRuleError(
+            "borrower_id", "This borrower has three or more unresolved reviewed damage flags."
+        )
+
+    # A savepoint keeps the outer transaction usable when identifying a race.
+    try:
+        with transaction.atomic():
+            loan = Loan.objects.create(
+                asset=asset, borrower=borrower, checkout_date=today,
+                expected_return_date=expected_return_date,
+            )
+    except IntegrityError as error:
+        constraint = getattr(getattr(error.__cause__, "diag", None), "constraint_name", None)
+        if constraint != "lending_loan_one_open_loan_per_asset":
+            raise
+        raise CheckoutRuleError(
+            "asset_id", "This asset already has an open loan."
+        ) from error
+    asset.status = Asset.Status.ON_LOAN
+    asset.save(update_fields=["status"])
+    return loan
 
 
 class DamageFlagRuleError(Exception):

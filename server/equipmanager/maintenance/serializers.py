@@ -57,3 +57,11 @@ class MaintenanceRecordCreateSerializer(serializers.Serializer):
     )
     priority = serializers.ChoiceField(choices=MaintenanceRecord.Priority.choices)
     start_date = serializers.DateField()
+
+
+class MaintenanceRecordCompleteSerializer(serializers.Serializer):
+    end_date = serializers.DateField(required=False)
+    outcome = serializers.ChoiceField(
+        choices=(Asset.Status.AVAILABLE.value, Asset.Status.RETIRED.value),
+        required=False,
+    )

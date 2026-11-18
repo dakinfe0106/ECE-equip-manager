@@ -128,9 +128,10 @@ Each persisted edit creates an audit row in the same transaction as the incident
 
 ### Loan
 
-Implemented in `lending.models.Loan` with a new migration after Borrower's
-`0001_initial`. Loan status is calculated, never stored; Loan has no `is_deleted`.
-The read-only `/api/loans/` endpoint retains history even when related records are
+Implemented in `lending.models.Loan` by `0002_loan`, joined with the damage-flag
+migration by `0003_merge_20261115_1615`. Loan status is calculated, never
+stored; Loan has no `is_deleted`.
+The `GET /api/loans/` endpoint retains history even when related records are
 soft-deleted. Return-condition choices are also enforced by a database check.
 
 | Column               | Type        | Nullable | Constraints/default                                     |
@@ -192,17 +193,24 @@ SystemUser is the logical record for people who sign in to the application. It i
 
 ### Checkout and return
 
-1. The agreed checkout policy requires an active, non-soft-deleted borrower with fewer than three unresolved reviewed damage incidents and no overdue open loans; the borrower must have every certification required by the equipment type. The incident-based damage rule is implemented by the borrower detail and damage-flag APIs. The Loan model and checkout backend are not yet available, so overdue calculation and checkout enforcement remain pending.
+1. The agreed checkout policy requires an active, non-soft-deleted borrower with fewer than three unresolved reviewed damage incidents and no overdue open loans; the borrower must have every certification required by the equipment type. The incident-based damage rule is implemented by the borrower detail and damage-flag APIs. POST /api/loans/ now enforces borrower overdue and damage standing during checkout. Certification checks remain pending because Certification, BorrowerCertification, and TypeCertification exist only in this specification, not in implemented models. Unexpired-certification verification for Issue #113 also needs an agreed expiry model; the current convention specifies no automatic expiry.
 2. The asset, its equipment type, and its category must not be soft-deleted. An asset must be `Available` to be checked out; `Retired` assets require explicit reactivation first.
 3. Checkout creates a Loan and sets Asset.status = `On_Loan` in a single database transaction. Returning it fills the return date/condition and makes the asset `Available`, or initiates maintenance directly if damaged or otherwise required.
 4. A borrower who later becomes ineligible may keep and return an existing loan, but may not start new loans.
 5. Loan rows are historical records: never remove them through ordinary user-facing deletion actions. Extensions update expected return date, without altering checkout history.
 
+POST accepts only `asset_id`, `borrower_id`, and `expected_return_date`;
+`checkout_date` is server-controlled via `timezone.localdate()`. The service locks
+Borrower then Asset and creates the loan and updates asset status atomically.
+The one-open-loan database constraint remains unchanged. Missing records return
+404; business/input violations return 400; success returns 201. No schema change
+is required.
+
 ### Damage incidents and restrictions
 
 1. Record a damage incident only after a technician has reviewed and confirmed negligent damage. A damaged return alone is not evidence of negligence and never creates a flag automatically.
 2. Damage warning level is based only on reviewed incidents with unresolved status: zero is no warning, one is a first warning, two is a final warning, and three or more is damage-ineligible. Resolved incidents remain in history but do not count.
-3. Damage-based eligibility is true only when fewer than three reviewed incidents are unresolved. Overall checkout eligibility also requires no overdue open loans; it is not calculated or enforced until the Loan model and checkout backend are integrated.
+3. Damage-based eligibility is true only when fewer than three reviewed incidents are unresolved. Overall checkout eligibility also requires no overdue open loans; overdue and damage checks are enforced during checkout, but borrower detail still reports damage-based eligibility only and certification verification remains pending.
 4. `Borrower.negligent_damage_flag` remains a separate legacy indicator. It is not incident history and is not used to calculate counts, warning levels, or eligibility. Existing values are not migrated into incident rows.
 5. Editing corrects the existing incident without changing its borrower, identity, review state, or resolution status. The backend records the authenticated editor, server timestamp, and changed field names. Resolving requires a reason and preserves the incident history.
 
