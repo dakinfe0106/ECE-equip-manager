@@ -128,6 +128,25 @@ class LoanExtensionSerializer(serializers.Serializer):
         return super().to_internal_value(data)
 
 
+class LoanReturnSerializer(serializers.Serializer):
+    actual_return_date = serializers.DateField(input_formats=["%Y-%m-%d"])
+    return_condition = serializers.ChoiceField(choices=Loan.ReturnCondition.choices)
+
+    def to_internal_value(self, data):
+        if hasattr(data, "keys"):
+            unknown = set(data.keys()) - set(self.fields)
+            if unknown:
+                raise serializers.ValidationError(
+                    {field: "This field is not accepted." for field in sorted(unknown)}
+                )
+        values = super().to_internal_value(data)
+        if data["actual_return_date"] != values["actual_return_date"].isoformat():
+            raise serializers.ValidationError(
+                {"actual_return_date": "Use the YYYY-MM-DD format."}
+            )
+        return values
+
+
 class LoanQuerySerializer(serializers.Serializer):
     status = serializers.ChoiceField(
         choices=("on_loan", "overdue", "returned"), required=False

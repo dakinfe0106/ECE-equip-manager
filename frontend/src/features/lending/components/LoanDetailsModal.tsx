@@ -6,12 +6,14 @@ interface LoanDetailsModalProps {
   loan: LoanRecord | null
   onClose: () => void
   onExtendLoan?: (loan: LoanRecord) => void
+  onProcessReturn?: (loan: LoanRecord) => void
 }
 
 export default function LoanDetailsModal({
   loan,
   onClose,
   onExtendLoan,
+  onProcessReturn,
 }: LoanDetailsModalProps) {
   if (!loan) return null
 
@@ -119,9 +121,9 @@ export default function LoanDetailsModal({
 
             <button
               type="button"
-              disabled
-              title="Return processing is not available yet."
-              className="cursor-not-allowed rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white opacity-50"
+              onClick={() => onProcessReturn?.(loan)}
+              disabled={!onProcessReturn}
+              className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               Process Return
             </button>
