@@ -10,6 +10,7 @@ import useLoans from '../features/lending/hooks/useLoans'
 import CheckoutModal from '../features/lending/components/CheckoutModal'
 import ReturnLoanModal from '../features/lending/components/ReturnLoanModal'
 import MaintenanceRecordDialog from '../features/maintenance/components/MaintenanceRecordDialog'
+import { fetchAssetMaintenanceHistory } from '../features/maintenance/api'
 import ExtendLoanModal from '../features/lending/components/ExtendLoanModal'
 import {
   defaultLoanFilters,
@@ -232,6 +233,30 @@ export default function LendingPage() {
         onClose={() => setSelectedLoan(null)}
         onExtendLoan={() => setShowExtendLoanModal(true)}
         onProcessReturn={() => setShowReturnLoanModal(true)}
+
+        onCreateMaintenance={async (loan) => {
+          try {
+            const records = await fetchAssetMaintenanceHistory(loan.asset_id)
+
+            const hasActiveMaintenance = records.some(
+              (record) => record.status === 'In Progress',
+            )
+
+            if (hasActiveMaintenance) {
+              window.alert('This equipment already has an active maintenance record.')
+              return
+            }
+
+            setMaintenanceAsset({
+              asset_id: loan.asset_id,
+              asset_identifier: loan.asset_identifier,
+              name: loan.equipment_name,
+            })
+            setSelectedLoan(null)
+          } catch {
+            window.alert('Could not check maintenance records. Please try again.')
+          }
+        }}
       />
 
       {showExtendLoanModal && selectedLoan && (
