@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime, timedelta
+from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -7,6 +8,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.db.models.deletion import ProtectedError
 from django.test import override_settings
+from openpyxl import load_workbook
 from rest_framework.test import APIClient
 
 from inventory.models import Asset, Category, EquipmentType
@@ -100,6 +102,13 @@ def test_borrower_list_denies_faculty(db):
     response = client.get("/api/borrowers/")
 
     assert response.status_code == 403
+
+
+@pytest.mark.parametrize("method", ["put", "patch", "delete"])
+def test_borrower_list_rejects_unsupported_methods(borrower_client, method):
+    response = getattr(borrower_client, method)("/api/borrowers/", {}, format="json")
+
+    assert response.status_code == 405
 
 
 def test_borrower_list_returns_documented_identity_fields(borrower_client):
@@ -285,6 +294,7 @@ def test_loan_status_filters(borrower_client, loan_data, status, indices):
     "  aDA  ", "LOVElaCe", " ada lovelace ", "unb-loan", "OSCILLOSCOPE", "  shop-0  ",
 ])
 def test_loan_search(borrower_client, loan_data, search):
+    # An unrelated loan proves search restricts results rather than just returning all.
     other = create_borrower(unb_id="OTHER", first_name="Grace", last_name="Hopper")
     asset = Asset.objects.create(type=loan_data.loans[0].asset.type, name="Drill", asset_identifier="DRILL")
     Loan.objects.create(asset=asset, borrower=other, checkout_date=loan_data.today,
@@ -342,7 +352,7 @@ def test_loan_history_survives_soft_deletion(borrower_client, loan_data):
 
 
 @pytest.mark.parametrize("method", ["put", "patch", "delete"])
-def test_loan_writes_rejected(borrower_client, method):
+def test_loan_rejects_unsupported_write_methods(borrower_client, method):
     assert getattr(borrower_client, method)("/api/loans/", {}, format="json").status_code == 405
 
 
@@ -387,12 +397,14 @@ def test_loan_protects_related_records(db, loan_data, related):
 
 
 def test_loan_uses_configured_local_business_date(borrower_client, loan_data):
+    # UTC is Nov 14, while the Shop's local date is still Nov 13.
     with (
         override_settings(TIME_ZONE="America/Moncton"),
         patch("django.utils.timezone.now", return_value=datetime(
             2026, 11, 14, 1, tzinfo=UTC
         )),
     ):
+        # Temporarily restore the real localdate inside the fixture's patch.
         from django.utils.timezone import localtime
 
         with patch("lending.views.timezone.localdate", side_effect=lambda: localtime().date()):
@@ -401,17 +413,13 @@ def test_loan_uses_configured_local_business_date(borrower_client, loan_data):
             assert loan_ids(borrower_client.get("/api/loans/", {"status": "overdue"})) == [
                 loan_data.loans[0].pk
             ]
-
-
 @pytest.mark.parametrize("negligent_damage_flag", [False, True])
-@pytest.mark.parametrize("is_manual_enrollment", [False, True])
 def test_borrower_detail_returns_identity_and_negligent_damage_status(
-    borrower_client, negligent_damage_flag, is_manual_enrollment
+    borrower_client, negligent_damage_flag
 ):
     borrower = create_borrower(
         unb_id="UNB-DETAIL",
         negligent_damage_flag=negligent_damage_flag,
-        is_manual_enrollment=is_manual_enrollment,
     )
 
     response = borrower_client.get(f"/api/borrowers/{borrower.borrower_id}/")
@@ -422,11 +430,11 @@ def test_borrower_detail_returns_identity_and_negligent_damage_status(
         "unb_id": "UNB-DETAIL",
         "first_name": "Ada",
         "last_name": "Lovelace",
+        "is_manual_enrollment": True,
         "negligent_damage_flag": negligent_damage_flag,
         "unresolved_damage_flag_count": 0,
         "damage_warning_level": "no_warning",
         "damage_eligible": True,
-        "is_manual_enrollment": is_manual_enrollment,
     }
 
 
@@ -496,6 +504,262 @@ def test_borrower_detail_does_not_change_borrower_list_response(borrower_client)
             "last_name": "Lovelace",
         }
     ]
+
+
+def create_analytics_loan(
+    *,
+    asset,
+    borrower,
+    checkout_date,
+    expected_return_date,
+    actual_return_date=None,
+    return_condition=None,
+):
+    return Loan.objects.create(
+        asset=asset,
+        borrower=borrower,
+        checkout_date=checkout_date,
+        expected_return_date=expected_return_date,
+        actual_return_date=actual_return_date,
+        return_condition=return_condition,
+    )
+
+
+def create_analytics_asset(*, inventory_type, asset_identifier, name):
+    return Asset.objects.create(
+        type=inventory_type,
+        asset_identifier=asset_identifier,
+        name=name,
+    )
+
+
+def test_analytics_years_and_reports_require_authentication():
+    client = APIClient()
+
+    for path in (
+        "/api/analytics/years/",
+        "/api/analytics/utilization/",
+        "/api/analytics/borrowing/",
+        "/api/analytics/borrowers/",
+    ):
+        assert client.get(path).status_code == 403
+
+
+def test_faculty_can_view_borrowing_analytics(db):
+    user = get_user_model().objects.create_user(
+        username="analytics-faculty",
+        role="FACULTY",
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.get("/api/analytics/borrowing/")
+
+    assert response.status_code == 200
+    assert response.data["total_loans"] == 0
+
+
+def test_analytics_years_include_checkout_years_and_current_year(
+    borrower_client, monkeypatch
+):
+    category = Category.objects.create(name="Analytics tools")
+    inventory_type = EquipmentType.objects.create(category=category, name="Meters")
+    asset = create_analytics_asset(
+        inventory_type=inventory_type,
+        asset_identifier="ANALYTICS-YEAR",
+        name="Meter",
+    )
+    borrower = create_borrower(unb_id="UNB-YEAR")
+    create_analytics_loan(
+        asset=asset,
+        borrower=borrower,
+        checkout_date=date(2023, 4, 1),
+        expected_return_date=date(2023, 4, 2),
+        actual_return_date=date(2023, 4, 2),
+        return_condition=Loan.ReturnCondition.INTACT,
+    )
+    monkeypatch.setattr("lending.analytics.timezone.localdate", lambda: date(2025, 1, 2))
+
+    response = borrower_client.get("/api/analytics/years/")
+
+    assert response.status_code == 200
+    assert response.data == {"years": [2025, 2023]}
+
+
+def test_borrowing_analytics_filters_by_checkout_year_and_counts_statuses(
+    borrower_client, monkeypatch
+):
+    category = Category.objects.create(name="Borrowing analytics")
+    inventory_type = EquipmentType.objects.create(category=category, name="Scales")
+    asset = create_analytics_asset(
+        inventory_type=inventory_type,
+        asset_identifier="ANALYTICS-BORROWING",
+        name="Scale",
+    )
+    second_active_asset = create_analytics_asset(
+        inventory_type=inventory_type,
+        asset_identifier="ANALYTICS-BORROWING-2",
+        name="Second scale",
+    )
+    borrower = create_borrower(unb_id="UNB-BORROWING")
+    create_analytics_loan(
+        asset=asset,
+        borrower=borrower,
+        checkout_date=date(2025, 1, 1),
+        expected_return_date=date(2025, 1, 5),
+        actual_return_date=date(2025, 1, 3),
+        return_condition=Loan.ReturnCondition.INTACT,
+    )
+    create_analytics_loan(
+        asset=asset,
+        borrower=borrower,
+        checkout_date=date(2025, 1, 2),
+        expected_return_date=date(2025, 1, 8),
+    )
+    create_analytics_loan(
+        asset=second_active_asset,
+        borrower=borrower,
+        checkout_date=date(2025, 1, 3),
+        expected_return_date=date(2025, 1, 12),
+    )
+    create_analytics_loan(
+        asset=asset,
+        borrower=borrower,
+        checkout_date=date(2024, 12, 31),
+        expected_return_date=date(2025, 1, 2),
+        actual_return_date=date(2025, 1, 2),
+        return_condition=Loan.ReturnCondition.DAMAGED,
+    )
+    monkeypatch.setattr("lending.analytics.timezone.localdate", lambda: date(2025, 1, 10))
+
+    response = borrower_client.get("/api/analytics/borrowing/", {"year": 2025})
+
+    assert response.status_code == 200
+    assert response.data == {
+        "year": 2025,
+        "total_loans": 3,
+        "completed_loans": 1,
+        "active_loans": 2,
+        "overdue_loans": 1,
+        "intact_returns": 1,
+        "damaged_returns": 0,
+    }
+
+
+def test_borrower_analytics_preserves_history_and_searches_identity(
+    borrower_client, monkeypatch
+):
+    category = Category.objects.create(name="Borrower analytics")
+    inventory_type = EquipmentType.objects.create(category=category, name="Probes")
+    asset = create_analytics_asset(
+        inventory_type=inventory_type,
+        asset_identifier="ANALYTICS-BORROWER",
+        name="Probe",
+    )
+    borrower = create_borrower(
+        unb_id="UNB-HISTORICAL",
+        first_name="Grace",
+        last_name="Hopper",
+        is_deleted=True,
+    )
+    create_analytics_loan(
+        asset=asset,
+        borrower=borrower,
+        checkout_date=date(2024, 2, 1),
+        expected_return_date=date(2024, 2, 6),
+        actual_return_date=date(2024, 2, 5),
+        return_condition=Loan.ReturnCondition.DAMAGED,
+    )
+    monkeypatch.setattr("lending.analytics.timezone.localdate", lambda: date(2025, 1, 10))
+
+    response = borrower_client.get(
+        "/api/analytics/borrowers/",
+        {"year": 2024, "search": "unb-historical"},
+    )
+
+    assert response.status_code == 200
+    assert response.data["results"] == [
+        {
+            "borrower_id": borrower.borrower_id,
+            "unb_id": "UNB-HISTORICAL",
+            "first_name": "Grace",
+            "last_name": "Hopper",
+            "total_loans": 1,
+            "completed_loans": 1,
+            "active_loans": 0,
+            "overdue_loans": 0,
+            "damaged_returns": 1,
+        }
+    ]
+
+
+def test_utilization_analytics_counts_frequency_and_duration(borrower_client, monkeypatch):
+    category = Category.objects.create(name="Utilization analytics")
+    inventory_type = EquipmentType.objects.create(category=category, name="Calipers")
+    frequent_asset = create_analytics_asset(
+        inventory_type=inventory_type,
+        asset_identifier="ANALYTICS-FREQUENT",
+        name="Frequently borrowed caliper",
+    )
+    rarely_used_asset = create_analytics_asset(
+        inventory_type=inventory_type,
+        asset_identifier="ANALYTICS-RARE",
+        name="Rarely borrowed caliper",
+    )
+    borrower = create_borrower(unb_id="UNB-UTILIZATION")
+    create_analytics_loan(
+        asset=frequent_asset,
+        borrower=borrower,
+        checkout_date=date(2025, 1, 1),
+        expected_return_date=date(2025, 1, 10),
+        actual_return_date=date(2025, 1, 4),
+        return_condition=Loan.ReturnCondition.INTACT,
+    )
+    create_analytics_loan(
+        asset=frequent_asset,
+        borrower=borrower,
+        checkout_date=date(2025, 1, 5),
+        expected_return_date=date(2025, 1, 12),
+    )
+    create_analytics_loan(
+        asset=rarely_used_asset,
+        borrower=borrower,
+        checkout_date=date(2024, 12, 30),
+        expected_return_date=date(2025, 1, 3),
+        actual_return_date=date(2025, 1, 2),
+        return_condition=Loan.ReturnCondition.DAMAGED,
+    )
+    monkeypatch.setattr("lending.analytics.timezone.localdate", lambda: date(2025, 1, 10))
+
+    response = borrower_client.get("/api/analytics/utilization/", {"year": 2025})
+
+    assert response.status_code == 200
+    assert response.data["results"][0]["asset_id"] == frequent_asset.asset_id
+    assert response.data["results"][0]["loan_count"] == 2
+    assert response.data["results"][0]["total_loan_days"] == 8
+    assert response.data["results"][0]["average_loan_days"] == 4
+    assert response.data["results"][1]["asset_id"] == rarely_used_asset.asset_id
+    assert response.data["results"][1]["loan_count"] == 0
+
+
+@pytest.mark.parametrize(
+    ("path", "params", "expected_filename"),
+    [
+        ("/api/analytics/utilization/", {"export": "xlsx"}, "equipment-utilization.xlsx"),
+        ("/api/analytics/borrowing/", {"year": 2024, "export": "xlsx"}, "borrowing-activity.xlsx"),
+        ("/api/analytics/borrowers/", {"search": "Ada", "export": "xlsx"}, "borrower-activity.xlsx"),
+    ],
+)
+def test_lending_analytics_exports_excel(borrower_client, path, params, expected_filename):
+    response = borrower_client.get(path, params)
+
+    assert response.status_code == 200
+    assert response["Content-Type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert expected_filename in response["Content-Disposition"]
+    workbook = load_workbook(BytesIO(response.content), read_only=True)
+    assert next(iter(workbook.active.values))
 
 
 def test_borrower_detail_patch_updates_first_name(borrower_client):

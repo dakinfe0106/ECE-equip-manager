@@ -5,15 +5,19 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import generics, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from equipmanager.excel import excel_response
 from users.permissions import InventoryRolePermissions
 
+from .analytics import availability_report
 from .models import Asset, Category, EquipmentType
 from .serializers import (
     AssetCreateSerializer,
     AssetSerializer,
+    AvailabilityAnalyticsQuerySerializer,
     CategoryCreateSerializer,
     CategorySerializer,
     CategorySummarySerializer,
@@ -52,6 +56,46 @@ class Dashboard(APIView):
             ),
         )
         return Response(counts)
+
+
+class AvailabilityAnalytics(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        query = AvailabilityAnalyticsQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        params = query.validated_data
+        rows = availability_report(
+            category_id=params.get("category_id"),
+            equipment_type_id=params.get("equipment_type_id"),
+        )
+        if params.get("export") == "xlsx":
+            return excel_response(
+                filename="equipment-availability.xlsx",
+                sheet_title="Availability",
+                headers=(
+                    "Category",
+                    "Equipment Type",
+                    "Total Assets",
+                    "Available",
+                    "On Loan",
+                    "Under Maintenance",
+                    "Retired",
+                ),
+                rows=(
+                    (
+                        row["category_name"],
+                        row["equipment_type_name"],
+                        row["total_assets"],
+                        row["available_assets"],
+                        row["on_loan_assets"],
+                        row["under_maintenance_assets"],
+                        row["retired_assets"],
+                    )
+                    for row in rows
+                ),
+            )
+        return Response({"results": rows})
 
 
 DELETED_FILTER_VALUES = ("false", "true", "all")
