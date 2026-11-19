@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import PageIntro from '../components/ui/PageIntro'
 import Panel from '../components/ui/Panel'
 import LoanDetailsModal from '../features/lending/components/LoanDetailsModal'
+import ExtendLoanModal from '../features/lending/components/ExtendLoanModal'
 import LoanFilters from '../features/lending/components/LoanFilters'
 import LoanSearch from '../features/lending/components/LoanSearch'
 import LoanTable from '../features/lending/components/LoanTable'
@@ -16,8 +17,10 @@ import {
 
 export default function LendingPage() {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false)
+  const [showExtendLoanModal, setShowExtendLoanModal] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [checkoutSuccessMessage, setCheckoutSuccessMessage] = useState('')
+  const [extensionSuccessMessage, setExtensionSuccessMessage] = useState('')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filters, setFilters] = useState<LoanFiltersType>({
@@ -66,6 +69,7 @@ export default function LendingPage() {
           </button>
         }
       />
+
       {checkoutSuccessMessage && (
         <div
           role="status"
@@ -77,6 +81,24 @@ export default function LendingPage() {
             type="button"
             aria-label="Dismiss checkout confirmation"
             onClick={() => setCheckoutSuccessMessage('')}
+            className="rounded px-2 py-1 font-semibold hover:bg-white/50"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {extensionSuccessMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-success/20 bg-success-soft px-4 py-3 text-[11px] text-success"
+        >
+          <span>{extensionSuccessMessage}</span>
+          <button
+            type="button"
+            aria-label="Dismiss extension confirmation"
+            onClick={() => setExtensionSuccessMessage('')}
             className="rounded px-2 py-1 font-semibold hover:bg-white/50"
           >
             ×
@@ -159,7 +181,23 @@ export default function LendingPage() {
       <LoanDetailsModal
         loan={selectedLoan}
         onClose={() => setSelectedLoan(null)}
+        onExtendLoan={() => setShowExtendLoanModal(true)}
       />
+
+      {showExtendLoanModal && selectedLoan && (
+        <ExtendLoanModal
+          loan={selectedLoan}
+          onClose={() => setShowExtendLoanModal(false)}
+          onSuccess={(updatedLoan) => {
+            setSelectedLoan(updatedLoan)
+            setShowExtendLoanModal(false)
+            setExtensionSuccessMessage(
+              `The loan for ${updatedLoan.equipment_name} has been extended successfully.`,
+            )
+            setRefreshKey((current) => current + 1)
+          }}
+        />
+      )}
 
       {showCheckoutModal && (
         <CheckoutModal
@@ -170,9 +208,9 @@ export default function LendingPage() {
               `${loan.equipment_name} was checked out to ${loan.borrower_name}.`,
             )
             setRefreshKey((current) => current + 1)
-        }}
-      />
-    )}
+          }}
+        />
+      )}
     </section>
   )
 }

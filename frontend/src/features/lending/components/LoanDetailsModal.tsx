@@ -1,20 +1,22 @@
+
 import type { LoanRecord } from '../types'
 import LoanStatusBadge from './LoanStatusBadge'
 
 interface LoanDetailsModalProps {
   loan: LoanRecord | null
   onClose: () => void
-  onProcessReturn?: (loan: LoanRecord) => void
+  onExtendLoan?: (loan: LoanRecord) => void
 }
 
 export default function LoanDetailsModal({
   loan,
   onClose,
-  onProcessReturn,
+  onExtendLoan,
 }: LoanDetailsModalProps) {
   if (!loan) return null
 
   const isReturned = loan.status === 'returned'
+  const isActive = loan.status === 'on_loan' || loan.status === 'overdue'
 
   return (
     <div
@@ -92,7 +94,6 @@ export default function LoanDetailsModal({
               </>
             )}
           </div>
-
           <div className="mt-5 rounded-lg border border-line bg-page p-4">
             <p className="m-0 text-[11px] font-semibold text-body">
               Permanent transaction record
@@ -104,16 +105,23 @@ export default function LoanDetailsModal({
           </div>
         </div>
 
-        {/*
-          The Return feature will supply onProcessReturn later.
-          Until then, do not show a dead button.
-        */}
-        {!isReturned && onProcessReturn && (
-          <footer className="flex justify-end border-t border-divider px-6 py-4">
+        {isActive && (
+          <footer className="flex flex-wrap justify-end gap-2 border-t border-divider px-6 py-4">
+            {onExtendLoan && (
+              <button
+                type="button"
+                onClick={() => onExtendLoan(loan)}
+                className="rounded-md border border-primary bg-white px-3 py-2 text-xs font-semibold text-primary hover:bg-page"
+              >
+                Extend Loan
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={() => onProcessReturn(loan)}
-              className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary-hover"
+              disabled
+              title="Return processing is not available yet."
+              className="cursor-not-allowed rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white opacity-50"
             >
               Process Return
             </button>
