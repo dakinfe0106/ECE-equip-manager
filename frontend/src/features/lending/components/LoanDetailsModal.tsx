@@ -6,12 +6,14 @@ interface LoanDetailsModalProps {
   loan: LoanRecord | null
   onClose: () => void
   onExtendLoan?: (loan: LoanRecord) => void
+  onReturnLoan?: (loan: LoanRecord) => void
 }
 
 export default function LoanDetailsModal({
   loan,
   onClose,
   onExtendLoan,
+  onReturnLoan,
 }: LoanDetailsModalProps) {
   if (!loan) return null
 
@@ -94,6 +96,7 @@ export default function LoanDetailsModal({
               </>
             )}
           </div>
+
           <div className="mt-5 rounded-lg border border-line bg-page p-4">
             <p className="m-0 text-[11px] font-semibold text-body">
               Permanent transaction record
@@ -119,9 +122,14 @@ export default function LoanDetailsModal({
 
             <button
               type="button"
-              disabled
-              title="Return processing is not available yet."
-              className="cursor-not-allowed rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white opacity-50"
+              onClick={() => onReturnLoan?.(loan)}
+              disabled={!onReturnLoan}
+              title={!onReturnLoan ? 'Return processing is not available yet.' : undefined}
+              className={`rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white ${
+                onReturnLoan
+                  ? 'hover:opacity-90'
+                  : 'cursor-not-allowed opacity-50'
+              }`}
             >
               Process Return
             </button>
