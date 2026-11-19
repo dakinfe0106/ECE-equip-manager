@@ -128,7 +128,11 @@ describe('Editing a maintenance record', () => {
     await userEvent.selectOptions(screen.getByLabelText(/Responsible Technician/), '3')
     await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
 
-    await waitFor(() => expect(onUpdated).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(onUpdated).toHaveBeenCalledWith(
+        expect.objectContaining({ maintenance_type: 'Calibration', technician: labTech }),
+      ),
+    )
     expect(sentBody).toEqual({ maintenance_type: 'Calibration', technician_id: 3 })
   })
 

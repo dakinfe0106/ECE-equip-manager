@@ -13,8 +13,10 @@ from inventory.models import Asset
 from .models import Borrower, DamageFlag, Loan
 from .permissions import BorrowerListPermissions, LoanReadPermissions
 from .serializers import (
+    BorrowerCreateSerializer,
     BorrowerDetailSerializer,
     BorrowerListSerializer,
+    BorrowerUpdateSerializer,
     DamageFlagResolutionSerializer,
     DamageFlagSerializer,
     DamageFlagUpdateSerializer,
@@ -38,10 +40,26 @@ class BorrowerPagination(PageNumberPagination):
     page_size = 20
 
 
-class BorrowerList(generics.ListAPIView):
+class BorrowerList(generics.ListCreateAPIView):
     serializer_class = BorrowerListSerializer
     pagination_class = BorrowerPagination
     permission_classes = (BorrowerListPermissions,)
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return BorrowerCreateSerializer
+        return BorrowerListSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        borrower = serializer.save()
+        return Response(
+            BorrowerListSerializer(
+                borrower, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     def get_queryset(self):
         borrowers = Borrower.objects.filter(is_deleted=False)
@@ -97,12 +115,12 @@ class LoanList(generics.ListCreateAPIView):
         params = query.validated_data
         self.today = timezone.localdate()
         loans = Loan.objects.select_related("borrower", "asset", "asset__type")
-        status = params.get("status")
-        if status == "returned":
+        status_param = params.get("status")
+        if status_param == "returned":
             loans = loans.filter(actual_return_date__isnull=False)
-        elif status in ("on_loan", "overdue"):
+        elif status_param in ("on_loan", "overdue"):
             loans = loans.filter(actual_return_date__isnull=True)
-            if status == "overdue":
+            if status_param == "overdue":
                 loans = loans.filter(expected_return_date__lt=self.today)
         if "expected_return_from" in params:
             loans = loans.filter(
@@ -144,8 +162,7 @@ class LoanList(generics.ListCreateAPIView):
         return context
 
 
-class BorrowerDetail(generics.RetrieveAPIView):
-    serializer_class = BorrowerDetailSerializer
+class BorrowerDetail(generics.RetrieveUpdateAPIView):
     permission_classes = (BorrowerListPermissions,)
     queryset = Borrower.objects.filter(is_deleted=False).annotate(
         unresolved_damage_flag_count=Count(
@@ -156,6 +173,19 @@ class BorrowerDetail(generics.RetrieveAPIView):
             ),
         )
     )
+
+    def get_serializer_class(self):
+        if self.request.method in ("PUT", "PATCH"):
+            return BorrowerUpdateSerializer
+        return BorrowerDetailSerializer
+
+    def update(self, request, *args, **kwargs):
+        super().update(request, *args, **kwargs)
+        instance = self.get_object()
+        serializer = BorrowerDetailSerializer(
+            instance, context=self.get_serializer_context()
+        )
+        return Response(serializer.data)
 
 
 class BorrowerDamageFlagListCreate(APIView):
@@ -263,3 +293,4 @@ class BorrowerDamageFlagDetail(APIView):
                 "summary": summary,
             }
         )
+    

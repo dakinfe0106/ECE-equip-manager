@@ -13,6 +13,85 @@ class BorrowerListSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class BorrowerCreateSerializer(serializers.ModelSerializer):
+    unb_id = serializers.CharField(
+        max_length=100,
+        trim_whitespace=True,
+        error_messages={
+            "blank": "Enter a UNB ID.",
+            "required": "Enter a UNB ID.",
+        },
+    )
+    first_name = serializers.CharField(
+        max_length=255,
+        trim_whitespace=True,
+        error_messages={
+            "blank": "Enter a first name.",
+            "required": "Enter a first name.",
+        },
+    )
+    last_name = serializers.CharField(
+        max_length=255,
+        required=False,
+        allow_blank=True,
+        default="",
+        trim_whitespace=True,
+    )
+
+    class Meta:
+        model = Borrower
+        fields = (
+            "borrower_id",
+            "unb_id",
+            "first_name",
+            "last_name",
+            "is_manual_enrollment",
+        )
+        read_only_fields = ("borrower_id", "is_manual_enrollment")
+
+    def validate_unb_id(self, value):
+        trimmed = value.strip()
+        if not trimmed:
+            raise serializers.ValidationError("Enter a UNB ID.")
+        if Borrower.objects.filter(unb_id=trimmed).exists():
+            raise serializers.ValidationError(
+                "A borrower with this UNB ID already exists."
+            )
+        return trimmed
+
+    def validate_first_name(self, value):
+        trimmed = value.strip()
+        if not trimmed:
+            raise serializers.ValidationError("Enter a first name.")
+        return trimmed
+
+    def validate_last_name(self, value):
+        return value.strip() if value else ""
+
+    def create(self, validated_data):
+        validated_data["is_manual_enrollment"] = True
+        return super().create(validated_data)
+
+
+class BorrowerUpdateSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(max_length=255, trim_whitespace=True)
+    last_name = serializers.CharField(
+        max_length=255, required=False, allow_blank=True, trim_whitespace=True
+    )
+
+    class Meta:
+        model = Borrower
+        fields = ("first_name", "last_name")
+
+    def validate_first_name(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Enter a first name.")
+        return value.strip()
+
+    def validate_last_name(self, value):
+        return value.strip() if value else ""
+
+
 class LoanCheckoutSerializer(serializers.Serializer):
     asset_id = serializers.IntegerField(min_value=1)
     borrower_id = serializers.IntegerField(min_value=1)
@@ -114,6 +193,7 @@ class BorrowerDetailSerializer(serializers.ModelSerializer):
             "unresolved_damage_flag_count",
             "damage_warning_level",
             "damage_eligible",
+            "is_manual_enrollment",
         )
         read_only_fields = fields
 

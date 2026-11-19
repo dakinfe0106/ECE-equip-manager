@@ -14,6 +14,18 @@ export interface BorrowerDetailsRecord extends BorrowerRecord {
   unresolved_damage_flag_count: number
   damage_warning_level: DamageWarningLevel
   damage_eligible: boolean
+  is_manual_enrollment: boolean
+}
+
+export interface BorrowerCreateInput {
+  unb_id: string
+  first_name: string
+  last_name?: string
+}
+
+export interface BorrowerUpdateInput {
+  first_name: string
+  last_name?: string
 }
 
 export interface PaginatedBorrowers {
@@ -25,11 +37,13 @@ export interface PaginatedBorrowers {
 
 export class BorrowerRequestError extends Error {
   readonly status: number
+  readonly fieldErrors?: Record<string, string | string[]>
 
-  constructor(status: number) {
+  constructor(status: number, fieldErrors?: Record<string, string | string[]>) {
     super(`Borrower request failed (${status})`)
     this.name = 'BorrowerRequestError'
     this.status = status
+    this.fieldErrors = fieldErrors
   }
 }
 
@@ -87,5 +101,64 @@ export async function fetchBorrowerDetails(
   if (!response.ok) {
     throw new BorrowerRequestError(response.status)
   }
+  return response.json() as Promise<BorrowerDetailsRecord>
+}
+
+export async function createBorrower(
+  data: BorrowerCreateInput,
+): Promise<BorrowerRecord> {
+  const csrftoken =
+    typeof document !== 'undefined'
+      ? document.cookie
+          .split('; ')
+          .find((row) => row.startsWith('csrftoken='))
+          ?.split('=')[1]
+      : null
+
+  const response = await sessionFetch(`${apiBaseUrl}/borrowers/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrftoken ? { 'X-CSRFToken': csrftoken } : {}),
+    },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new BorrowerRequestError(response.status, errorData)
+  }
+
+  return response.json() as Promise<BorrowerRecord>
+}
+
+export async function updateBorrower(
+  borrowerId: number,
+  data: BorrowerUpdateInput,
+): Promise<BorrowerDetailsRecord> {
+  const csrftoken =
+    typeof document !== 'undefined'
+      ? document.cookie
+          .split('; ')
+          .find((row) => row.startsWith('csrftoken='))
+          ?.split('=')[1]
+      : null
+
+  const response = await sessionFetch(`${apiBaseUrl}/borrowers/${borrowerId}/`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrftoken ? { 'X-CSRFToken': csrftoken } : {}),
+    },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new BorrowerRequestError(response.status, errorData)
+  }
+
   return response.json() as Promise<BorrowerDetailsRecord>
 }

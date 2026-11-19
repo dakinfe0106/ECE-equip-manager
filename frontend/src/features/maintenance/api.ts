@@ -16,6 +16,7 @@ export type MaintenanceType = (typeof maintenanceTypes)[number]
 export type MaintenancePriority = 'Low' | 'Medium' | 'High' | 'Urgent'
 export type MaintenanceStatusFilter = 'all' | 'in_progress' | 'completed'
 export type MaintenanceStatus = 'In Progress' | 'Completed'
+export type MaintenanceOutcome = 'Available' | 'Retired'
 
 export const maintenanceTypeLabels: Record<MaintenanceType, string> = {
   Inspection: 'Inspection',
@@ -226,6 +227,25 @@ export function updateMaintenanceRecord(
     'Maintenance update',
     changes,
     'PATCH',
+  )
+}
+
+export function completeMaintenanceRecord(
+  recordId: number,
+  endDate: string,
+  outcome: MaintenanceOutcome,
+): Promise<MaintenanceRecord> {
+  return sendMaintenanceRequest(
+    `${apiBaseUrl}/maintenance-records/${recordId}/complete/`,
+    'Maintenance completion',
+    { end_date: endDate, outcome },
+  )
+}
+
+export function technicianName(technician: MaintenanceTechnician): string {
+  return (
+    [technician.first_name, technician.last_name].filter(Boolean).join(' ')
+    || technician.username
   )
 }
 
