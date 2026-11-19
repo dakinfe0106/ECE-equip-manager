@@ -3,6 +3,21 @@ from typing import ClassVar
 from rest_framework.permissions import BasePermission
 
 
+class AnalyticsReadPermissions(BasePermission):
+    """Allow aggregate reporting to each active application role."""
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and user.is_active
+            and getattr(user, 'role', None) in {
+                'TECHNICIAN', 'FACULTY', 'ADMINISTRATOR'
+            }
+        )
+
+
 class InventoryRolePermissions(BasePermission):
     method_actions: ClassVar[dict[str, str]] = {
         "GET": "view",

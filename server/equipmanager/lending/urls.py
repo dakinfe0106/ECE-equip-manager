@@ -1,8 +1,13 @@
 from django.urls import path
 
 from . import views
+from .analytics import AnalyticsOptions, LendingAnalytics
+from .analytics_export import AnalyticsExport
 
 urlpatterns = [
+    path('analytics/exports/', AnalyticsExport.as_view(), name='analytics-export'),
+    path('analytics/options/', AnalyticsOptions.as_view(), name='analytics-options'),
+    path('analytics/lending/', LendingAnalytics.as_view(), name='analytics-lending'),
     path("analytics/years/", views.AnalyticsYears.as_view(), name="analytics-years"),
     path(
         "analytics/utilization/",

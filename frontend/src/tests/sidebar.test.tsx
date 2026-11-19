@@ -90,7 +90,7 @@ describe('Demo page routes', () => {
 
   it('allows Faculty to view the Analytics page', () => {
     const html = pageHtml('/analytics', 'FACULTY')
-    expect(html).toContain('>Analytics</h1>')
+    expect(html).toContain('Loading analytics')
     expect(html).not.toContain('Access denied')
     expect(html).not.toContain('This page is still in progress.')
   })

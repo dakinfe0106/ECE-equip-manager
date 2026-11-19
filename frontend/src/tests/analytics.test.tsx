@@ -1,191 +1,75 @@
 // @vitest-environment jsdom
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
-import { setupServer } from 'msw/node'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
-import { apiBaseUrl } from '../api'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AppRoutes from '../AppRoutes'
+import AnalyticsPage from '../pages/AnalyticsPage'
+import * as api from '../features/analytics/api'
 import { technicianAuth, withAuth } from './authTestUtils'
 
-const server = setupServer(
-  http.get(`${apiBaseUrl}/categories/`, () => HttpResponse.json([
-    { category_id: 3, name: 'Meters' },
-  ])),
-  http.get(`${apiBaseUrl}/equipment-types/`, () => HttpResponse.json([
-    {
-      type_id: 7,
-      name: 'Multimeters',
-      description: '',
-      category_id: 3,
-      category: { category_id: 3, name: 'Meters' },
-    },
-  ])),
-  http.get(`${apiBaseUrl}/analytics/years/`, () => HttpResponse.json({ years: [2025, 2024] })),
-  http.get(`${apiBaseUrl}/analytics/availability/`, () => HttpResponse.json({
-    results: [{
-      category_id: 3,
-      category_name: 'Meters',
-      equipment_type_id: 7,
-      equipment_type_name: 'Multimeters',
-      total_assets: 8,
-      available_assets: 5,
-      on_loan_assets: 1,
-      under_maintenance_assets: 1,
-      retired_assets: 1,
-    }],
-  })),
-  http.get(`${apiBaseUrl}/analytics/utilization/`, () => HttpResponse.json({
-    year: null,
-    results: [{
-      asset_id: 10,
-      asset_identifier: 'METER-010',
-      asset_name: 'Digital multimeter',
-      category_id: 3,
-      category_name: 'Meters',
-      equipment_type_id: 7,
-      equipment_type_name: 'Multimeters',
-      loan_count: 6,
-      total_loan_days: 30,
-      average_loan_days: 5,
-    }],
-  })),
-  http.get(`${apiBaseUrl}/analytics/borrowing/`, () => HttpResponse.json({
-    year: null,
-    total_loans: 10,
-    completed_loans: 7,
-    active_loans: 3,
-    overdue_loans: 1,
-    intact_returns: 5,
-    damaged_returns: 2,
-  })),
-  http.get(`${apiBaseUrl}/analytics/borrowers/`, () => HttpResponse.json({
-    year: null,
-    results: [{
-      borrower_id: 4,
-      unb_id: 'UNB-004',
-      first_name: 'Ada',
-      last_name: 'Lovelace',
-      total_loans: 3,
-      completed_loans: 2,
-      active_loans: 1,
-      overdue_loans: 1,
-      damaged_returns: 1,
-    }],
-  })),
-)
-
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
-afterEach(() => {
-  cleanup()
-  server.resetHandlers()
-})
-afterAll(() => server.close())
-
-function renderAnalytics(role: 'TECHNICIAN' | 'FACULTY' = 'TECHNICIAN') {
-  const auth = role === 'TECHNICIAN'
-    ? technicianAuth
-    : {
-        ...technicianAuth,
-        user: { ...technicianAuth.user!, role: 'FACULTY' as const, role_label: 'Faculty' },
-      }
-  return render(
-    <MemoryRouter initialEntries={['/analytics']}>
-      {withAuth(<AppRoutes />, auth)}
-    </MemoryRouter>,
-  )
+const options: api.Options = {
+  categories: [{ category_id: 1, name: 'Meters', is_deleted: false }],
+  equipment_types: [{ type_id: 2, category_id: 1, name: 'Digital', is_deleted: false }],
+  years: [2025],
 }
-
-describe('Analytics page', () => {
-  it('shows live availability counts by equipment type', async () => {
-    renderAnalytics()
-
+const result: Awaited<ReturnType<typeof api.fetchReport>> = {
+  availability: [{ label: 'Meters / Digital', available: 3, on_loan: 1, under_maintenance: 0, retired: 0, total: 4 }],
+  lending: { year: 2025, as_of: '2025-02-11', rows: [{ label: 'Jan', value: 2 }],
+    summary: { transactions: 2, total_loan_days: 10, average_duration: 5, overdue_rate: 0 } },
+}
+afterEach(() => { cleanup(); vi.restoreAllMocks() })
+beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '')
+  }
+})
+function prepare() {
+  vi.spyOn(api, 'fetchOptions').mockResolvedValue(options)
+  return vi.spyOn(api, 'fetchReport').mockResolvedValue(result)
+}
+function page() {
+  return render(<MemoryRouter initialEntries={['/analytics?year=2025']}><AnalyticsPage /></MemoryRouter>)
+}
+describe('Analytics', () => {
+  it.each(['FACULTY', 'TECHNICIAN', 'ADMINISTRATOR'] as const)('routes %s to the real page', async role => {
+    prepare()
+    render(<MemoryRouter initialEntries={['/analytics']}>
+      {withAuth(<AppRoutes />, { ...technicianAuth, user: { ...technicianAuth.user!, role } })}
+    </MemoryRouter>)
     expect(await screen.findByRole('heading', { name: 'Analytics' })).toBeTruthy()
-    expect((await screen.findAllByText('Multimeters')).length).toBeGreaterThan(1)
-    expect(screen.getByText('Under maintenance')).toBeTruthy()
-    expect(screen.getByRole('img', {
-      name: '5 available, 1 on loan, 1 under maintenance, 1 retired',
-    })).toBeTruthy()
+    expect(await screen.findByText('Available: 3 · On loan: 1 · Under maintenance: 0 · Retired: 0')).toBeTruthy()
   })
-
-  it('allows Faculty to view Analytics according to the project access policy', async () => {
-    renderAnalytics('FACULTY')
-
-    expect((await screen.findAllByText('Multimeters')).length).toBeGreaterThan(1)
-    expect(screen.queryByText('Access denied')).toBeNull()
+  it('applies and resets filters, switches reports, and opens export choices', async () => {
+    const fetchReport = prepare()
+    page()
+    await screen.findByText('Available: 3 · On loan: 1 · Under maintenance: 0 · Retired: 0')
+    fireEvent.change(screen.getByLabelText('Category'), { target: { value: '1' } })
+    expect(fetchReport).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Filters' }))
+    await waitFor(() => expect(fetchReport).toHaveBeenLastCalledWith('availability',
+      { category_id: '1', equipment_type_id: '', year: '2025' }, expect.any(AbortSignal)))
+    fireEvent.click(screen.getByRole('button', { name: 'Borrowing Activity' }))
+    await waitFor(() => expect(fetchReport).toHaveBeenLastCalledWith('borrowing',
+      { category_id: '1', equipment_type_id: '', year: '2025' }, expect.any(AbortSignal)))
+    await screen.findByText('2 loans')
+    const calls = fetchReport.mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: 'Export to Excel' }))
+    expect(screen.getByRole('dialog', { name: 'Export reports' })).toBeTruthy()
+    expect((screen.getByRole('checkbox', { name: 'Borrowing Activity' }) as HTMLInputElement).checked).toBe(true)
+    expect(fetchReport).toHaveBeenCalledTimes(calls)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reset Filters' }))
+    await waitFor(() => expect(fetchReport).toHaveBeenLastCalledWith('borrowing',
+      { category_id: '', equipment_type_id: '', year: String(new Date().getFullYear()) }, expect.any(AbortSignal)))
   })
-
-  it('switches among the four report views and displays their metrics', async () => {
-    const user = userEvent.setup()
-    renderAnalytics()
-
-    await user.click(await screen.findByRole('tab', { name: 'Equipment Utilization' }))
-    expect(await screen.findByText('Digital multimeter')).toBeTruthy()
-    expect(screen.getByText('Most borrowed')).toBeTruthy()
-
-    await user.click(screen.getByRole('tab', { name: 'Borrowing Activity' }))
-    expect(await screen.findByText('Total loans')).toBeTruthy()
-    expect(screen.getByText('Overdue')).toBeTruthy()
-
-    await user.click(screen.getByRole('tab', { name: 'Borrower Activity' }))
-    expect(await screen.findByText('Ada Lovelace')).toBeTruthy()
-    expect(screen.getByText('UNB-004')).toBeTruthy()
-    expect(screen.getByText('Damaged returns')).toBeTruthy()
-  })
-
-  it('applies year and category/type filters to the selected report', async () => {
-    const user = userEvent.setup()
-    const requestedUrls: URL[] = []
-    server.use(http.get(`${apiBaseUrl}/analytics/utilization/`, ({ request }) => {
-      requestedUrls.push(new URL(request.url))
-      return HttpResponse.json({ year: 2025, results: [] })
-    }))
-    renderAnalytics()
-
-    await user.click(await screen.findByRole('tab', { name: 'Equipment Utilization' }))
-    await user.selectOptions(screen.getByLabelText('Category'), '3')
-    await user.selectOptions(screen.getByLabelText('Equipment type'), '7')
-    await user.selectOptions(screen.getByLabelText('Checkout year'), '2025')
-    await user.click(screen.getByRole('button', { name: 'Apply filters' }))
-
-    await waitFor(() => expect(requestedUrls.length).toBeGreaterThan(0))
-    const params = requestedUrls.at(-1)?.searchParams
-    expect(params?.get('year')).toBe('2025')
-    expect(params?.get('category_id')).toBe('3')
-    expect(params?.get('equipment_type_id')).toBe('7')
-  })
-
-  it('searches borrower activity by borrower identity fields', async () => {
-    const user = userEvent.setup()
-    const requestedUrls: URL[] = []
-    server.use(http.get(`${apiBaseUrl}/analytics/borrowers/`, ({ request }) => {
-      requestedUrls.push(new URL(request.url))
-      return HttpResponse.json({ year: 2025, results: [] })
-    }))
-    renderAnalytics()
-
-    await user.click(await screen.findByRole('tab', { name: 'Borrower Activity' }))
-    const search = await screen.findByRole('searchbox', { name: 'Search borrowers' })
-    await user.type(search, 'UNB-004')
-    await user.selectOptions(screen.getByLabelText('Checkout year'), '2025')
-    await user.click(screen.getByRole('button', { name: 'Apply filters' }))
-
-    await waitFor(() => expect(requestedUrls.length).toBeGreaterThan(0))
-    expect(requestedUrls.at(-1)?.searchParams.get('search')).toBe('UNB-004')
-    expect(requestedUrls.at(-1)?.searchParams.get('year')).toBe('2025')
-  })
-
-  it('shows an empty state and an error state', async () => {
-    const user = userEvent.setup()
-    server.use(
-      http.get(`${apiBaseUrl}/analytics/availability/`, () => HttpResponse.json({ results: [] })),
-      http.get(`${apiBaseUrl}/analytics/borrowing/`, () => HttpResponse.json({ detail: 'Report unavailable.' }, { status: 500 })),
-    )
-    renderAnalytics()
-
-    expect(await screen.findByText('No records match these filters.')).toBeTruthy()
-    await user.click(screen.getByRole('tab', { name: 'Borrowing Activity' }))
-    expect((await screen.findByRole('alert')).textContent).toContain('Report unavailable.')
+  it('shows loading, failure, retry, and empty results', async () => {
+    vi.spyOn(api, 'fetchOptions').mockResolvedValue(options)
+    vi.spyOn(api, 'fetchReport').mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ ...result, availability: [] })
+    page()
+    expect(screen.getByRole('status').textContent).toContain('Loading analytics')
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('No data matches these filters.')).toBeTruthy()
   })
 })

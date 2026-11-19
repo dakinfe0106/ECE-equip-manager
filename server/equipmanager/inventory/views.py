@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from equipmanager.excel import excel_response
 from users.permissions import InventoryRolePermissions
 
-from .analytics import availability_report
+from .analytics_reports import availability_report
 from .models import Asset, Category, EquipmentType
 from .serializers import (
     AssetCreateSerializer,

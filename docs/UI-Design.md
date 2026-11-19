@@ -154,7 +154,7 @@ Until the team decides, build what database.md supports and leave the extra desi
 | --- | --- | --- |
 | Serial Number on assets | No such field | Leave the field out |
 | Required certifications typed on each asset | Certifications belong to the **equipment type** | Show the type's certifications read-only on the asset |
-| Overall borrower eligibility (Eligible/Ineligible) and a per-term eligible-borrowers import | Overdue-loan data and checkout service are not implemented | Do not display overall eligibility until Loan integration; damage-based eligibility alone is displayed separately |
+| Overall borrower eligibility (Eligible/Ineligible) and a per-term eligible-borrowers import | Checkout enforces damage and overdue standing; certification verification is pending | Borrower details display damage-based eligibility separately; do not imply full certification eligibility |
 | Reviewed damage incidents, warning count, edit, and resolution | Persistent `DamageFlag` history and edit audit are implemented; `negligent_damage_flag` remains a separate legacy boolean | Show unresolved reviewed incidents and resolved history; only unresolved incidents count toward damage-based warnings |
 | Damage-incident resolution reason and audit metadata | Resolution reason is stored; editor, timestamp, and changed fields are audited | Preserve incident history and record technician-controlled metadata; damaged returns do not create incidents automatically |
 | Maintenance notes and return notes | No such fields | Leave them out |
@@ -166,3 +166,38 @@ Until the team decides, build what database.md supports and leave the extra desi
 | Category and equipment type can be changed on an existing asset | The asset edit API accepts `name` and `acquisition_date` only | Show category and type read-only in the details modal |
 | Asset search matches ID or name | The API's `search` matches the Asset ID or name | Decided: search by ID or name |
 | Assets page has View by (category, type), a Filters popover (category, type, status), and Include Archived | The asset list filters by category and equipment type, not status, and returns active assets only | View by groups assets in the frontend. Filters has category and equipment type only. Show Include Archived disabled |
+
+
+### Analytics page
+
+The four reference report tabs use live data, category/type/checkout-year filters,
+Apply Filters, and Reset Filters. Filter selections are stored in query parameters.
+Availability is a current snapshot; its year selection affects only the lending
+summary below it. Other reports use distinct charts and explicit metric definitions
+from [Backend.md](Backend.md#analytics-reporting). Export to Excel opens a native
+dialog with report checkboxes (active tab selected), Select all, and current-filter
+or all-data scope. The applied filters are shown before downloading. Download Excel
+requires a selected report, prevents duplicate requests, supports cancellation,
+and shows progress/errors. Clicking the backdrop, Cancel, or pressing Escape closes
+the dialog and cancels any pending download. Clicking inside the dialog keeps it open.
+The three filter controls match the Assets view selector's custom chevron, rounded
+border, subtle shadow, and primary focus ring, retaining native select behavior.
+One workbook contains the selected report worksheets
+and an Export details sheet. Charts have textual counts and responsive layouts; loading,
+empty, and retryable error states replace mock data.
+
+### Analytics data refresh
+
+- Entering Analytics, including returning from another application page, fetches
+  the filter options and current report from Django.
+- Switching report tabs or changing the applied URL filters starts a new fetch.
+  Filter controls are drafts until Apply Filters is used. A request is not forced
+  if those actions leave the URL unchanged.
+- Reset Filters returns to defaults and fetches if the URL changes; Try again starts
+  a new request after an error. Stale requests are cancelled or ignored.
+- A loan saved to Django is included the next time Analytics is fetched, provided
+  it matches the applied checkout year, category, and equipment-type filters.
+- No background polling or refresh-on-focus is implemented. Changes by another
+  user or browser tab do not automatically update an already-open report.
+- Download Excel requests a fresh workbook using the selected export scope.
+  It may include newer data than a chart loaded earlier.

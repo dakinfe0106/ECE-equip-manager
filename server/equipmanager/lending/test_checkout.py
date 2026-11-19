@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
+from io import BytesIO
 from threading import Barrier, Event
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -9,6 +10,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError, close_old_connections, connection, transaction
 from django.test import override_settings
 from django.utils import timezone
+from openpyxl import load_workbook
 from rest_framework.test import APIClient
 
 from inventory.models import Asset, Category, EquipmentType
@@ -70,6 +72,34 @@ def test_checkout_success_and_get_regression(checkout_data, role):
     listing = data.client.get("/api/loans/", {"status": "on_loan", "search": "meter-001"})
     assert listing.status_code == 200
     assert listing.data == [response.data]
+
+
+def test_checkout_is_reflected_in_aggregate_analytics_and_export(checkout_data):
+    data = checkout_data
+    filters = {"year": data.today.year, "equipment_type_id": data.asset.type_id}
+    assert data.client.get("/api/analytics/lending/", filters).json()["summary"]["transactions"] == 0
+    assert post_checkout(data).status_code == 201
+    for report in ("utilization", "borrowing", "borrowers"):
+        result = data.client.get("/api/analytics/lending/", {**filters, "report": report}).json()
+        assert result["summary"] == {
+            "transactions": 1, "total_loan_days": 0,
+            "average_duration": 0, "overdue_rate": 0,
+        }
+        if report == "borrowing":
+            assert result["rows"][data.today.month - 1]["value"] == 1
+        elif report == "borrowers":
+            assert result["rows"][0]["value"] == 1
+    rows = data.client.get("/api/analytics/availability-summary/", filters).json()["rows"]
+    assert rows[0]["available"] == 0
+    assert rows[0]["on_loan"] == 1
+    response = data.client.get("/api/analytics/exports/", {
+        **filters, "reports": ["availability", "borrowing", "borrowers"],
+    })
+    assert response.status_code == 200
+    workbook = load_workbook(BytesIO(response.content), read_only=True)
+    assert workbook["Borrowing Activity"].cell(data.today.month + 1, 2).value == 1
+    assert workbook["Borrower Activity"].cell(2, 2).value == 1
+    workbook.close()
 
 
 @pytest.mark.parametrize("kind", ["faculty", "anonymous", "inactive", "unsupported"])

@@ -1,52 +1,63 @@
 from django.db.models import Count, Q
+from rest_framework import serializers
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from .models import EquipmentType
+from users.permissions import AnalyticsReadPermissions
+
+from .models import Asset
 
 
-def availability_report(*, category_id=None, equipment_type_id=None):
-    equipment_types = EquipmentType.objects.filter(
+class AvailabilityFilters(serializers.Serializer):
+    category_id = serializers.IntegerField(min_value=1, required=False)
+    equipment_type_id = serializers.IntegerField(min_value=1, required=False)
+
+
+def availability_rows(values):
+    assets = Asset.objects.filter(
         is_deleted=False,
-        category__is_deleted=False,
+        type__is_deleted=False,
+        type__category__is_deleted=False,
     )
-    if category_id is not None:
-        equipment_types = equipment_types.filter(category_id=category_id)
-    if equipment_type_id is not None:
-        equipment_types = equipment_types.filter(type_id=equipment_type_id)
-
-    records = equipment_types.annotate(
-        total_assets=Count("assets", filter=Q(assets__is_deleted=False)),
-        available_assets=Count(
-            "assets",
-            filter=Q(assets__is_deleted=False, assets__status="Available"),
-        ),
-        on_loan_assets=Count(
-            "assets",
-            filter=Q(assets__is_deleted=False, assets__status="On_Loan"),
-        ),
-        under_maintenance_assets=Count(
-            "assets",
-            filter=Q(
-                assets__is_deleted=False,
-                assets__status="Under_Maintenance",
+    if "category_id" in values:
+        assets = assets.filter(type__category_id=values["category_id"])
+    if "equipment_type_id" in values:
+        assets = assets.filter(type_id=values["equipment_type_id"])
+    rows = (
+        assets.values("type_id", "type__name", "type__category__name")
+        .annotate(
+            available=Count("pk", filter=Q(status=Asset.Status.AVAILABLE)),
+            on_loan=Count("pk", filter=Q(status=Asset.Status.ON_LOAN)),
+            under_maintenance=Count(
+                "pk", filter=Q(status=Asset.Status.UNDER_MAINTENANCE)
             ),
-        ),
-        retired_assets=Count(
-            "assets",
-            filter=Q(assets__is_deleted=False, assets__status="Retired"),
-        ),
-    ).order_by("category__name", "name", "type_id")
-
+            retired=Count("pk", filter=Q(status=Asset.Status.RETIRED)),
+            total=Count("pk"),
+        )
+        .order_by("type__category__name", "type__name", "type_id")
+    )
     return [
         {
-            "category_id": record.category_id,
-            "category_name": record.category.name,
-            "equipment_type_id": record.type_id,
-            "equipment_type_name": record.name,
-            "total_assets": record.total_assets,
-            "available_assets": record.available_assets,
-            "on_loan_assets": record.on_loan_assets,
-            "under_maintenance_assets": record.under_maintenance_assets,
-            "retired_assets": record.retired_assets,
+            "label": f"{row['type__category__name']} / {row['type__name']}",
+            **{
+                key: row[key]
+                for key in (
+                    "available",
+                    "on_loan",
+                    "under_maintenance",
+                    "retired",
+                    "total",
+                )
+            },
         }
-        for record in records.select_related("category")
+        for row in rows
     ]
+
+
+class EquipmentAvailability(APIView):
+    permission_classes = (AnalyticsReadPermissions,)
+
+    def get(self, request):
+        filters = AvailabilityFilters(data=request.query_params)
+        filters.is_valid(raise_exception=True)
+        return Response({"rows": availability_rows(filters.validated_data)})

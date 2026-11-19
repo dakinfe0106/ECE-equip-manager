@@ -447,7 +447,7 @@ The response must include the header `Access-Control-Allow-Origin: http://localh
 
 **4. Automated checks.** `server/equipmanager/tests/test_health.py` verifies the response and CORS header through Django's test client. It runs with `python -m pytest` and in CI. The frontend's MSW tests exercise the API client with mocked HTTP responses; they do not verify connectivity to a running backend.
 
-Protected DRF endpoints require a logged-in Django session (see [Authentication](Architecture.md#9-authentication-and-authorization)) and return `403` for unauthenticated requests with the current configuration. The inventory app provides category and equipment-type lookups and asset list, create, and update routes. The lending app provides borrower list/detail and damage-flag endpoints, plus read-only loan history; checkout, returns, and extensions are not yet implemented. Maintenance provides role-protected record list/create/detail and technician lookup endpoints. `/api/health/` is public and is the endpoint to use for connection checks.
+Protected DRF endpoints require a logged-in Django session (see [Authentication](Architecture.md#9-authentication-and-authorization)) and return `403` for unauthenticated requests with the current configuration. The inventory app provides category and equipment-type lookups and asset list, create, and update routes. The lending app provides borrower list/detail and damage-flag endpoints, plus loan history and checkout; returns and extensions are not yet implemented. Maintenance provides role-protected record list/create/detail and technician lookup endpoints. `/api/health/` is public and is the endpoint to use for connection checks.
 
 ---
 
@@ -464,9 +464,15 @@ All endpoints live under `/api/` and end with a trailing slash.
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/api/health/` | Public. Checks that the API is reachable: `{"status": "ok"}` |
+| GET | `/api/dashboard/` | Authenticated application roles. Returns current counts of non-archived, non-retired inventory. |
+| GET | `/api/analytics/options/` | Authenticated application roles. Returns category/type filter options and available checkout years. |
+| GET | `/api/analytics/availability-summary/` | Authenticated application roles. Current asset status counts by equipment type; supports category/type filters. |
+| GET | `/api/analytics/lending/` | Authenticated application roles. Loan-day, monthly borrowing, or borrower-frequency report selected with `report`; supports checkout year and category/type filters. |
+| GET | `/api/analytics/exports/` | Authenticated application roles. Downloads selected `reports` as one Excel workbook, with current-filter or all-data scope; see [Excel export](Backend.md#excel-export). |
+| GET | `/api/loans/` | Technician or Administrator. Read-only loan history with status, expected-return-date, asset-status, and search filters; see the [loans contract](Backend.md#issue-110-read-only-loans-contract). |
 | GET | `/api/auth/csrf/` | Public. Sets the CSRF cookie and returns `{csrfToken}`. |
 | POST | `/api/auth/login/` | Public, CSRF-protected. Accepts `{username, password}`; returns the current user or `400` for invalid credentials. |
-| GET | `/api/auth/me/` | Returns `id`, `username`, `first_name`, and `last_name`; returns `403` when signed out. |
+| GET | `/api/auth/me/` | Returns `id`, `username`, `first_name`, `last_name`, `role`, and `role_label`; returns `403` when signed out. |
 | POST | `/api/auth/logout/` | Public, CSRF-protected. Ends the session; returns `204` even when already signed out. |
 | GET | `/api/categories/` | Authenticated. Lists active equipment categories for the asset form. |
 | POST | `/api/categories/` | Technician or Administrator. Creates a category from `{name}`. The name is trimmed and must be unique ignoring case, including archived categories; a duplicate returns `400`. |
@@ -829,3 +835,45 @@ Both test runners must discover tests and pass. An empty suite fails CI, includi
 Apply migration `users.0002` with `python manage.py migrate` before using the updated authentication API. It assigns `ADMINISTRATOR` to all existing accounts, matching the confirmed current dataset, without changing their Django staff/superuser flags. New users require an explicit `TECHNICIAN`, `FACULTY`, or `ADMINISTRATOR` role; there is no default. Select the role in Django admin when adding or editing a user. `python manage.py createsuperuser` also prompts for the role (enter its uppercase stored value).
 
 Login and `/api/auth/me/` return `role` and `role_label` for the sidebar. Inventory endpoints allow all three roles to read; only Technicians and Administrators may create, change, or delete inventory. Django enforces this policy regardless of frontend visibility. Django admin still requires staff status, and assigning the Administrator role alone does not grant it.
+
+
+## Analytics reporting
+
+Analytics is read-only and available to active Technicians, Faculty, and
+Administrators using Django session authentication. Inventory owns
+`GET /api/analytics/availability-summary/`; lending owns `GET /api/analytics/options/`
+and `GET /api/analytics/lending/`. Lending also provides
+`GET /api/analytics/exports/` for selected reports in one Excel workbook.
+
+- Options return category/type identifiers and names (including archived lookup
+  choices), and checkout years plus the current business year.
+- Availability groups current assets by equipment type, includes retired assets,
+  and excludes deleted assets/types/categories. It accepts positive integer
+  `category_id` and `equipment_type_id`; a year does not change this snapshot.
+- Lending accepts those filters, `year` (1–9999, default current business year),
+  and `report=utilization|borrowing|borrowers`. Filters combine with AND. Unknown
+  IDs return empty results; malformed values return DRF 400 errors.
+- Year selects loans checked out in that calendar year, excluding future
+  checkouts. Historical reports preserve loans with archived related records.
+- Utilization reports elapsed loan days by equipment type, not a percentage.
+  Borrowing reports twelve monthly checkout counts. Borrower activity groups
+  borrowers into 1, 2–5, 6–10, and 11+ loans; no names or borrower IDs are returned.
+- Transactions count the selected loans. Loan days sum calendar-date differences
+  from checkout to actual return, or the business date for open loans. Same-day
+  loans contribute zero days. Average duration includes open loans. Loan days
+  can extend beyond the checkout year. Overdue rate is the percentage returned
+  late or still open after their due date; due today is not overdue.
+- Business dates use `timezone.localdate()` and the existing configured timezone.
+  This change does not resolve the separate shop-timezone decision.
+
+Export to Excel opens a report-selection dialog, initially selecting the active
+tab and current applied filters. Users may select multiple reports or all data.
+Django generates the workbook with `openpyxl==3.1.5`, included in requirements;
+run the normal pinned requirements install after pulling this change. See
+[Excel export](Backend.md#excel-export) for the API and workbook contract.
+
+Analytics fetches fresh data when opened or revisited, when the selected report
+or applied filters change, and on error retry. Changing a filter control alone
+does not fetch until Apply Filters is used. Downloads fetch fresh data separately.
+The page does not poll or refresh on browser-window focus. See
+[refresh behavior](UI-Design.md#analytics-data-refresh) for details.

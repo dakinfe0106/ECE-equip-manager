@@ -1,150 +1,89 @@
 import { apiBaseUrl } from '../../api'
 import { sessionFetch } from '../auth/sessionFetch'
 
-export type AnalyticsView = 'availability' | 'utilization' | 'borrowing' | 'borrowers'
-
-export interface AnalyticsFilters {
-  year?: number | null
-  categoryId?: number | null
-  equipmentTypeId?: number | null
-  search?: string
+export type Report = 'availability' | 'utilization' | 'borrowing' | 'borrowers'
+export interface Filters { category_id: string; equipment_type_id: string; year: string }
+export interface Options {
+  categories: { category_id: number; name: string; is_deleted: boolean }[]
+  equipment_types: { type_id: number; category_id: number; name: string; is_deleted: boolean }[]
+  years: number[]
 }
-
 export interface AvailabilityRow {
-  category_id: number
-  category_name: string
-  equipment_type_id: number
-  equipment_type_name: string
-  total_assets: number
-  available_assets: number
-  on_loan_assets: number
-  under_maintenance_assets: number
-  retired_assets: number
+  label: string
+  available: number
+  on_loan: number
+  under_maintenance: number
+  retired: number
+  total: number
 }
-
-export interface UtilizationRow {
-  asset_id: number
-  asset_identifier: string
-  asset_name: string
-  category_id: number
-  category_name: string
-  equipment_type_id: number
-  equipment_type_name: string
-  loan_count: number
-  total_loan_days: number
-  average_loan_days: number | null
+export interface LendingReport {
+  year: number
+  as_of: string
+  rows: { label: string; value: number }[]
+  summary: {
+    transactions: number
+    total_loan_days: number
+    average_duration: number
+    overdue_rate: number
+  }
 }
-
-export interface BorrowingSummary {
-  year: number | null
-  total_loans: number
-  completed_loans: number
-  active_loans: number
-  overdue_loans: number
-  intact_returns: number
-  damaged_returns: number
-}
-
-export interface BorrowerActivityRow {
-  borrower_id: number
-  unb_id: string
-  first_name: string
-  last_name: string
-  total_loans: number
-  completed_loans: number
-  active_loans: number
-  overdue_loans: number
-  damaged_returns: number
-}
-
-export type AnalyticsReport =
-  | { results: AvailabilityRow[] }
-  | { year: number | null; results: UtilizationRow[] }
-  | BorrowingSummary
-  | { year: number | null; results: BorrowerActivityRow[] }
-
 export class AnalyticsRequestError extends Error {
   readonly status: number
 
-  constructor(status: number, message = `Analytics request failed (${status})`) {
-    super(message)
+  constructor(status: number, message?: string) {
+    super(message ?? (status === 403 ? 'Sign in or ask for access to analytics.'
+      : status === 400 ? 'Check the selected analytics filters and try again.'
+        : 'Could not load analytics. Please try again.'))
     this.name = 'AnalyticsRequestError'
     this.status = status
   }
 }
-
-const reportPaths: Record<AnalyticsView, string> = {
-  availability: 'availability/',
-  utilization: 'utilization/',
-  borrowing: 'borrowing/',
-  borrowers: 'borrowers/',
-}
-
-function reportUrl(view: AnalyticsView, filters: AnalyticsFilters, exportXlsx = false) {
-  const params = new URLSearchParams()
-  if (filters.year) params.set('year', String(filters.year))
-  if (filters.categoryId) params.set('category_id', String(filters.categoryId))
-  if (filters.equipmentTypeId) params.set('equipment_type_id', String(filters.equipmentTypeId))
-  if (view === 'borrowers' && filters.search?.trim()) {
-    params.set('search', filters.search.trim())
-  }
-  if (exportXlsx) params.set('export', 'xlsx')
-  const query = params.size ? `?${params.toString()}` : ''
-  return `${apiBaseUrl}/analytics/${reportPaths[view]}${query}`
-}
-
-async function throwResponseError(response: Response): Promise<AnalyticsRequestError> {
-  let message = `Analytics request failed (${response.status})`
-  try {
-    const body: unknown = await response.json()
-    if (typeof body === 'object' && body !== null) {
-      const firstValue = Object.values(body).flatMap((value) =>
-        Array.isArray(value) ? value : [value],
-      ).find((value) => typeof value === 'string')
-      if (typeof firstValue === 'string') message = firstValue
-    }
-  } catch {
-    // Keep the HTTP status message when the error has no JSON body.
-  }
-  return new AnalyticsRequestError(response.status, message)
-}
-
-export async function fetchAnalyticsYears(): Promise<number[]> {
-  const response = await sessionFetch(`${apiBaseUrl}/analytics/years/`, {
-    credentials: 'include',
+async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const response = await sessionFetch(`${apiBaseUrl}/analytics/${path}`, {
+    credentials: 'include', signal,
   })
-  if (!response.ok) throw await throwResponseError(response)
-  const body: { years: number[] } = await response.json()
-  return body.years
-}
-
-export async function fetchAnalyticsReport(
-  view: AnalyticsView,
-  filters: AnalyticsFilters,
-): Promise<AnalyticsReport> {
-  const response = await sessionFetch(reportUrl(view, filters), {
-    credentials: 'include',
-  })
-  if (!response.ok) throw await throwResponseError(response)
+  if (!response.ok) throw new AnalyticsRequestError(response.status)
   return response.json()
 }
+export function fetchOptions(signal?: AbortSignal) {
+  return request<Options>('options/', signal)
+}
+export async function fetchReport(report: Report, filters: Filters, signal?: AbortSignal) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) params.set(key, value)
+  }
+  params.set('report', report === 'availability' ? 'borrowing' : report)
+  const lending = await request<LendingReport>(`lending/?${params}`, signal)
+  let availability: AvailabilityRow[] = []
+  if (report === 'availability') {
+    params.delete('year')
+    params.delete('report')
+    availability = (await request<{ rows: AvailabilityRow[] }>(`availability-summary/?${params}`, signal)).rows
+  }
+  return { lending, availability }
+}
 
-export async function downloadAnalyticsReport(
-  view: AnalyticsView,
-  filters: AnalyticsFilters,
-): Promise<void> {
-  const response = await sessionFetch(reportUrl(view, filters, true), {
-    credentials: 'include',
+export type ExportScope = 'current' | 'all'
+
+export async function fetchAnalyticsExport(
+  reports: Report[], scope: ExportScope, filters: Filters, signal?: AbortSignal,
+): Promise<Blob> {
+  const params = new URLSearchParams({ scope })
+  reports.forEach(report => params.append('reports', report))
+  if (scope === 'current') {
+    for (const [key, value] of Object.entries(filters)) {
+      if (value) params.set(key, value)
+    }
+  }
+  const response = await sessionFetch(`${apiBaseUrl}/analytics/exports/?${params}`, {
+    credentials: 'include', signal,
   })
-  if (!response.ok) throw await throwResponseError(response)
-
-  const filename = `ems-${view}-analytics.xlsx`
-  const objectUrl = URL.createObjectURL(await response.blob())
-  const link = document.createElement('a')
-  link.href = objectUrl
-  link.download = filename
-  document.body.append(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(objectUrl)
+  if (!response.ok) {
+    throw new AnalyticsRequestError(response.status,
+      response.status === 403 ? 'Sign in or ask for access to analytics.'
+        : response.status === 400 ? 'Check the selected export reports and filters.'
+          : 'Could not export reports. Please try again.')
+  }
+  return response.blob()
 }

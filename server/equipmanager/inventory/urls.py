@@ -1,8 +1,10 @@
 from django.urls import path
 
 from . import views
+from .analytics import EquipmentAvailability
 
 urlpatterns = [
+    path('analytics/availability-summary/', EquipmentAvailability.as_view(), name='analytics-availability-summary'),
     path("dashboard/", views.Dashboard.as_view(), name="dashboard"),
     path(
         "analytics/availability/",

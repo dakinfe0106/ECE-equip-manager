@@ -1,104 +1,60 @@
-// @vitest-environment jsdom
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { apiBaseUrl } from '../../api'
-import {
-  AnalyticsRequestError,
-  downloadAnalyticsReport,
-  fetchAnalyticsReport,
-  fetchAnalyticsYears,
-} from '../../features/analytics/api'
+import { AnalyticsRequestError, fetchAnalyticsExport, fetchOptions, fetchReport } from '../../features/analytics/api'
 
-const server = setupServer(
-  http.get(`${apiBaseUrl}/analytics/years/`, () => HttpResponse.json({ years: [2025, 2024] })),
-  http.get(`${apiBaseUrl}/analytics/availability/`, () => HttpResponse.json({ results: [] })),
-  http.get(`${apiBaseUrl}/analytics/utilization/`, () => HttpResponse.json({ year: 2025, results: [] })),
-  http.get(`${apiBaseUrl}/analytics/borrowing/`, () => HttpResponse.json({
-    year: 2025,
-    total_loans: 4,
-    completed_loans: 2,
-    active_loans: 2,
-    overdue_loans: 1,
-    intact_returns: 1,
-    damaged_returns: 1,
-  })),
-  http.get(`${apiBaseUrl}/analytics/borrowers/`, () => HttpResponse.json({ year: 2025, results: [] })),
-)
-
+const server = setupServer()
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
-afterEach(() => {
-  server.resetHandlers()
-  vi.restoreAllMocks()
-})
+afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
-
-describe('Analytics API client', () => {
-  it('loads available checkout years', async () => {
-    await expect(fetchAnalyticsYears()).resolves.toEqual([2025, 2024])
-  })
-
-  it('sends report filters to the selected report endpoint', async () => {
-    let requestedUrl = ''
-    server.use(http.get(`${apiBaseUrl}/analytics/borrowers/`, ({ request }) => {
-      requestedUrl = request.url
-      return HttpResponse.json({ year: 2025, results: [] })
+describe('Analytics API', () => {
+  it('sends session credentials and combined filters', async () => {
+    server.use(http.get(`${apiBaseUrl}/analytics/lending/`, ({ request }) => {
+      const url = new URL(request.url)
+      expect(request.credentials).toBe('include')
+      expect(url.searchParams.get('category_id')).toBe('1')
+      expect(url.searchParams.get('equipment_type_id')).toBe('2')
+      expect(url.searchParams.get('year')).toBe('2025')
+      expect(url.searchParams.get('report')).toBe('utilization')
+      return HttpResponse.json({ year: 2025, rows: [] })
     }))
-
-    await fetchAnalyticsReport('borrowers', {
-      year: 2025,
-      categoryId: 3,
-      equipmentTypeId: 7,
-      search: '  Ada  ',
-    })
-
-    const params = new URL(requestedUrl).searchParams
-    expect(params.get('year')).toBe('2025')
-    expect(params.get('category_id')).toBe('3')
-    expect(params.get('equipment_type_id')).toBe('7')
-    expect(params.get('search')).toBe('Ada')
+    expect((await fetchReport('utilization', { category_id: '1', equipment_type_id: '2', year: '2025' })).lending.year).toBe(2025)
   })
-
-  it('downloads a filtered Excel workbook', async () => {
-    let requestedUrl = ''
-    const originalCreateDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
-    const originalRevokeDescriptor = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL')
-    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:test') })
-    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
-    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
-    server.use(http.get(`${apiBaseUrl}/analytics/borrowing/`, ({ request }) => {
-      requestedUrl = request.url
-      return new HttpResponse(new Uint8Array([80, 75, 3, 4]), {
-        headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
-      })
+  it('does not apply historical year to current availability', async () => {
+    server.use(
+      http.get(`${apiBaseUrl}/analytics/lending/`, () => HttpResponse.json({ year: 2025, rows: [] })),
+      http.get(`${apiBaseUrl}/analytics/availability-summary/`, ({ request }) => {
+        expect(new URL(request.url).searchParams.has('year')).toBe(false)
+        return HttpResponse.json({ rows: [] })
+      }),
+    )
+    expect((await fetchReport('availability', { category_id: '', equipment_type_id: '', year: '2025' })).availability).toEqual([])
+  })
+  it.each([400, 403, 500])('preserves HTTP %s errors', async status => {
+    server.use(http.get(`${apiBaseUrl}/analytics/options/`, () => new HttpResponse(null, { status })))
+    await expect(fetchOptions()).rejects.toEqual(new AnalyticsRequestError(status))
+  })
+  it.each(['current', 'all'] as const)('exports selected reports with %s scope', async scope => {
+    server.use(http.get(`${apiBaseUrl}/analytics/exports/`, ({ request }) => {
+      const params = new URL(request.url).searchParams
+      expect(request.credentials).toBe('include')
+      expect(params.getAll('reports')).toEqual(['availability', 'borrowers'])
+      expect(params.get('scope')).toBe(scope)
+      expect(params.get('category_id')).toBe(scope === 'current' ? '1' : null)
+      expect(params.get('equipment_type_id')).toBe(scope === 'current' ? '2' : null)
+      expect(params.get('year')).toBe(scope === 'current' ? '2025' : null)
+      return new HttpResponse('workbook bytes', { headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      } })
     }))
-
-    await downloadAnalyticsReport('borrowing', { year: 2025 })
-
-    expect(new URL(requestedUrl).searchParams.get('year')).toBe('2025')
-    expect(new URL(requestedUrl).searchParams.get('export')).toBe('xlsx')
-    expect(anchorClick).toHaveBeenCalledOnce()
-    if (originalCreateDescriptor) {
-      Object.defineProperty(URL, 'createObjectURL', originalCreateDescriptor)
-    } else {
-      Reflect.deleteProperty(URL, 'createObjectURL')
-    }
-    if (originalRevokeDescriptor) {
-      Object.defineProperty(URL, 'revokeObjectURL', originalRevokeDescriptor)
-    } else {
-      Reflect.deleteProperty(URL, 'revokeObjectURL')
-    }
+    const result = await fetchAnalyticsExport(['availability', 'borrowers'], scope,
+      { category_id: '1', equipment_type_id: '2', year: '2025' })
+    expect(await result.text()).toBe('workbook bytes')
   })
-
-  it('surfaces API errors with their status', async () => {
-    server.use(http.get(`${apiBaseUrl}/analytics/availability/`, () =>
-      HttpResponse.json({ detail: 'Access denied.' }, { status: 403 }),
-    ))
-
-    await expect(fetchAnalyticsReport('availability', {})).rejects.toMatchObject({
-      name: 'AnalyticsRequestError',
-      status: 403,
-      message: 'Access denied.',
-    } satisfies Partial<AnalyticsRequestError>)
+  it.each([400, 403, 500])('reports export HTTP %s errors', async status => {
+    server.use(http.get(`${apiBaseUrl}/analytics/exports/`, () => new HttpResponse(null, { status })))
+    await expect(fetchAnalyticsExport(['availability'], 'current',
+      { category_id: '', equipment_type_id: '', year: '2025' })).rejects.toMatchObject({ status })
   })
 })

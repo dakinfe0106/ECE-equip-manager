@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from equipmanager.excel import excel_response
 from inventory.models import Asset
 
-from .analytics import (
+from .analytics_reports import (
     available_loan_years,
     borrower_activity,
     borrowing_summary,
@@ -413,7 +413,7 @@ class BorrowingAnalytics(APIView):
 
 
 class BorrowerAnalytics(APIView):
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (BorrowerListPermissions,)
 
     def get(self, request):
         params = _analytics_params(request)

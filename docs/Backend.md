@@ -390,3 +390,62 @@ Each endpoint needs tests for:
 | Resource names | `assets/` (matches `database.md`) vs `equipment/` (Architecture.md examples) | URLs, frontend routes. Once decided, also update the examples in `docs/README.md` ("Adding an Endpoint", "Trying a Protected Endpoint") and the comment in `inventory/urls.py` |
 
 Update this guide when a decision is made or when the first feature establishes a pattern, and link to that feature's code as the reference example.
+
+
+## Analytics reporting
+
+The `/analytics` page uses the aggregate endpoints below and its multi-report
+export dialog. The earlier per-asset, borrowing-summary, and named-borrower APIs
+remain available for compatibility at `/api/analytics/utilization/`,
+`/api/analytics/borrowing/`, and `/api/analytics/borrowers/`, alongside
+`/api/analytics/years/` and `/api/analytics/availability/` (including their
+`export=xlsx` behavior). Their helpers live in each app's `analytics_reports.py`;
+the page's calculations live in `analytics.py`. These contracts have different
+response shapes. The page uses `/api/analytics/availability-summary/` to avoid
+changing the existing availability contract. Named-borrower APIs can return
+identities; the page and its multi-report export return aggregate counts only.
+
+Analytics is read-only and available to active Technicians, Faculty, and
+Administrators using Django session authentication. Inventory owns
+`GET /api/analytics/availability-summary/`; lending owns `GET /api/analytics/options/`
+and `GET /api/analytics/lending/`. Lending also owns the read-only multi-report
+workbook endpoint `GET /api/analytics/exports/`.
+
+- Options return category/type identifiers and names (including archived lookup
+  choices), and checkout years plus the current business year.
+- Availability groups current assets by equipment type, includes retired assets,
+  and excludes deleted assets/types/categories. It accepts positive integer
+  `category_id` and `equipment_type_id`; a year does not change this snapshot.
+- Lending accepts those filters, `year` (1–9999, default current business year),
+  and `report=utilization|borrowing|borrowers`. Filters combine with AND. Unknown
+  IDs return empty results; malformed values return DRF 400 errors.
+- Year selects loans checked out in that calendar year, excluding future
+  checkouts. Historical reports preserve loans with archived related records.
+- Utilization reports elapsed loan days by equipment type, not a percentage.
+  Borrowing reports twelve monthly checkout counts. Borrower activity groups
+  borrowers into 1, 2–5, 6–10, and 11+ loans; no names or borrower IDs are returned.
+- Transactions count the selected loans. Loan days sum calendar-date differences
+  from checkout to actual return, or the business date for open loans. Same-day
+  loans contribute zero days. Average duration includes open loans. Loan days
+  can extend beyond the checkout year. Overdue rate is the percentage returned
+  late or still open after their due date; due today is not overdue.
+- Business dates use `timezone.localdate()` and the existing configured timezone.
+  This change does not resolve the separate shop-timezone decision.
+
+### Excel export
+
+`GET /api/analytics/exports/` accepts repeated `reports` parameters with values
+`availability`, `utilization`, `borrowing`, or `borrowers`. At least one unique
+report is required. `scope=current` (default) applies the category, equipment-type,
+and checkout-year filters above. `scope=all` ignores those filters and includes
+all checkout years through the business date. Availability remains a current
+inventory snapshot in either scope.
+
+Django generates one `.xlsx` workbook using pinned `openpyxl==3.1.5`. Each
+selected report gets a worksheet. An Export details worksheet includes the
+generation timestamp, business date/timezone, filters, lending summary metrics,
+and calculation definitions. Exports reuse the page's reporting helpers; borrower
+data remains aggregated for every role. Empty reports retain headers and include
+a note in Export details. All user-supplied strings are written as literal text.
+The endpoint has the same active-role/session permissions as the reporting APIs,
+does not mutate records, and returns `Cache-Control: no-store`.

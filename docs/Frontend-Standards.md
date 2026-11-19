@@ -110,7 +110,7 @@ These come from the Project Overview and [database.md](database.md#4-operating-r
 ## 8. Testing
 
 - **API clients:** test with MSW in `tests/integration/`, using `onUnhandledRequest: 'error'`. Cover success, `400`, and `403`. These tests use mocked responses; they do not prove the real backend works ([Quality.md](Quality.md#verification-evidence-and-handoff)).
-- **Components and routes:** React Testing Library is not installed. Render with `renderToString` from `react-dom/server` (wrapped in `MemoryRouter` for routes) and assert on the HTML, as in `tests/routing.test.tsx`.
+- **Components and routes:** React Testing Library and user-event are installed. Use them with the Vitest jsdom environment for interactive behavior. Simple markup and routing assertions may use `renderToString` from `react-dom/server`, wrapped in `MemoryRouter`, as in `tests/routing.test.tsx`.
 - Add a routing test for each new route.
 
 ## 9. Troubleshooting

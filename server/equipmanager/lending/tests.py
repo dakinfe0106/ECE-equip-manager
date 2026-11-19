@@ -854,3 +854,17 @@ def test_create_borrower_denies_faculty(db):
     )
 
     assert response.status_code == 403
+
+def test_borrower_analytics_denies_faculty(db):
+    user = get_user_model().objects.create_user(
+        username="borrower-analytics-faculty",
+        role="FACULTY",
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    assert client.get("/api/analytics/borrowers/").status_code == 403
+    assert (
+        client.get("/api/analytics/borrowers/", {"export": "xlsx"}).status_code
+        == 403
+    )
