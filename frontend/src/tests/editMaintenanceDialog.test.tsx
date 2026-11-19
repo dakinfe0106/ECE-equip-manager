@@ -189,3 +189,101 @@ describe('Editing a maintenance record', () => {
     expect(screen.queryByLabelText(/Maintenance Type/)).toBeNull()
   })
 })
+
+describe('Unsaved changes in the maintenance details', () => {
+  function renderWithActions() {
+    const onClose = vi.fn()
+    const onComplete = vi.fn()
+    render(
+      <MaintenanceRecordDialog
+        mode="details"
+        record={record}
+        canEdit
+        onClose={onClose}
+        onCreated={() => {}}
+        onComplete={onComplete}
+      />,
+    )
+    return { onClose, onComplete }
+  }
+
+  const edit = () => userEvent.selectOptions(screen.getByLabelText(/Priority/), 'Low')
+
+  it('asks before closing with unsaved edits and stays open when declined', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const { onClose } = renderWithActions()
+
+    await edit()
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await userEvent.click(screen.getByLabelText('Close maintenance dialog'))
+
+    expect(confirm).toHaveBeenCalledWith('You have unsaved changes. Close without saving?')
+    expect(confirm).toHaveBeenCalledTimes(2)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('closes after the user agrees to discard the edits', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { onClose } = renderWithActions()
+
+    await edit()
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes without asking when nothing changed', async () => {
+    const confirm = vi.spyOn(window, 'confirm')
+    const { onClose } = renderWithActions()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(confirm).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not ask again once the edits are saved', async () => {
+    patchResponse = () => HttpResponse.json({ ...record, priority: 'Low' })
+    const confirm = vi.spyOn(window, 'confirm')
+    const { onClose } = renderWithActions()
+
+    await edit()
+    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await screen.findByRole('status')
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(confirm).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('asks before completing with unsaved edits and stays put when declined', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const { onComplete } = renderWithActions()
+
+    await edit()
+    await userEvent.click(screen.getByRole('button', { name: 'Complete Maintenance' }))
+
+    expect(confirm).toHaveBeenCalledWith('Discard unsaved edits and continue to completion?')
+    expect(onComplete).not.toHaveBeenCalled()
+  })
+
+  it('continues to completion after the user agrees to discard the edits', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const { onComplete } = renderWithActions()
+
+    await edit()
+    await userEvent.click(screen.getByRole('button', { name: 'Complete Maintenance' }))
+
+    expect(onComplete).toHaveBeenCalledTimes(1)
+  })
+
+  it('completes without asking when nothing changed', async () => {
+    const confirm = vi.spyOn(window, 'confirm')
+    const { onComplete } = renderWithActions()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Complete Maintenance' }))
+
+    expect(confirm).not.toHaveBeenCalled()
+    expect(onComplete).toHaveBeenCalledTimes(1)
+  })
+})

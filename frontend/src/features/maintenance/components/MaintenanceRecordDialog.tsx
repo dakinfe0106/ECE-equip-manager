@@ -158,6 +158,23 @@ export default function MaintenanceRecordDialog({
   }
   const hasChanges = Object.keys(changes).length > 0
 
+  const requestClose = () => {
+    if (hasChanges && !window.confirm('You have unsaved changes. Close without saving?')) {
+      return
+    }
+    onClose()
+  }
+
+  const requestComplete = () => {
+    if (
+      hasChanges
+      && !window.confirm('Discard unsaved edits and continue to completion?')
+    ) {
+      return
+    }
+    onComplete?.()
+  }
+
   const submitCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const assetId = Number(selectedAssetId)
@@ -219,10 +236,10 @@ export default function MaintenanceRecordDialog({
       aria-labelledby="maintenance-dialog-title"
       onCancel={(event) => {
         event.preventDefault()
-        onClose()
+        requestClose()
       }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) onClose()
+        if (event.target === event.currentTarget) requestClose()
       }}
     >
       <form onSubmit={isCreate ? submitCreate : submitEdit}>
@@ -242,7 +259,7 @@ export default function MaintenanceRecordDialog({
             type="button"
             className="rounded-lg border border-input bg-white px-3 py-1 text-lg text-muted hover:bg-page"
             aria-label="Close maintenance dialog"
-            onClick={onClose}
+            onClick={requestClose}
           >
             ×
           </button>
@@ -419,7 +436,7 @@ export default function MaintenanceRecordDialog({
             className="min-h-9 rounded-lg border border-input bg-white px-4 text-[12px] font-semibold text-body hover:bg-page"
             type="button"
             disabled={isSubmitting}
-            onClick={onClose}
+            onClick={requestClose}
           >
             Close
           </button>
@@ -450,7 +467,7 @@ export default function MaintenanceRecordDialog({
             <button
               className="min-h-9 rounded-lg bg-primary px-4 text-[12px] font-semibold text-white hover:bg-primary-hover"
               type="button"
-              onClick={onComplete}
+              onClick={requestComplete}
             >
               Complete Maintenance
             </button>
