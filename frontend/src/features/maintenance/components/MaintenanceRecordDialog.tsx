@@ -18,6 +18,7 @@ interface MaintenanceRecordDialogProps {
   record?: MaintenanceRecord
   onClose: () => void
   onCreated: () => void
+  onComplete?: () => void
 }
 
 const priorities: MaintenancePriority[] = ['Low', 'Medium', 'High', 'Urgent']
@@ -51,6 +52,7 @@ export default function MaintenanceRecordDialog({
   record,
   onClose,
   onCreated,
+  onComplete,
 }: MaintenanceRecordDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const isCreate = mode === 'create'
@@ -365,6 +367,15 @@ export default function MaintenanceRecordDialog({
               {isSubmitting ? 'Saving…' : 'Save Maintenance'}
             </button>
           ) : null}
+          {!isCreate && record?.status === 'In Progress' && onComplete && (
+            <button
+              className="min-h-9 rounded-lg bg-primary px-4 text-[12px] font-semibold text-white hover:bg-primary-hover"
+              type="button"
+              onClick={onComplete}
+            >
+              Complete Maintenance
+            </button>
+          )}
         </footer>
       </form>
     </dialog>

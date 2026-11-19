@@ -18,4 +18,9 @@ urlpatterns = [
         views.MaintenanceRecordDetail.as_view(),
         name="maintenance-record-detail",
     ),
+    path(
+        "maintenance-records/<int:pk>/complete/",
+        views.MaintenanceRecordComplete.as_view(),
+        name="maintenance-record-complete",
+    ),
 ]

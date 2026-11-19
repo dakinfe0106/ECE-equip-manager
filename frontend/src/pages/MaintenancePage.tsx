@@ -3,6 +3,7 @@ import PageIntro from '../components/ui/PageIntro'
 import Panel from '../components/ui/Panel'
 import { hasPermission } from '../features/auth/api'
 import { useAuth } from '../features/auth/useAuth'
+import CompleteMaintenanceDialog from '../features/maintenance/components/CompleteMaintenanceDialog'
 import MaintenanceRecordDialog from '../features/maintenance/components/MaintenanceRecordDialog'
 import {
   maintenanceTypeLabels,
@@ -49,6 +50,7 @@ export default function MaintenancePage() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [dialogMode, setDialogMode] = useState<'create' | 'details' | null>(null)
   const [selectedRecord, setSelectedRecord] = useState<MaintenanceRecord | undefined>()
+  const [recordToComplete, setRecordToComplete] = useState<MaintenanceRecord | undefined>()
   const [statusMessage, setStatusMessage] = useState('')
   const {
     records,
@@ -59,6 +61,7 @@ export default function MaintenancePage() {
     pageSize,
   } = useMaintenanceRecords(filters, page, refreshKey)
   const canCreate = hasPermission(user, 'maintenance.add_maintenancerecord')
+  const canComplete = hasPermission(user, 'maintenance.change_maintenancerecord')
 
   const applySearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -323,6 +326,34 @@ export default function MaintenancePage() {
           onCreated={() => {
             closeDialog()
             setStatusMessage('Maintenance record created. Equipment is now under maintenance.')
+            refreshRecords()
+          }}
+          onComplete={
+            canComplete && selectedRecord
+              ? () => {
+                  const record = selectedRecord
+                  closeDialog()
+                  setRecordToComplete(record)
+                  setStatusMessage('')
+                }
+              : undefined
+          }
+        />
+      )}
+
+      {recordToComplete && (
+        <CompleteMaintenanceDialog
+          record={recordToComplete}
+          onClose={() => setRecordToComplete(undefined)}
+          onCompleted={(completed, outcome) => {
+            setRecordToComplete(undefined)
+            setSelectedRecord(completed)
+            setDialogMode('details')
+            setStatusMessage(
+              outcome === 'Retired'
+                ? 'Maintenance completed and the asset was retired.'
+                : 'Maintenance completed and the asset was returned to service.',
+            )
             refreshRecords()
           }}
         />
