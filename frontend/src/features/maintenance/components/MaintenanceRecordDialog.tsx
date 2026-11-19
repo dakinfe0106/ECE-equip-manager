@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   createMaintenanceRecord,
@@ -13,12 +14,19 @@ import {
 } from '../api'
 import type { AssetRecord } from '../../assets/api'
 
+interface PreselectedMaintenanceAsset {
+  asset_id: number
+  asset_identifier: string
+  name: string
+}
+
 interface MaintenanceRecordDialogProps {
   mode: 'create' | 'details'
   record?: MaintenanceRecord
   onClose: () => void
   onCreated: () => void
   onComplete?: () => void
+  preselectedAsset?: PreselectedMaintenanceAsset
 }
 
 const priorities: MaintenancePriority[] = ['Low', 'Medium', 'High', 'Urgent']
@@ -53,18 +61,25 @@ export default function MaintenanceRecordDialog({
   onClose,
   onCreated,
   onComplete,
+  preselectedAsset,
 }: MaintenanceRecordDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const isCreate = mode === 'create'
+  const hasPreselectedAsset = Boolean(preselectedAsset)
+
   const [assetSearch, setAssetSearch] = useState('')
   const [assets, setAssets] = useState<AssetRecord[]>([])
   const [technicians, setTechnicians] = useState<MaintenanceTechnician[]>([])
-  const [selectedAssetId, setSelectedAssetId] = useState('')
+  const [selectedAssetId, setSelectedAssetId] = useState(
+    preselectedAsset ? String(preselectedAsset.asset_id) : '',
+  )
   const [selectedTechnicianId, setSelectedTechnicianId] = useState('')
   const [maintenanceType, setMaintenanceType] = useState<MaintenanceType>('Repair')
   const [priority, setPriority] = useState<MaintenancePriority>('Medium')
   const [startDate, setStartDate] = useState(localDate)
-  const [isLoadingAssets, setIsLoadingAssets] = useState(isCreate)
+  const [isLoadingAssets, setIsLoadingAssets] = useState(
+    isCreate && !hasPreselectedAsset,
+  )
   const [isLoadingTechnicians, setIsLoadingTechnicians] = useState(isCreate)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
@@ -80,7 +95,8 @@ export default function MaintenanceRecordDialog({
   }, [])
 
   useEffect(() => {
-    if (!isCreate) return
+    if (!isCreate || hasPreselectedAsset) return
+
     let isCurrent = true
     const timeout = window.setTimeout(() => {
       setIsLoadingAssets(true)
@@ -105,10 +121,11 @@ export default function MaintenanceRecordDialog({
       isCurrent = false
       window.clearTimeout(timeout)
     }
-  }, [assetSearch, isCreate])
+  }, [assetSearch, isCreate, hasPreselectedAsset])
 
   useEffect(() => {
     if (!isCreate) return
+
     let isCurrent = true
     fetchMaintenanceTechnicians()
       .then((activeTechnicians) => {
@@ -136,13 +153,17 @@ export default function MaintenanceRecordDialog({
     event.preventDefault()
     const assetId = Number(selectedAssetId)
     const technicianId = Number(selectedTechnicianId)
+
     if (!assetId || !technicianId) {
-      setErrorMessage('Select available equipment and a responsible technician.')
+      setErrorMessage(
+        'Select equipment and a responsible technician.',
+      )
       return
     }
 
     setIsSubmitting(true)
     setErrorMessage('')
+
     try {
       await createMaintenanceRecord({
         asset_id: assetId,
@@ -200,44 +221,62 @@ export default function MaintenanceRecordDialog({
         <div className="grid grid-cols-2 gap-4 px-6 py-5 max-[600px]:grid-cols-1">
           {isCreate ? (
             <>
-              <label className="flex flex-col gap-1.5 text-[11px] font-semibold text-body">
-                <span>Search available equipment by Asset ID *</span>
-                <input
-                  className="min-h-10 rounded-lg border border-input px-3 text-[12px] font-normal"
-                  value={assetSearch}
-                  onChange={(event) => {
-                    setAssetSearch(event.target.value)
-                    setSelectedAssetId('')
-                    setErrorMessage('')
-                  }}
-                  placeholder="Search Asset ID..."
-                  autoComplete="off"
-                />
-              </label>
-              <label className="flex flex-col gap-1.5 text-[11px] font-semibold text-body">
-                <span>Equipment *</span>
-                <select
-                  className="min-h-10 rounded-lg border border-input bg-white px-3 text-[12px] font-normal"
-                  required
-                  value={selectedAssetId}
-                  onChange={(event) => setSelectedAssetId(event.target.value)}
-                  disabled={isLoadingAssets}
-                >
-                  <option value="">
-                    {isLoadingAssets ? 'Loading available equipment…' : 'Select equipment'}
-                  </option>
-                  {assets.map((asset) => (
-                    <option key={asset.asset_id} value={asset.asset_id}>
-                      {asset.asset_identifier} · {asset.name}
-                    </option>
-                  ))}
-                </select>
-                {!isLoadingAssets && assets.length === 0 && (
-                  <span className="font-normal text-muted">
-                    No available equipment matches this search.
+              {preselectedAsset ? (
+                <div className="col-span-full flex flex-col gap-1.5 text-[11px]">
+                  <span className="font-semibold text-muted">
+                    Returned equipment
                   </span>
-                )}
-              </label>
+                  <div className="min-h-10 rounded-lg border border-input bg-page px-3 py-2.5 text-[12px] text-body">
+                    {preselectedAsset.asset_identifier} · {preselectedAsset.name}
+                  </div>
+                  <span className="text-[10px] font-normal text-muted">
+                    This equipment was returned as damaged and is already marked
+                    Under Maintenance.
+                  </span>
+                </div>
+              ) : (
+                <>
+                  <label className="flex flex-col gap-1.5 text-[11px] font-semibold text-body">
+                    <span>Search available equipment by Asset ID *</span>
+                    <input
+                      className="min-h-10 rounded-lg border border-input px-3 text-[12px] font-normal"
+                      value={assetSearch}
+                      onChange={(event) => {
+                        setAssetSearch(event.target.value)
+                        setSelectedAssetId('')
+                        setErrorMessage('')
+                      }}
+                      placeholder="Search Asset ID..."
+                      autoComplete="off"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1.5 text-[11px] font-semibold text-body">
+                    <span>Equipment *</span>
+                    <select
+                      className="min-h-10 rounded-lg border border-input bg-white px-3 text-[12px] font-normal"
+                      required
+                      value={selectedAssetId}
+                      onChange={(event) => setSelectedAssetId(event.target.value)}
+                      disabled={isLoadingAssets}
+                    >
+                      <option value="">
+                        {isLoadingAssets ? 'Loading available equipment…' : 'Select equipment'}
+                      </option>
+                      {assets.map((asset) => (
+                        <option key={asset.asset_id} value={asset.asset_id}>
+                          {asset.asset_identifier} · {asset.name}
+                        </option>
+                      ))}
+                    </select>
+                    {!isLoadingAssets && assets.length === 0 && (
+                      <span className="font-normal text-muted">
+                        No available equipment matches this search.
+                      </span>
+                    )}
+                  </label>
+                </>
+              )}
+
               <label className="flex flex-col gap-1.5 text-[11px] font-semibold text-body">
                 <span>Maintenance Type *</span>
                 <select
@@ -257,6 +296,7 @@ export default function MaintenanceRecordDialog({
                   ))}
                 </select>
               </label>
+
               <label className="flex flex-col gap-1.5 text-[11px] font-semibold text-body">
                 <span>Priority *</span>
                 <select
@@ -274,6 +314,7 @@ export default function MaintenanceRecordDialog({
                   ))}
                 </select>
               </label>
+
               <label className="flex flex-col gap-1.5 text-[11px] font-semibold text-body">
                 <span>Responsible Technician *</span>
                 <select
@@ -293,6 +334,7 @@ export default function MaintenanceRecordDialog({
                   ))}
                 </select>
               </label>
+
               <label className="flex flex-col gap-1.5 text-[11px] font-semibold text-body">
                 <span>Start Date *</span>
                 <input
@@ -333,6 +375,7 @@ export default function MaintenanceRecordDialog({
               </div>
             </>
           ) : null}
+
           {errorMessage && (
             <p
               className="col-span-full m-0 rounded-lg border border-danger/20 bg-danger-soft px-3 py-2 text-[12px] text-danger"
@@ -352,6 +395,7 @@ export default function MaintenanceRecordDialog({
           >
             Close
           </button>
+
           {isCreate ? (
             <button
               className="min-h-9 rounded-lg bg-primary px-4 text-[12px] font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
@@ -367,6 +411,7 @@ export default function MaintenanceRecordDialog({
               {isSubmitting ? 'Saving…' : 'Save Maintenance'}
             </button>
           ) : null}
+
           {!isCreate && record?.status === 'In Progress' && onComplete && (
             <button
               className="min-h-9 rounded-lg bg-primary px-4 text-[12px] font-semibold text-white hover:bg-primary-hover"

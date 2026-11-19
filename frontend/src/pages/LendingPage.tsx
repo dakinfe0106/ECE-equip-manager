@@ -8,16 +8,29 @@ import LoanSearch from '../features/lending/components/LoanSearch'
 import LoanTable from '../features/lending/components/LoanTable'
 import useLoans from '../features/lending/hooks/useLoans'
 import CheckoutModal from '../features/lending/components/CheckoutModal'
+import ReturnLoanModal from '../features/lending/components/ReturnLoanModal'
+import MaintenanceRecordDialog from '../features/maintenance/components/MaintenanceRecordDialog'
 import {
   defaultLoanFilters,
   type LoanFilters as LoanFiltersType,
   type LoanRecord,
 } from '../features/lending/types'
 
+interface PreselectedMaintenanceAsset {
+  asset_id: number
+  asset_identifier: string
+  name: string
+}
+
 export default function LendingPage() {
   const [showCheckoutModal, setShowCheckoutModal] = useState(false)
+  const [showReturnLoanModal, setShowReturnLoanModal] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [checkoutSuccessMessage, setCheckoutSuccessMessage] = useState('')
+  const [returnSuccessMessage, setReturnSuccessMessage] = useState('')
+  const [maintenanceSuccessMessage, setMaintenanceSuccessMessage] = useState('')
+  const [maintenanceAsset, setMaintenanceAsset] =
+    useState<PreselectedMaintenanceAsset | null>(null)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filters, setFilters] = useState<LoanFiltersType>({
@@ -66,6 +79,7 @@ export default function LendingPage() {
           </button>
         }
       />
+
       {checkoutSuccessMessage && (
         <div
           role="status"
@@ -77,6 +91,42 @@ export default function LendingPage() {
             type="button"
             aria-label="Dismiss checkout confirmation"
             onClick={() => setCheckoutSuccessMessage('')}
+            className="rounded px-2 py-1 font-semibold hover:bg-white/50"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {returnSuccessMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-success/20 bg-success-soft px-4 py-3 text-[11px] text-success"
+        >
+          <span>{returnSuccessMessage}</span>
+          <button
+            type="button"
+            aria-label="Dismiss return confirmation"
+            onClick={() => setReturnSuccessMessage('')}
+            className="rounded px-2 py-1 font-semibold hover:bg-white/50"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {maintenanceSuccessMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-success/20 bg-success-soft px-4 py-3 text-[11px] text-success"
+        >
+          <span>{maintenanceSuccessMessage}</span>
+          <button
+            type="button"
+            aria-label="Dismiss maintenance confirmation"
+            onClick={() => setMaintenanceSuccessMessage('')}
             className="rounded px-2 py-1 font-semibold hover:bg-white/50"
           >
             ×
@@ -159,7 +209,55 @@ export default function LendingPage() {
       <LoanDetailsModal
         loan={selectedLoan}
         onClose={() => setSelectedLoan(null)}
+        onProcessReturn={() => setShowReturnLoanModal(true)}
       />
+
+      {showReturnLoanModal && selectedLoan && (
+        <ReturnLoanModal
+          loan={selectedLoan}
+          onClose={() => setShowReturnLoanModal(false)}
+          onSuccess={(result) => {
+            const returnedLoan = result.loan
+
+            setShowReturnLoanModal(false)
+            setSelectedLoan(null)
+            setRefreshKey((current) => current + 1)
+
+            if (result.maintenance_required) {
+              setReturnSuccessMessage(
+                `${returnedLoan.equipment_name} was returned as damaged and marked Under Maintenance.`,
+              )
+
+              setMaintenanceAsset({
+                asset_id: returnedLoan.asset_id,
+                asset_identifier: returnedLoan.asset_identifier,
+                name: returnedLoan.equipment_name,
+              })
+            } else {
+              setReturnSuccessMessage(
+                `${returnedLoan.equipment_name} was returned successfully. The equipment is now available.`,
+              )
+            }
+          }}
+        />
+      )}
+
+      {maintenanceAsset && (
+        <MaintenanceRecordDialog
+          mode="create"
+          preselectedAsset={maintenanceAsset}
+          onClose={() => setMaintenanceAsset(null)}
+          onCreated={() => {
+            const equipmentName = maintenanceAsset.name
+
+            setMaintenanceAsset(null)
+            setMaintenanceSuccessMessage(
+              `A maintenance record for ${equipmentName} was created successfully.`,
+            )
+            setRefreshKey((current) => current + 1)
+          }}
+        />
+      )}
 
       {showCheckoutModal && (
         <CheckoutModal
@@ -170,9 +268,9 @@ export default function LendingPage() {
               `${loan.equipment_name} was checked out to ${loan.borrower_name}.`,
             )
             setRefreshKey((current) => current + 1)
-        }}
-      />
-    )}
+          }}
+        />
+      )}
     </section>
   )
 }

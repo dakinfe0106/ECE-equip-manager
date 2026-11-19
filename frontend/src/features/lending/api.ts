@@ -1,3 +1,4 @@
+
 import { apiBaseUrl } from '../../api'
 import { sessionFetch } from '../auth/sessionFetch'
 import type { LoanFilters, LoanRecord } from './types'
@@ -52,6 +53,7 @@ export async function fetchLoans(
 
   return response.json()
 }
+
 export interface LoanCheckoutInput {
   asset_id: number
   borrower_id: number
@@ -133,4 +135,95 @@ export async function createLoan(
   }
 
   return response.json() as Promise<LoanRecord>
+}
+
+export interface LoanReturnInput {
+  actual_return_date: string
+  return_condition: 'Intact' | 'Damaged'
+}
+
+export interface LoanReturnResponse {
+  loan: LoanRecord
+  maintenance_required: boolean
+}
+
+export class LoanReturnError extends Error {
+  readonly status: number
+  readonly fieldErrors: Record<string, string[]>
+
+  constructor(
+    status: number,
+    message: string,
+    fieldErrors: Record<string, string[]> = {},
+  ) {
+    super(message)
+    this.name = 'LoanReturnError'
+    this.status = status
+    this.fieldErrors = fieldErrors
+  }
+}
+
+export async function returnLoan(
+  loanId: number,
+  input: LoanReturnInput,
+): Promise<LoanReturnResponse> {
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+  })
+
+  const csrfCookie = typeof document === 'undefined'
+    ? undefined
+    : document.cookie
+        .split('; ')
+        .find((cookie) => cookie.startsWith('csrftoken='))
+
+  if (csrfCookie) {
+    headers.set(
+      'X-CSRFToken',
+      decodeURIComponent(csrfCookie.slice('csrftoken='.length)),
+    )
+  }
+
+  const response = await sessionFetch(
+    `${apiBaseUrl}/loans/${loanId}/return/`,
+    {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(input),
+    },
+  )
+
+  if (!response.ok) {
+    let message = `Loan return failed (${response.status})`
+    const fieldErrors: Record<string, string[]> = {}
+
+    try {
+      const body: unknown = await response.json()
+
+      if (typeof body === 'object' && body !== null) {
+        for (const [field, value] of Object.entries(body)) {
+          if (Array.isArray(value)) {
+            fieldErrors[field] = value.map(String)
+          } else if (typeof value === 'string') {
+            if (field === 'detail') {
+              message = value
+            } else {
+              fieldErrors[field] = [value]
+            }
+          }
+        }
+      }
+    } catch {
+      // Keep the default HTTP error message.
+    }
+
+    throw new LoanReturnError(
+      response.status,
+      message,
+      fieldErrors,
+    )
+  }
+
+  return response.json() as Promise<LoanReturnResponse>
 }
