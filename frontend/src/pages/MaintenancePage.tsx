@@ -61,6 +61,7 @@ export default function MaintenancePage() {
     pageSize,
   } = useMaintenanceRecords(filters, page, refreshKey)
   const canCreate = hasPermission(user, 'maintenance.add_maintenancerecord')
+  const canEdit = hasPermission(user, 'maintenance.change_maintenancerecord')
   const canComplete = hasPermission(user, 'maintenance.change_maintenancerecord')
 
   const applySearch = (event: FormEvent<HTMLFormElement>) => {
@@ -322,10 +323,15 @@ export default function MaintenancePage() {
         <MaintenanceRecordDialog
           mode={dialogMode}
           record={selectedRecord}
+          canEdit={canEdit}
           onClose={closeDialog}
           onCreated={() => {
             closeDialog()
             setStatusMessage('Maintenance record created. Equipment is now under maintenance.')
+            refreshRecords()
+          }}
+          onUpdated={(updated) => {
+            setSelectedRecord(updated)
             refreshRecords()
           }}
           onComplete={
