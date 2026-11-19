@@ -51,7 +51,7 @@ def test_selected_sheets_match_the_reporting_api(client, records):
         "Borrower Activity",
     ]
     with patch("lending.analytics.timezone.localtime", return_value=GENERATED_AT):
-        availability = client.get("/api/analytics/availability/", params).json()["rows"]
+        availability = client.get("/api/analytics/availability-summary/", params).json()["rows"]
         for report, name in zip(REPORTS[1:], book.sheetnames[2:], strict=True):
             data = client.get(
                 "/api/analytics/lending/", dict(params, report=report)

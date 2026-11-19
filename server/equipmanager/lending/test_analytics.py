@@ -80,7 +80,7 @@ def test_utilization_and_archived_history(client, records):
             'category_id': category.pk, 'equipment_type_id': equipment_type.pk,
         })
     assert response.json()['rows'] == [{'label': 'Meters / Digital', 'value': 20}]
-    assert client.get('/api/analytics/availability/').json()['rows'] == []
+    assert client.get('/api/analytics/availability-summary/').json()['rows'] == []
 
 
 @pytest.mark.parametrize('query', [
@@ -91,7 +91,7 @@ def test_invalid_filters(client, query):
     assert client.get(f'/api/analytics/lending/?{query}').status_code == 400
 
 
-@pytest.mark.parametrize('path', ['options', 'lending', 'availability'])
+@pytest.mark.parametrize('path', ['options', 'lending', 'availability-summary'])
 def test_reports_require_session_and_are_read_only(client, path):
     url = f'/api/analytics/{path}/'
     assert APIClient().get(url).status_code == 403
@@ -104,7 +104,7 @@ def test_all_application_roles_can_read(role):
     user = get_user_model().objects.create_user(username=role, role=role)
     client = APIClient()
     client.force_login(user)
-    for path in ('options', 'lending', 'availability'):
+    for path in ('options', 'lending', 'availability-summary'):
         assert client.get(f'/api/analytics/{path}/').status_code == 200
 
 
@@ -115,11 +115,11 @@ def test_availability_status_counts_and_filters(client, records):
         loan.asset.save()
     Asset.objects.create(type=equipment_type, asset_identifier='TEST-RETIRED',
                          name='Retired meter', status='Retired')
-    rows = client.get('/api/analytics/availability/', {'category_id': category.pk}).json()['rows']
+    rows = client.get('/api/analytics/availability-summary/', {'category_id': category.pk}).json()['rows']
     assert rows == [{'label': 'Meters / Digital', 'available': 1, 'on_loan': 1,
                      'under_maintenance': 1, 'retired': 1, 'total': 4}]
-    assert client.get('/api/analytics/availability/?equipment_type_id=999999').json()['rows'] == []
-    assert client.get('/api/analytics/availability/?category_id=bad').status_code == 400
+    assert client.get('/api/analytics/availability-summary/?equipment_type_id=999999').json()['rows'] == []
+    assert client.get('/api/analytics/availability-summary/?category_id=bad').status_code == 400
 
 
 def test_empty_and_future_checkouts(client, records):
@@ -182,7 +182,7 @@ def test_denies_unsupported_or_inactive_users(role, is_active):
     user.is_active = is_active
     client = APIClient()
     client.force_authenticate(user)
-    for path in ('options', 'lending', 'availability'):
+    for path in ('options', 'lending', 'availability-summary'):
         assert client.get(f'/api/analytics/{path}/').status_code == 403
 
 
@@ -212,7 +212,7 @@ def test_analytics_over_real_http_with_csrf_and_session(live_server, records):
     with opener.open(login, timeout=10) as response:
         assert response.status == 200
     assert read('analytics/options/')['equipment_types'][0]['name'] == 'Digital'
-    assert read('analytics/availability/')['rows'][0]['total'] == 3
+    assert read('analytics/availability-summary/')['rows'][0]['total'] == 3
     for report in ('utilization', 'borrowing', 'borrowers'):
         data = read(f'analytics/lending/?year=2025&report={report}')
         assert data['summary']['transactions'] == 2

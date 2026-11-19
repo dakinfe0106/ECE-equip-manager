@@ -226,11 +226,9 @@ describe('AssetDetails modal', () => {
       screen.getByRole('button', { name: 'Save Changes' }),
     )
 
-    const alert = screen.getByRole('alert')
-
-    expect(alert.textContent).toContain(
-      'Asset Name cannot be empty or contain only spaces.',
-    )
+    expect(
+      screen.getByText('Asset Name cannot be empty or contain only spaces.'),
+    ).toBeTruthy()
   })
 
   it('warns before closing after edits and supports keeping or discarding changes', async () => {

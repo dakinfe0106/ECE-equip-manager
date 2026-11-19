@@ -59,7 +59,7 @@ export async function fetchReport(report: Report, filters: Filters, signal?: Abo
   if (report === 'availability') {
     params.delete('year')
     params.delete('report')
-    availability = (await request<{ rows: AvailabilityRow[] }>(`availability/?${params}`, signal)).rows
+    availability = (await request<{ rows: AvailabilityRow[] }>(`availability-summary/?${params}`, signal)).rows
   }
   return { lending, availability }
 }

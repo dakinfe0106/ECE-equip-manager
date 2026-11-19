@@ -1,14 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import PageIntro from '../components/ui/PageIntro'
 import Panel from '../components/ui/Panel'
 import BorrowerDetailsWorkflow from '../features/borrowers/components/BorrowerDetailsWorkflow'
 import BorrowerPagination from '../features/borrowers/components/BorrowerPagination'
 import BorrowerSearchToolbar from '../features/borrowers/components/BorrowerSearchToolbar'
 import BorrowerTable from '../features/borrowers/components/BorrowerTable'
+import AddBorrowerModal from '../features/borrowers/components/AddBorrowerModal'
 import { fetchAllAssets } from '../features/assets/api'
 import {
+  createBorrower,
   describeBorrowerDetailsError,
   fetchBorrowerDetails,
+  updateBorrower,
+  type BorrowerCreateInput,
   type BorrowerDetailsRecord,
   type BorrowerRecord,
 } from '../features/borrowers/api'
@@ -31,6 +34,7 @@ export default function BorrowersPage() {
   const [appliedSearch, setAppliedSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedBorrower, setSelectedBorrower] = useState<BorrowerRecord | null>(null)
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [borrowerDetailsRecord, setBorrowerDetailsRecord] = useState<BorrowerDetailsRecord | null>(null)
   const [detailsResult, setDetailsResult] = useState<{
     borrowerId: number
@@ -45,13 +49,29 @@ export default function BorrowersPage() {
     error: string
   }>()
   const {
-    borrowers,
+    borrowers: initialBorrowers,
     errorMessage,
     isLoading,
     pageCount,
     pageSize,
     totalCount,
   } = useBorrowers(currentPage, appliedSearch)
+
+  const [addedBorrowers, setAddedBorrowers] = useState<BorrowerRecord[]>([])
+  const [updatedBorrowersById, setUpdatedBorrowersById] = useState<
+    Record<number, Partial<BorrowerRecord>>
+  >({})
+
+  const localBorrowers = [
+    ...addedBorrowers.filter(
+      (added) => !initialBorrowers.some((b) => b.borrower_id === added.borrower_id),
+    ),
+    ...initialBorrowers,
+  ].map((borrower) =>
+    updatedBorrowersById[borrower.borrower_id]
+      ? { ...borrower, ...updatedBorrowersById[borrower.borrower_id] }
+      : borrower,
+  )
 
   useEffect(() => {
     if (!selectedBorrower) return
@@ -171,8 +191,30 @@ export default function BorrowersPage() {
       unresolved_damage_flag_count: currentDetailsRecord?.unresolved_damage_flag_count,
       damage_warning_level: currentDetailsRecord?.damage_warning_level,
       damage_eligible: currentDetailsRecord?.damage_eligible,
+      is_manual_enrollment: currentDetailsRecord?.is_manual_enrollment,
     }
     : null
+
+  const handleCreateBorrower = async (data: BorrowerCreateInput) => {
+    const newRecord = await createBorrower(data)
+    setAddedBorrowers((prev) => [newRecord, ...prev])
+  }
+
+  const handleSaveBorrower = async (updatedData: { first_name: string }) => {
+    if (!selectedBorrower) return
+    const updatedRecord = await updateBorrower(selectedBorrower.borrower_id, updatedData)
+    setBorrowerDetailsRecord(updatedRecord)
+    setSelectedBorrower({
+      ...selectedBorrower,
+      first_name: updatedRecord.first_name,
+    })
+    setUpdatedBorrowersById((prev) => ({
+      ...prev,
+      [selectedBorrower.borrower_id]: {
+        first_name: updatedRecord.first_name,
+      },
+    }))
+  }
 
   return (
     <>
@@ -180,10 +222,26 @@ export default function BorrowersPage() {
         className="mx-auto flex h-full min-h-0 w-full max-w-[1500px] flex-col px-[34px] pt-[34px] pb-[50px] max-[760px]:px-4 max-[760px]:pt-6 max-[760px]:pb-10"
         aria-labelledby="page-title"
       >
-        <PageIntro
-          title="Borrowers"
-          description="Find borrowers and review their records."
-        />
+        <div className="mb-[27px]">
+          <h1
+            id="page-title"
+            className="m-0 text-[22px] font-[750] tracking-[-0.01em] text-heading mb-1"
+          >
+            Borrowers
+          </h1>
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-[18px] max-[760px]:items-start max-[520px]:block">
+            <p className="m-0 text-[13px] text-muted">
+              Find borrowers and review their records.
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsAddModalOpen(true)}
+              className="inline-flex min-h-[38px] items-center justify-center gap-[7px] whitespace-nowrap rounded-lg border border-primary bg-primary px-[15px] text-[12px] font-[650] text-white shadow-[0_4px_10px_rgb(47_111_237_/_22%)] hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-primary"
+            >
+              + Add Borrower
+            </button>
+          </div>
+        </div>
 
         <Panel className="flex min-h-0 flex-1 flex-col overflow-hidden" label="Borrower search results">
           <BorrowerSearchToolbar
@@ -213,7 +271,7 @@ export default function BorrowersPage() {
 
           <BorrowerTable
             appliedSearch={appliedSearch}
-            borrowers={borrowers}
+            borrowers={localBorrowers}
             errorMessage={errorMessage}
             isLoading={isLoading}
             onViewDetails={(record) => {
@@ -231,6 +289,14 @@ export default function BorrowersPage() {
           />
         </Panel>
       </section>
+
+      {isAddModalOpen && (
+        <AddBorrowerModal
+          onClose={() => setIsAddModalOpen(false)}
+          onSave={handleCreateBorrower}
+        />
+      )}
+
       {borrowerDetails && (
         <BorrowerDetailsWorkflow
           key={borrowerDetails.borrower_id}
@@ -253,6 +319,7 @@ export default function BorrowersPage() {
           equipmentOptionsError={equipmentOptionsError}
           onRetryEquipmentOptions={() => setEquipmentRetry((retry) => retry + 1)}
           onClose={() => setSelectedBorrower(null)}
+          onSave={handleSaveBorrower}
         />
       )}
     </>

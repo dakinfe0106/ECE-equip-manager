@@ -60,8 +60,10 @@ export interface AssetCreation {
 }
 
 export interface AssetFilters {
+  assetIdentifier?: string
   categoryId?: number | null
   equipmentTypeId?: number | null
+  status?: AssetStatus
 }
 
 export class AssetLookupError extends Error {
@@ -181,11 +183,18 @@ export async function fetchAssets(
   if (trimmedSearch) {
     params.set('search', trimmedSearch)
   }
+  const assetIdentifier = filters.assetIdentifier?.trim()
+  if (assetIdentifier) {
+    params.set('asset_identifier', assetIdentifier)
+  }
   if (filters.categoryId) {
     params.set('category_id', filters.categoryId.toString())
   }
   if (filters.equipmentTypeId) {
     params.set('equipment_type_id', filters.equipmentTypeId.toString())
+  }
+  if (filters.status) {
+    params.set('status', filters.status)
   }
   const response = await sessionFetch(`${apiBaseUrl}/assets/?${params}`, {
     credentials: 'include',

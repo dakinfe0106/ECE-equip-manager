@@ -16,19 +16,19 @@ If this guide conflicts with `database.md` or `Architecture.md`, raise the confl
 
 ## 1. Current state
 
-- `inventory` provides authenticated category and equipment-type lookups and creation, paginated asset listing/search, asset creation, asset detail/update endpoints, and a category summary list and per-category equipment-type list for the Categories page. Asset status remains server-controlled; newly created assets start as `Available`.
-- `lending` provides the documented `Borrower` model, authenticated list/detail endpoints, and persistent reviewed damage incidents with edit auditing. `GET /api/borrowers/<borrower_id>/` returns identity, the separate legacy negligent-damage boolean, unresolved reviewed incident count, warning level, and damage-based eligibility. Borrower-scoped damage-flag endpoints list history, record reviewed incidents, edit existing incidents, and resolve them with a reason. Only Technicians and Administrators may use these endpoints. Overall eligibility, overdue-loan restrictions, checkout enforcement, borrower creation/editing, and loan workflows remain pending checkout integration.
-- Inventory and lending provide the four aggregate analytics reports and the multi-report Excel export endpoint; see [Analytics reporting](#analytics-reporting).
-- `maintenance` is mounted under `/api/` but does not yet expose business endpoints.
-- `lending` also provides `Loan` and read-only `GET /api/loans/` with the Issue #110 contract below. Checkout, return, and extension workflows remain unimplemented.
+- `inventory` provides authenticated category and equipment-type lookups and creation, paginated asset listing/search, asset creation and detail/update endpoints, category summaries, and the current equipment-availability analytics report. Asset status remains server-controlled; newly created assets start as `Available`.
+- `lending` provides the `Borrower` and `Loan` models, authenticated borrower list/create/detail/update endpoints, read-only loan history, checkout, persistent reviewed damage incidents, and utilization, borrowing-summary, borrower-activity, and available-year analytics endpoints. Manual borrower registration sets `is_manual_enrollment=True` and enforces unique `unb_id` values across active and soft-deleted rows. Checkout enforces overdue-loan and damage-based standing. Borrower detail reports damage-based eligibility only; certification verification, returns, and extensions remain unimplemented.
+- Borrower-scoped damage-flag endpoints list history, record reviewed incidents, edit existing incidents, and resolve them with a reason. Only Technicians and Administrators may use these endpoints.
+- `maintenance` provides role-protected maintenance record list/create/detail endpoints and an active-technician lookup; creating a record updates asset status transactionally.
 - `users.User(AbstractUser)` is the custom `AUTH_USER_MODEL`; its required `role` stores `TECHNICIAN`, `FACULTY`, or `ADMINISTRATOR`. Django admin creation/edit forms expose the role, and `createsuperuser` prompts for it through `REQUIRED_FIELDS`. Existing accounts receive `ADMINISTRATOR` in migration `users.0002`; new accounts have no default role. Role assignment does not grant staff/superuser flags or Django permissions.
 - DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Inventory endpoints enforce the role policy in [database.md section 5](database.md#5-permissions-scope). The paginated asset list supports case-insensitive search across Asset ID and name, plus combined category and equipment-type filters.
+- Analytics endpoints are read-only and require an authenticated session. The report endpoints live with the owning data: inventory owns availability; lending owns utilization and borrowing activity. They return JSON by default and generate `.xlsx` files on the server with the pinned `openpyxl` dependency when `export=xlsx` is requested.
 - `/api/health/` is a plain Django view, so DRF authentication does not apply to it.
 - The `users` app provides CSRF, login, logout, and current-user endpoints for application-managed sessions (see [section 6](#6-authentication-endpoints)).
 
 ## 2. App layout
 
-### Issue #110: read-only loans contract
+### Issue #110: loan listing contract
 
 
 `GET /api/loans/` returns an unpaginated JSON array ordered by `loan_id`.
@@ -43,8 +43,8 @@ conditions are `Intact` or `Damaged`.
 
 
 The endpoint permits authenticated active Technicians and Administrators through
-`LoanReadPermissions`; Faculty and unsupported roles are denied. Write methods
-are not implemented. Existing borrower endpoints are unchanged.
+`LoanReadPermissions`; Faculty and unsupported roles are denied. POST uses the same role checks. PUT, PATCH, and DELETE remain unsupported.
+Existing borrower endpoints are unchanged.
 
 Supported query parameters (combined with AND):
 
@@ -64,8 +64,40 @@ Supported query parameters (combined with AND):
   applies no restriction.
 
 Loan history remains visible when related borrowers, assets, types, or categories
-are soft-deleted. No checkout, return, extension, or deletion workflow is included.
+are soft-deleted. Return, extension, and deletion workflows are not included.
 The configured timezone remains unchanged; the timezone decision below is pending.
+
+### Issue #113: equipment checkout
+
+`POST /api/loans/` accepts only `asset_id` (positive integer), `borrower_id`
+(positive integer), and `expected_return_date` (YYYY-MM-DD). Unknown fields,
+including `checkout_date`, return 400. The server sets checkout date with
+`timezone.localdate()`. Due today is allowed; earlier dates return 400.
+
+`LoanCheckoutSerializer` validates HTTP input. `checkout_asset()` in
+`lending/services.py` owns the atomic transaction; `LoanList.create()` converts
+missing records to 404 and `CheckoutRuleError` to field errors with 400.
+The service locks the borrower first (the same row used by damage-flag services),
+then the asset. It rejects soft-deleted borrowers, assets, types, and categories;
+assets not Available; existing open loans on the asset; borrower overdue open
+loans; and damage-ineligible borrowers using `damage_flag_summary()`.
+Only unresolved reviewed persistent incidents count: fewer than three permits
+checkout; three or more denies it. The legacy boolean is not authoritative.
+
+Loan insertion and setting `Asset.status = On_Loan` succeed or roll back together.
+The existing `lending_loan_one_open_loan_per_asset` database constraint remains
+unchanged; a violation of that specific constraint becomes a 400 asset error.
+Unrelated integrity errors propagate. No model or migration changes are needed.
+A successful checkout returns 201 with the same twelve fields as the GET loan
+representation, null return fields, and calculated `on_loan` status. GET search,
+filters, ordering, and permissions remain unchanged. Session writes require CSRF.
+
+**Unresolved Issue #113 dependency:** Certification, BorrowerCertification, and
+TypeCertification are documented but not implemented. This endpoint performs no
+certification verification and does not claim full eligibility or full Issue #113
+acceptance. The issue's unexpired-certification requirement also needs agreement
+with the current schema's no-automatic-expiry convention. No certification data,
+flags, or success claims are fabricated.
 
 Each app uses only the files it needs:
 
@@ -171,7 +203,7 @@ Rules from [database.md section 4](database.md#4-operating-rules) live in `servi
 - Use `@transaction.atomic` on every service that writes more than one row.
 - Lock the rows being checked with `select_for_update()` inside the transaction.
 - When persistent damage-incident editing is implemented, record the authenticated technician, server-generated edit timestamp, and changed fields in audit history in the same transaction as the incident update. Do not accept the editor identity or timestamp from the client.
-- Damage-flag services lock the borrower row before modifying incident state. This serializes count-changing operations for a borrower; checkout enforcement must use the same lock once the Loan workflow is implemented.
+- Damage-flag services lock the borrower row before modifying incident state. This serializes count-changing operations for a borrower; checkout uses the same borrower lock before checking standing.
 - Services do not use HTTP-layer exceptions. DRF `ValidationError` and `Http404` are only converted to responses inside DRF views, so admin actions and imports would get a `500` or an unhandled traceback. Instead:
   - _Proposed:_ raise `BusinessRuleError` for rule violations. It is a small exception class in `equipmanager/exceptions.py` (shared configuration, not a business app) that carries a field-to-messages dict.
   - Let `Model.DoesNotExist` propagate for a missing record.
@@ -326,7 +358,7 @@ Each endpoint needs tests for:
 | Decision | Options | Blocks |
 | --- | --- | --- |
 | Remaining `SystemUser` fields | `role` is implemented directly on `users.User`. Decide the mapping of `name`/`unb_id` and remaining fields to `users.User` or a profile with a one-to-one link. Either way, SystemUser is implemented on `users.User` and foreign keys use `settings.AUTH_USER_MODEL` | Permissions, user management |
-| `TIME_ZONE` | Currently `UTC`. `America/Moncton` matches the Shop. Under UTC the date rolls over at 8 p.m. local time in AST and 9 p.m. in ADT, so loans would show as overdue a day early. Changing `TIME_ZONE` only helps if code uses `timezone.localdate()` (see [section 4](#4-business-logic-and-transactions)) | Overdue rules, analytics |
+| `TIME_ZONE` | Currently `UTC`. `America/Moncton` matches the Shop. Under UTC the date rolls over at 8 p.m. local time in AST and 9 p.m. in ADT, so loans may show as overdue a day early. Loan and analytics date cutoffs use `timezone.localdate()` and therefore follow the configured value. | Loan due-date behavior |
 | User soft deletion vs `is_active` | Keep both flags and set `is_active = False` whenever `is_deleted = True` (current guidance), or use `is_active` as the users' only soft-delete flag and update `database.md` | User management, login |
 | Restoring a child of a soft-deleted parent | Reject the restore until the parent is restored (current guidance), or restore the parent automatically | Restore endpoints |
 | Service error handling | Views convert `BusinessRuleError` per view (current guidance), or a custom DRF exception handler in shared settings | Every service-backed endpoint |
@@ -340,9 +372,20 @@ Update this guide when a decision is made or when the first feature establishes 
 
 ## Analytics reporting
 
+The `/analytics` page uses the aggregate endpoints below and its multi-report
+export dialog. The earlier per-asset, borrowing-summary, and named-borrower APIs
+remain available for compatibility at `/api/analytics/utilization/`,
+`/api/analytics/borrowing/`, and `/api/analytics/borrowers/`, alongside
+`/api/analytics/years/` and `/api/analytics/availability/` (including their
+`export=xlsx` behavior). Their helpers live in each app's `analytics_reports.py`;
+the page's calculations live in `analytics.py`. These contracts have different
+response shapes. The page uses `/api/analytics/availability-summary/` to avoid
+changing the existing availability contract. Named-borrower APIs can return
+identities; the page and its multi-report export return aggregate counts only.
+
 Analytics is read-only and available to active Technicians, Faculty, and
 Administrators using Django session authentication. Inventory owns
-`GET /api/analytics/availability/`; lending owns `GET /api/analytics/options/`
+`GET /api/analytics/availability-summary/`; lending owns `GET /api/analytics/options/`
 and `GET /api/analytics/lending/`. Lending also owns the read-only multi-report
 workbook endpoint `GET /api/analytics/exports/`.
 

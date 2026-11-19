@@ -8,6 +8,22 @@ urlpatterns = [
     path('analytics/exports/', AnalyticsExport.as_view(), name='analytics-export'),
     path('analytics/options/', AnalyticsOptions.as_view(), name='analytics-options'),
     path('analytics/lending/', LendingAnalytics.as_view(), name='analytics-lending'),
+    path("analytics/years/", views.AnalyticsYears.as_view(), name="analytics-years"),
+    path(
+        "analytics/utilization/",
+        views.UtilizationAnalytics.as_view(),
+        name="analytics-utilization",
+    ),
+    path(
+        "analytics/borrowing/",
+        views.BorrowingAnalytics.as_view(),
+        name="analytics-borrowing",
+    ),
+    path(
+        "analytics/borrowers/",
+        views.BorrowerAnalytics.as_view(),
+        name="analytics-borrowers",
+    ),
     path("loans/", views.LoanList.as_view(), name="loan-list"),
     path("borrowers/", views.BorrowerList.as_view(), name="borrower-list"),
     path(

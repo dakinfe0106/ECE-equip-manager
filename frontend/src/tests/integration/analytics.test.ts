@@ -24,7 +24,7 @@ describe('Analytics API', () => {
   it('does not apply historical year to current availability', async () => {
     server.use(
       http.get(`${apiBaseUrl}/analytics/lending/`, () => HttpResponse.json({ year: 2025, rows: [] })),
-      http.get(`${apiBaseUrl}/analytics/availability/`, ({ request }) => {
+      http.get(`${apiBaseUrl}/analytics/availability-summary/`, ({ request }) => {
         expect(new URL(request.url).searchParams.has('year')).toBe(false)
         return HttpResponse.json({ rows: [] })
       }),

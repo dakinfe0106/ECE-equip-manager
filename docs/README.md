@@ -368,7 +368,7 @@ The configured frontend stack includes:
 - ESLint
 - Vitest
 
-Vitest is configured as the frontend test runner. Tailwind CSS is configured in `vite.config.ts` and imported in `src/index.css`; existing global CSS is in its base layer. React Router uses `BrowserRouter` with routes defined in `src/AppRoutes.tsx`. `/login` is public; `/` shows the dashboard and `/assets` shows the assets page. Asset creation, categories, and equipment types are also available behind the login check. Unknown paths show a fallback. Interactive authentication tests use jsdom and Testing Library; API tests use MSW.
+Vitest is configured as the frontend test runner. Tailwind CSS is configured in `vite.config.ts` and imported in `src/index.css`; existing global CSS is in its base layer. React Router uses `BrowserRouter` with routes defined in `src/AppRoutes.tsx`. `/login` is public; `/` and `/assets` show the dashboard and inventory, `/borrowers` provides borrower management, `/loans` provides loan history and checkout, `/maintenance` provides maintenance workflows, and `/analytics` shows authenticated analytics reports. Faculty can view analytics but do not have management actions. Asset creation is available behind the login check. Import & Export and Users & Access remain in-progress pages. Unknown paths show a fallback. Interactive authentication tests use jsdom and Testing Library; API tests use MSW.
 
 After pulling tooling changes, run `npm ci` from `frontend/`. No separate Tailwind or Router setup is needed per developer. Use Tailwind classes for component styling and React Router links for internal navigation. When deploying the frontend, configure the host to serve `index.html` for client-side routes while keeping `/api/` requests routed to Django.
 
@@ -447,7 +447,7 @@ The response must include the header `Access-Control-Allow-Origin: http://localh
 
 **4. Automated checks.** `server/equipmanager/tests/test_health.py` verifies the response and CORS header through Django's test client. It runs with `python -m pytest` and in CI. The frontend's MSW tests exercise the API client with mocked HTTP responses; they do not verify connectivity to a running backend.
 
-Protected DRF endpoints require a logged-in Django session (see [Authentication](Architecture.md#9-authentication-and-authorization)) and return `403` for unauthenticated requests with the current configuration. The inventory app provides category and equipment-type lookups and asset list, create, and update routes. The lending app provides a read-only borrower list at `GET /api/borrowers/`, borrower details at `GET /api/borrowers/{borrower_id}/`, and borrower-scoped damage-flag history, record, edit, and resolve endpoints; these are restricted to Technicians and Administrators. Borrower details return the stored legacy negligent-damage boolean separately from backend-calculated unresolved incident count, warning level, and damage-based eligibility. The Loan model and read-only loan reporting are implemented; overall borrower eligibility and checkout enforcement await checkout integration. Borrower creation/editing and loan workflows are not implemented. Maintenance business routes are not implemented. `/api/health/` is public and is the endpoint to use for connection checks.
+Protected DRF endpoints require a logged-in Django session (see [Authentication](Architecture.md#9-authentication-and-authorization)) and return `403` for unauthenticated requests with the current configuration. The inventory app provides category and equipment-type lookups and asset list, create, and update routes. The lending app provides borrower list/detail and damage-flag endpoints, plus loan history and checkout; returns and extensions are not yet implemented. Maintenance provides role-protected record list/create/detail and technician lookup endpoints. `/api/health/` is public and is the endpoint to use for connection checks.
 
 ---
 
@@ -466,7 +466,7 @@ All endpoints live under `/api/` and end with a trailing slash.
 | GET | `/api/health/` | Public. Checks that the API is reachable: `{"status": "ok"}` |
 | GET | `/api/dashboard/` | Authenticated application roles. Returns current counts of non-archived, non-retired inventory. |
 | GET | `/api/analytics/options/` | Authenticated application roles. Returns category/type filter options and available checkout years. |
-| GET | `/api/analytics/availability/` | Authenticated application roles. Current asset status counts by equipment type; supports category/type filters. |
+| GET | `/api/analytics/availability-summary/` | Authenticated application roles. Current asset status counts by equipment type; supports category/type filters. |
 | GET | `/api/analytics/lending/` | Authenticated application roles. Loan-day, monthly borrowing, or borrower-frequency report selected with `report`; supports checkout year and category/type filters. |
 | GET | `/api/analytics/exports/` | Authenticated application roles. Downloads selected `reports` as one Excel workbook, with current-filter or all-data scope; see [Excel export](Backend.md#excel-export). |
 | GET | `/api/loans/` | Technician or Administrator. Read-only loan history with status, expected-return-date, asset-status, and search filters; see the [loans contract](Backend.md#issue-110-read-only-loans-contract). |
@@ -480,16 +480,29 @@ All endpoints live under `/api/` and end with a trailing slash.
 | GET | `/api/categories/<id>/equipment-types/` | Authenticated. Lists a category's active equipment types, ordered by `type_id`, for the retained category detail popup (no demo page route). Returns `404` for an unknown category. |
 | GET | `/api/equipment-types/` | Authenticated. Lists equipment types whose category is active, ordered by `type_id`. Supports `category_id` and `deleted` (`false` by default, `true`, or `all`). |
 | POST | `/api/equipment-types/` | Technician or Administrator. Creates an equipment type from `{name, category_id}` (optional `description`) in an active category. The name is unique within its category, ignoring case; a duplicate returns `400`. |
-| GET | `/api/assets/` | Authenticated, paginated active assets; supports case-insensitive `search` across Asset ID and name, plus `category_id` and `equipment_type_id` filters together. `/api/assets/lookup/` is an alias. The older `asset_identifier` parameter still works but matches the Asset ID only. |
-| GET | `/api/borrowers/` | Authenticated Technician/Administrator only. Lists active borrowers, paginated at 20 per page; supports trimmed, case-insensitive `search` across UNB ID, first name, last name, and full name. Returns `borrower_id`, `unb_id`, `first_name`, and `last_name`; deactivated borrowers with outstanding loans are pending borrower/loan integration. |
-| GET | `/api/borrowers/<borrower_id>/` | Technician or Administrator. Returns borrower identity, the separate `negligent_damage_flag` legacy indicator, `unresolved_damage_flag_count`, `damage_warning_level` (`no_warning`, `first_warning`, `final_warning`, or `ineligible`), and `damage_eligible`. It does not report overall eligibility or overdue status. |
+| GET | `/api/assets/` | Authenticated, paginated active assets; supports case-insensitive `search` across Asset ID and name, plus `category_id`, `equipment_type_id`, and stored-value `status` filters together. `/api/assets/lookup/` is an alias. The older `asset_identifier` parameter still works but matches the Asset ID only. |
+| GET | `/api/analytics/availability/` | Authenticated. Groups active assets by equipment type with counts for Available, On Loan, Under Maintenance, and Retired. Supports `category_id` and `equipment_type_id`; add `export=xlsx` to download the same filtered report as an Excel workbook. |
+| GET | `/api/analytics/years/` | Authenticated. Returns checkout years present in lending records plus the current configured year. |
+| GET | `/api/analytics/utilization/` | Authenticated. Reports per-asset loan count, total loan days, and average loan days, sorted by loan frequency. Supports `year`, `category_id`, and `equipment_type_id`; add `export=xlsx` for a filtered workbook. |
+| GET | `/api/analytics/borrowing/` | Authenticated. Returns total, completed, active, overdue, intact-return, and damaged-return loan counts. Supports `year`, `category_id`, and `equipment_type_id`; add `export=xlsx` for a filtered workbook. |
+| GET | `/api/analytics/borrowers/` | Authenticated. Returns borrower ID, UNB ID, name, and total/completed/active/overdue/damaged-return counts. Supports `search` across borrower ID, UNB ID, and name plus `year`, `category_id`, and `equipment_type_id`; add `export=xlsx` for a filtered workbook. Borrower history is included even when the borrower is soft-deleted. |
+| GET | `/api/borrowers/` | Authenticated Technician/Administrator only. Lists active borrowers, paginated at 20 per page; supports trimmed, case-insensitive `search` across UNB ID, first name, last name, and full name. Returns `borrower_id`, `unb_id`, `first_name`, and `last_name`. |
+| POST | `/api/borrowers/` | Technician or Administrator. Manually registers a borrower from `{unb_id, first_name}` (optional `last_name`) and sets `is_manual_enrollment: true`. Rejects blank required fields or duplicate `unb_id` values (including soft-deleted rows) with `400`. |
+| GET | `/api/borrowers/<borrower_id>/` | Technician or Administrator. Returns borrower identity, `is_manual_enrollment`, the separate `negligent_damage_flag` legacy indicator, `unresolved_damage_flag_count`, `damage_warning_level` (`no_warning`, `first_warning`, `final_warning`, or `ineligible`), and `damage_eligible`. It does not report overall eligibility or overdue status. |
+| PATCH | `/api/borrowers/<borrower_id>/` | Technician or Administrator. Updates a borrower's `first_name` (and optional `last_name`) in place and returns the updated borrower detail representation. |
 | GET | `/api/borrowers/<borrower_id>/damage-flags/` | Technician or Administrator. Returns all unresolved and resolved incident history plus the backend-calculated damage summary. |
 | POST | `/api/borrowers/<borrower_id>/damage-flags/` | Technician or Administrator. Records an explicitly reviewed negligent incident; accepts `equipment_id`, `incident_date`, `reason`, optional `notes`, and `reviewed: true`. Reviewer identity/time are server-controlled. |
 | PATCH | `/api/borrowers/<borrower_id>/damage-flags/<damage_flag_id>/` | Technician or Administrator. Corrects incident equipment, date, reason, or notes in place and records editor/time/changed fields in audit history. |
 | POST | `/api/borrowers/<borrower_id>/damage-flags/<damage_flag_id>/` | Technician or Administrator. Resolves an unresolved incident with a required `resolution_reason`; retains the incident in history. |
+| GET | `/api/loans/` | Technician or Administrator. Read-only loan history ordered by loan ID; supports status, expected-return date bounds, current asset status, and search across borrower/asset details. |
+| POST | `/api/loans/` | Technician or Administrator. Checks out an available asset to an eligible borrower; accepts `{asset_id, borrower_id, expected_return_date}` and sets `Asset.status` to `On_Loan` transactionally. |
 | POST | `/api/assets/` | Authenticated. Creates an asset with an active `equipment_type_id`; status starts as `Available`. |
 | GET | `/api/assets/<asset_id>/` | Authenticated. Returns one asset. |
 | PATCH | `/api/assets/<asset_id>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
+| GET | `/api/maintenance-records/` | Technician or Administrator. Lists maintenance history; supports `status` (`all`, `in_progress`, `completed`), `maintenance_type`, `priority`, `asset_identifier`, and `asset_id` filters. |
+| POST | `/api/maintenance-records/` | Technician or Administrator. Creates an open maintenance record and sets the eligible asset to `Under_Maintenance` transactionally. |
+| GET | `/api/maintenance-records/<id>/` | Technician or Administrator. Returns a maintenance record, including completed history. |
+| GET | `/api/maintenance-records/technicians/` | Technician or Administrator. Lists active Technician accounts for assignment. |
 
 The general asset edit endpoint keeps `asset_identifier`, `equipment_type`, and `status` read-only. Status transitions must use their corresponding loan, maintenance, retirement, or reactivation workflow so related records and state changes remain consistent.
 
@@ -828,7 +841,7 @@ Login and `/api/auth/me/` return `role` and `role_label` for the sidebar. Invent
 
 Analytics is read-only and available to active Technicians, Faculty, and
 Administrators using Django session authentication. Inventory owns
-`GET /api/analytics/availability/`; lending owns `GET /api/analytics/options/`
+`GET /api/analytics/availability-summary/`; lending owns `GET /api/analytics/options/`
 and `GET /api/analytics/lending/`. Lending also provides
 `GET /api/analytics/exports/` for selected reports in one Excel workbook.
 

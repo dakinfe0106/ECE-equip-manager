@@ -4,8 +4,13 @@ from . import views
 from .analytics import EquipmentAvailability
 
 urlpatterns = [
-    path('analytics/availability/', EquipmentAvailability.as_view(), name='analytics-availability'),
+    path('analytics/availability-summary/', EquipmentAvailability.as_view(), name='analytics-availability-summary'),
     path("dashboard/", views.Dashboard.as_view(), name="dashboard"),
+    path(
+        "analytics/availability/",
+        views.AvailabilityAnalytics.as_view(),
+        name="analytics-availability",
+    ),
     # Lookup for the Add Asset form: id and name only, ordered by name.
     path("categories/", views.CategoryLookupList.as_view(), name="category-list"),
     # Categories page: ordered by ID, with status and equipment type count.

@@ -36,6 +36,7 @@ interface BorrowerDetailsWorkflowProps {
   equipmentOptions?: DamageFlagEquipmentOption[]
   equipmentOptionsError?: string
   onRetryEquipmentOptions?: () => void
+  onSave?: (updatedData: { first_name: string }) => Promise<void> | void
 }
 
 function getErrorMessage(error: unknown): string {
@@ -71,6 +72,7 @@ export default function BorrowerDetailsWorkflow({
   equipmentOptions,
   equipmentOptionsError,
   onRetryEquipmentOptions,
+  onSave,
 }: BorrowerDetailsWorkflowProps) {
   const [stage, setStage] = useState<WorkflowStage>('details')
   const [damageFlagState, setDamageFlagState] = useState<DamageFlagLoadState>({
@@ -302,6 +304,7 @@ export default function BorrowerDetailsWorkflow({
             void loadFlags()
           }}
           restoreFocusOnUnmount={false}
+          onSave={onSave}
         />
       )}
       {activeStage === 'damageFlags' && (

@@ -75,6 +75,7 @@ beforeEach(() => {
     unresolved_damage_flag_count: 0,
     damage_warning_level: 'no_warning',
     damage_eligible: true,
+    is_manual_enrollment: false,
   }))
   fetchAllAssetsMock.mockResolvedValue([])
   fetchDamageFlagsMock.mockResolvedValue({
@@ -112,7 +113,7 @@ describe('Borrowers route', () => {
     expect(html).toContain('Borrower Name')
     expect(html).toContain('Standing')
     expect(html).toContain('href="/borrowers"')
-    expect(html).not.toContain('Add Borrower')
+    expect(html).toContain('Add Borrower')
     expect(html).not.toContain('Eligibility')
     expect(html).not.toContain('Page not found')
   })
@@ -193,77 +194,77 @@ describe('BorrowerTable', () => {
       />,
     )
 
-      const row = screen.getByRole('row', {
+    const row = screen.getByRole('row', {
       name: 'View details for Ada Lovelace, UNB ID 0000022',
-      })
-      await user.click(within(row).getByText('0000022'))
-      await user.click(within(row).getByText('Ada Lovelace'))
-      await user.click(within(row).getByText('Not available'))
+    })
+    await user.click(within(row).getByText('0000022'))
+    await user.click(within(row).getByText('Ada Lovelace'))
+    await user.click(within(row).getByText('Not available'))
 
-      expect(onViewDetails).toHaveBeenCalledTimes(3)
-      expect(onViewDetails).toHaveBeenNthCalledWith(1, secondBorrower)
-      expect(onViewDetails).toHaveBeenNthCalledWith(2, secondBorrower)
-      expect(onViewDetails).toHaveBeenNthCalledWith(3, secondBorrower)
-      expect(screen.queryByRole('button', { name: /view details/i })).toBeNull()
+    expect(onViewDetails).toHaveBeenCalledTimes(3)
+    expect(onViewDetails).toHaveBeenNthCalledWith(1, secondBorrower)
+    expect(onViewDetails).toHaveBeenNthCalledWith(2, secondBorrower)
+    expect(onViewDetails).toHaveBeenNthCalledWith(3, secondBorrower)
+    expect(screen.queryByRole('button', { name: /view details/i })).toBeNull()
   })
 
   it('supports Enter and Space on a visibly focusable borrower row', async () => {
-      const user = userEvent.setup()
-      const onViewDetails = vi.fn()
-      render(
-        <BorrowerTable
-          appliedSearch=""
-          borrowers={[borrower]}
-          errorMessage=""
-          isLoading={false}
-          onViewDetails={onViewDetails}
-        />,
-      )
+    const user = userEvent.setup()
+    const onViewDetails = vi.fn()
+    render(
+      <BorrowerTable
+        appliedSearch=""
+        borrowers={[borrower]}
+        errorMessage=""
+        isLoading={false}
+        onViewDetails={onViewDetails}
+      />,
+    )
 
-      const row = screen.getByRole('row', {
-        name: 'View details for Ada Lovelace, UNB ID 0000101',
-      })
-      expect(row.tabIndex).toBe(0)
-      expect(row.className).toContain('hover:bg-page')
-      expect(row.className).toContain('focus-visible:outline-primary')
+    const row = screen.getByRole('row', {
+      name: 'View details for Ada Lovelace, UNB ID 0000101',
+    })
+    expect(row.tabIndex).toBe(0)
+    expect(row.className).toContain('hover:bg-page')
+    expect(row.className).toContain('focus-visible:outline-primary')
 
-      await user.tab()
-      expect(document.activeElement).toBe(row)
-      await user.keyboard('{Enter}')
-      expect(onViewDetails).toHaveBeenCalledWith(borrower)
+    await user.tab()
+    expect(document.activeElement).toBe(row)
+    await user.keyboard('{Enter}')
+    expect(onViewDetails).toHaveBeenCalledWith(borrower)
 
-      onViewDetails.mockClear()
-      await user.keyboard(' ')
-      expect(onViewDetails).toHaveBeenCalledOnce()
-      expect(onViewDetails).toHaveBeenCalledWith(borrower)
+    onViewDetails.mockClear()
+    await user.keyboard(' ')
+    expect(onViewDetails).toHaveBeenCalledOnce()
+    expect(onViewDetails).toHaveBeenCalledWith(borrower)
   })
 
   it('does not open borrower details from an independent nested control', async () => {
-      const user = userEvent.setup()
-      const onViewDetails = vi.fn()
-      render(
-        <BorrowerTable
-          appliedSearch=""
-          borrowers={[borrower]}
-          errorMessage=""
-          isLoading={false}
-          onViewDetails={onViewDetails}
-        />,
-      )
+    const user = userEvent.setup()
+    const onViewDetails = vi.fn()
+    render(
+      <BorrowerTable
+        appliedSearch=""
+        borrowers={[borrower]}
+        errorMessage=""
+        isLoading={false}
+        onViewDetails={onViewDetails}
+      />,
+    )
 
-      const row = screen.getByRole('row', {
-        name: 'View details for Ada Lovelace, UNB ID 0000101',
-      })
-      const nestedControl = document.createElement('button')
-      nestedControl.textContent = 'Other row action'
-      const cell = row.querySelector('td')
-      if (!cell) throw new Error('Expected borrower row to contain a table cell.')
-      cell.append(nestedControl)
+    const row = screen.getByRole('row', {
+      name: 'View details for Ada Lovelace, UNB ID 0000101',
+    })
+    const nestedControl = document.createElement('button')
+    nestedControl.textContent = 'Other row action'
+    const cell = row.querySelector('td')
+    if (!cell) throw new Error('Expected borrower row to contain a table cell.')
+    cell.append(nestedControl)
 
-      await user.click(nestedControl)
-      await user.keyboard('{Enter}')
+    await user.click(nestedControl)
+    await user.keyboard('{Enter}')
 
-      expect(onViewDetails).not.toHaveBeenCalled()
+    expect(onViewDetails).not.toHaveBeenCalled()
   })
 
   it('shows a distinct empty message for a search with no matches', () => {
@@ -372,7 +373,7 @@ describe('BorrowersPage details integration', () => {
     expect(await screen.findByRole('dialog', { name: 'Riley' })).toBeTruthy()
     expect(screen.getByText('Borrower details · UNB ID 0000023')).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Close borrower details' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
@@ -386,6 +387,7 @@ describe('BorrowersPage details integration', () => {
         first_name: 'Ada',
         last_name: 'Lovelace',
         negligent_damage_flag: true,
+        is_manual_enrollment: false,
       })
     useBorrowersMock.mockReturnValue({
       ...defaultBorrowerList,
@@ -404,7 +406,7 @@ describe('BorrowersPage details integration', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }))
     expect(await screen.findByText('Flag recorded')).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole('button', { name: 'Close borrower details' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
@@ -428,6 +430,7 @@ describe('BorrowersPage details integration', () => {
         unresolved_damage_flag_count: 0,
         damage_warning_level: 'no_warning',
         damage_eligible: true,
+        is_manual_enrollment: false,
       })
     })
     useBorrowersMock.mockReturnValue({
@@ -458,6 +461,7 @@ describe('BorrowersPage details integration', () => {
         unresolved_damage_flag_count: 2,
         damage_warning_level: 'final_warning',
         damage_eligible: true,
+        is_manual_enrollment: false,
       })
     })
     expect(screen.getByText('No flag recorded')).toBeTruthy()

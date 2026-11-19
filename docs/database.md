@@ -66,6 +66,7 @@ Asset ID search trims surrounding whitespace and matches identifiers by case-ins
 | last_name             | varchar(255) | No       | Default empty string `""` (optional input); trimmed  |
 | unb_id                | varchar(100) | No       | Trimmed, nonempty; unique within Borrower            |
 | negligent_damage_flag | boolean      | No       | Default `False`; retained legacy indicator, separate from incident history |
+| is_manual_enrollment  | boolean      | No       | Default `False`; `True` when registered manually via the UI/API rather than annual import |
 | is_deleted            | boolean      | No       | Default `False`                                      |
 
 ### DamageFlag
@@ -128,9 +129,10 @@ Each persisted edit creates an audit row in the same transaction as the incident
 
 ### Loan
 
-Implemented in `lending.models.Loan` with a new migration after Borrower's
-`0001_initial`. Loan status is calculated, never stored; Loan has no `is_deleted`.
-The read-only `/api/loans/` endpoint retains history even when related records are
+Implemented in `lending.models.Loan` by `0002_loan`, joined with the damage-flag
+migration by `0003_merge_20261115_1615`. Loan status is calculated, never
+stored; Loan has no `is_deleted`.
+The `GET /api/loans/` endpoint retains history even when related records are
 soft-deleted. Return-condition choices are also enforced by a database check.
 
 | Column               | Type        | Nullable | Constraints/default                                     |
@@ -192,17 +194,24 @@ SystemUser is the logical record for people who sign in to the application. It i
 
 ### Checkout and return
 
-1. The agreed checkout policy requires an active, non-soft-deleted borrower with fewer than three unresolved reviewed damage incidents and no overdue open loans; the borrower must have every certification required by the equipment type. The incident-based damage rule is implemented by the borrower detail and damage-flag APIs. The Loan model and read-only loan reporting are implemented; checkout workflows and checkout eligibility enforcement remain pending.
+1. The agreed checkout policy requires an active, non-soft-deleted borrower with fewer than three unresolved reviewed damage incidents and no overdue open loans; the borrower must have every certification required by the equipment type. The incident-based damage rule is implemented by the borrower detail and damage-flag APIs. POST /api/loans/ now enforces borrower overdue and damage standing during checkout. Certification checks remain pending because Certification, BorrowerCertification, and TypeCertification exist only in this specification, not in implemented models. Unexpired-certification verification for Issue #113 also needs an agreed expiry model; the current convention specifies no automatic expiry.
 2. The asset, its equipment type, and its category must not be soft-deleted. An asset must be `Available` to be checked out; `Retired` assets require explicit reactivation first.
 3. Checkout creates a Loan and sets Asset.status = `On_Loan` in a single database transaction. Returning it fills the return date/condition and makes the asset `Available`, or initiates maintenance directly if damaged or otherwise required.
 4. A borrower who later becomes ineligible may keep and return an existing loan, but may not start new loans.
 5. Loan rows are historical records: never remove them through ordinary user-facing deletion actions. Extensions update expected return date, without altering checkout history.
 
+POST accepts only `asset_id`, `borrower_id`, and `expected_return_date`;
+`checkout_date` is server-controlled via `timezone.localdate()`. The service locks
+Borrower then Asset and creates the loan and updates asset status atomically.
+The one-open-loan database constraint remains unchanged. Missing records return
+404; business/input violations return 400; success returns 201. No schema change
+is required.
+
 ### Damage incidents and restrictions
 
 1. Record a damage incident only after a technician has reviewed and confirmed negligent damage. A damaged return alone is not evidence of negligence and never creates a flag automatically.
 2. Damage warning level is based only on reviewed incidents with unresolved status: zero is no warning, one is a first warning, two is a final warning, and three or more is damage-ineligible. Resolved incidents remain in history but do not count.
-3. Damage-based eligibility is true only when fewer than three reviewed incidents are unresolved. Overall checkout eligibility also requires no overdue open loans; overall eligibility is not yet calculated or enforced by a checkout workflow.
+3. Damage-based eligibility is true only when fewer than three reviewed incidents are unresolved. Overall checkout eligibility also requires no overdue open loans; overdue and damage checks are enforced during checkout, but borrower detail still reports damage-based eligibility only and certification verification remains pending.
 4. `Borrower.negligent_damage_flag` remains a separate legacy indicator. It is not incident history and is not used to calculate counts, warning levels, or eligibility. Existing values are not migrated into incident rows.
 5. Editing corrects the existing incident without changing its borrower, identity, review state, or resolution status. The backend records the authenticated editor, server timestamp, and changed field names. Resolving requires a reason and preserves the incident history.
 
@@ -225,6 +234,7 @@ SystemUser is the logical record for people who sign in to the application. It i
 
 - Spreadsheet imports initialize inventory and eligible borrowers. Reject conflicts with existing identifiers or normalized names, report problematic rows, and allow correction and re-import; never overwrite silently.
 - Preserve lending and maintenance history for availability, utilization, borrowing, and borrower analytics. Derive overdue status from open loans whose expected return date is before today's date.
+- Availability analytics counts non-deleted assets by current status, including Retired. Utilization counts loans per asset and measures each loan from checkout through its actual return date, or through `timezone.localdate()` for an open loan. Borrowing and borrower activity filters use the loan's checkout year; completed, active, overdue, and return-condition counts derive from each loan's current return fields. Historical borrower rows remain reportable after borrower soft deletion.
 - **Current development policy:** retain records indefinitely; no automatic purging or archival. **Production caveat:** project sponsor must review retention/disposal and personal information handling for RTIPPA compliance before real deployment. Indefinite retention is not itself a compliance determination.
 - Use dates (not timestamps) for loan and maintenance fields, consistent with the ER diagram. The requested “busiest lending times” analysis will therefore be limited to date-level patterns (e.g. day/month), not time of day.
 
@@ -246,7 +256,7 @@ Three roles are approved: **Technician**, **Faculty**, **Administrator**. Only a
 
 Analytics is read-only and available to active Technicians, Faculty, and
 Administrators using Django session authentication. Inventory owns
-`GET /api/analytics/availability/`; lending owns `GET /api/analytics/options/`
+`GET /api/analytics/availability-summary/`; lending owns `GET /api/analytics/options/`
 and `GET /api/analytics/lending/`. Read-only Excel exports use
 `GET /api/analytics/exports/` and reuse these calculations.
 

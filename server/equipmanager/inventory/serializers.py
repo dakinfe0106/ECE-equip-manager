@@ -3,6 +3,12 @@ from rest_framework import serializers
 from .models import Asset, Category, EquipmentType
 
 
+class AvailabilityAnalyticsQuerySerializer(serializers.Serializer):
+    category_id = serializers.IntegerField(required=False, min_value=1)
+    equipment_type_id = serializers.IntegerField(required=False, min_value=1)
+    export = serializers.ChoiceField(required=False, choices=("xlsx",))
+
+
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category

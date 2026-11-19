@@ -14,21 +14,33 @@ export function hasPermission(user: CurrentUser | null, permission: string): boo
     return user?.role === 'TECHNICIAN' || user?.role === 'ADMINISTRATOR'
   }
 
-  const match = /^inventory\.(view|add|change|delete)_(asset|category|equipmenttype)$/.exec(permission)
-  if (!match) return false
+  const inventoryMatch =
+    /^inventory\.(view|add|change|delete)_(asset|category|equipmenttype)$/.exec(
+      permission,
+    )
+  const maintenanceMatch =
+    /^maintenance\.(view|add|change)_maintenancerecord$/.exec(permission)
 
-  const [, action] = match
-  if (action === 'view') {
+  if (inventoryMatch) {
+    const [, action] = inventoryMatch
+    if (action === 'view') {
+      return (
+        user?.role === 'TECHNICIAN'
+        || user?.role === 'FACULTY'
+        || user?.role === 'ADMINISTRATOR'
+      )
+    }
     return (
-      user?.role === 'TECHNICIAN'
-      || user?.role === 'FACULTY'
-      || user?.role === 'ADMINISTRATOR'
+      (action === 'add' || action === 'change' || action === 'delete')
+      && (user?.role === 'TECHNICIAN' || user?.role === 'ADMINISTRATOR')
     )
   }
-  return (
-    (action === 'add' || action === 'change' || action === 'delete')
-    && (user?.role === 'TECHNICIAN' || user?.role === 'ADMINISTRATOR')
-  )
+
+  if (maintenanceMatch) {
+    return user?.role === 'TECHNICIAN' || user?.role === 'ADMINISTRATOR'
+  }
+
+  return false
 }
 
 export class AuthError extends Error {

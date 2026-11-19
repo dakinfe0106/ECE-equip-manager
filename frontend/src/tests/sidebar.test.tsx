@@ -46,7 +46,6 @@ describe('Sidebar navigation', () => {
 
 describe('Demo page routes', () => {
   it.each([
-    ['/maintenance', 'Maintenance'],
     ['/import-export', 'Import & Export'], ['/users', 'Users & Access'],
   ])('renders an honest placeholder at %s', (path, title) => {
     const html = pageHtml(path)
@@ -55,6 +54,16 @@ describe('Demo page routes', () => {
     expect(within(container).getByRole('heading', { name: title, level: 1 })).toBeTruthy()
     expect(within(container).getByText('This page is still in progress.')).toBeTruthy()
     expect(within(container).getByRole('banner', { name: 'Application header' })).toBeTruthy()
+  })
+
+  it('renders the maintenance page instead of the in-progress placeholder', () => {
+    const html = pageHtml('/maintenance')
+    const container = document.createElement('div')
+    container.innerHTML = html
+
+    expect(within(container).getByRole('heading', { name: 'Maintenance', level: 1 })).toBeTruthy()
+    expect(within(container).getByText('Search Asset ID')).toBeTruthy()
+    expect(within(container).queryByText('This page is still in progress.')).toBeNull()
   })
 
   it.each(['/loans', '/maintenance', '/import-export', '/users'])('denies Faculty direct access to %s', (path) => {
@@ -79,9 +88,10 @@ describe('Demo page routes', () => {
     expect(pageHtml('/users', 'TECHNICIAN')).toContain('Access denied')
   })
 
-  it('allows Faculty to view Analytics', () => {
+  it('allows Faculty to view the Analytics page', () => {
     const html = pageHtml('/analytics', 'FACULTY')
     expect(html).toContain('Loading analytics')
+    expect(html).not.toContain('Access denied')
     expect(html).not.toContain('This page is still in progress.')
   })
 
