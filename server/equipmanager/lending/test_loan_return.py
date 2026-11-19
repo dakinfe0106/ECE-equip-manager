@@ -336,3 +336,13 @@ def test_earlier_damaged_return_does_not_qualify_latest_intact_loan(
     )
     assert response.status_code == 400
     assert not MaintenanceRecord.objects.exists()
+
+
+def test_return_rejects_future_date(client, loan):
+    tomorrow = timezone.localdate() + timedelta(days=1)
+
+    response = post_return(client, loan, actual_return_date=tomorrow.isoformat())
+
+    assert response.status_code == 400
+    assert "actual_return_date" in response.data
+    assert_open(loan)

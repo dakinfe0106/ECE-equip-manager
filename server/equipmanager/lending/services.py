@@ -129,6 +129,12 @@ def return_loan(*, loan_id, actual_return_date, return_condition):
             "Must be on or after the checkout date.",
         )
 
+    if actual_return_date > timezone.localdate():
+        raise LoanReturnRuleError(
+            "actual_return_date",
+            "Return date cannot be in the future.",
+        )
+
     if return_condition not in Loan.ReturnCondition.values:
         raise LoanReturnRuleError(
             "return_condition",

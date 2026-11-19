@@ -140,6 +140,7 @@ export default function ReturnLoanModal({
                 type="date"
                 required
                 min={checkoutDate}
+                max={localDate()}
                 value={actualReturnDate}
                 onChange={(event) => {
                   setActualReturnDate(event.target.value)
