@@ -1,4 +1,3 @@
-
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, afterEach } from 'vitest'
@@ -130,23 +129,22 @@ describe('LoanDetailsModal', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('calls onProcessReturn with the correct loan', () => {
-    const onProcessReturn = vi.fn()
-
+  // Process Return is currently a UI placeholder. The return workflow and
+  // callback are out of scope, so this test verifies that the button is disabled.
+  it('shows Process Return as disabled for an active loan', () => {
     render(
       <LoanDetailsModal
         loan={activeLoan}
         onClose={vi.fn()}
-        onProcessReturn={onProcessReturn}
       />
     )
 
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Process Return' })
-    )
+    const returnButton = screen.getByRole('button', {
+      name: /process return/i,
+    })
 
-    expect(onProcessReturn).toHaveBeenCalledTimes(1)
-    expect(onProcessReturn).toHaveBeenCalledWith(activeLoan)
+    expect(returnButton).toBeTruthy()
+    expect((returnButton as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('does not show Process Return for a returned loan', () => {
@@ -155,7 +153,7 @@ describe('LoanDetailsModal', () => {
     )
 
     expect(
-      screen.queryByRole('button', { name: 'Process Return' })
+      screen.queryByRole('button', { name: /process return/i })
     ).toBeNull()
   })
 })

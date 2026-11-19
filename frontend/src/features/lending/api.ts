@@ -134,3 +134,87 @@ export async function createLoan(
 
   return response.json() as Promise<LoanRecord>
 }
+
+export interface LoanExtensionInput {
+  expected_return_date: string
+}
+export class LoanExtensionError extends Error {
+  readonly status: number
+  readonly fieldErrors: Record<string, string[]>
+
+  constructor(
+    status: number,
+    message: string,
+    fieldErrors: Record<string, string[]> = {},
+  ) {
+    super(message)
+    this.name = 'LoanExtensionError'
+    this.status = status
+    this.fieldErrors = fieldErrors
+  }
+}
+
+export async function extendLoan(
+  loanId: number,
+  input: LoanExtensionInput,
+): Promise<LoanRecord> {
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+  })
+
+  const csrfCookie = typeof document === 'undefined'
+    ? undefined
+    : document.cookie
+        .split('; ')
+        .find((cookie) => cookie.startsWith('csrftoken='))
+
+  if (csrfCookie) {
+    headers.set(
+      'X-CSRFToken',
+      decodeURIComponent(csrfCookie.slice('csrftoken='.length)),
+    )
+  }
+
+  const response = await sessionFetch(
+    `${apiBaseUrl}/loans/${loanId}/`,
+    {
+      method: 'PATCH',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(input),
+    },
+  )
+
+  if (!response.ok) {
+    let message = `Loan extension failed (${response.status})`
+    const fieldErrors: Record<string, string[]> = {}
+
+    try {
+      const body: unknown = await response.json()
+
+      if (typeof body === 'object' && body !== null) {
+        for (const [field, value] of Object.entries(body)) {
+          if (Array.isArray(value)) {
+            fieldErrors[field] = value.map(String)
+          } else if (typeof value === 'string') {
+            if (field === 'detail') {
+              message = value
+            } else {
+              fieldErrors[field] = [value]
+            }
+          }
+        }
+      }
+    } catch {
+      // Keep the default HTTP error message.
+    }
+
+    throw new LoanExtensionError(
+      response.status,
+      message,
+      fieldErrors,
+    )
+  }
+
+  return response.json() as Promise<LoanRecord>
+}

@@ -31,14 +31,17 @@ from .serializers import (
     DamageFlagUpdateSerializer,
     DamageFlagWriteSerializer,
     LoanCheckoutSerializer,
+    LoanExtensionSerializer,
     LoanListSerializer,
     LoanQuerySerializer,
 )
 from .services import (
     CheckoutRuleError,
     DamageFlagRuleError,
+    LoanExtensionRuleError,
     checkout_asset,
     damage_flag_summary,
+    extend_loan,
     record_damage_flag,
     resolve_damage_flag,
     update_damage_flag,
@@ -169,6 +172,23 @@ class LoanList(generics.ListCreateAPIView):
         if hasattr(self, "today"):
             context["today"] = self.today
         return context
+
+
+class LoanDetail(APIView):
+    permission_classes = (LoanReadPermissions,)
+
+    def patch(self, request, pk):
+        serializer = LoanExtensionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            loan = extend_loan(loan_id=pk, **serializer.validated_data)
+        except Loan.DoesNotExist as error:
+            raise NotFound("Loan not found.") from error
+        except LoanExtensionRuleError as error:
+            raise ValidationError(error.errors) from error
+        return Response(
+            LoanListSerializer(loan, context={"today": timezone.localdate()}).data
+        )
 
 
 class BorrowerDetail(generics.RetrieveUpdateAPIView):

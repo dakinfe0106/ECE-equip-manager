@@ -16,10 +16,10 @@ If this guide conflicts with `database.md` or `Architecture.md`, raise the confl
 
 ## 1. Current state
 
-- `inventory` provides authenticated category and equipment-type lookups and creation, paginated asset listing/search, asset creation and detail/update endpoints, category summaries, and the current equipment-availability analytics report. Asset status remains server-controlled; newly created assets start as `Available`.
-- `lending` provides the `Borrower` and `Loan` models, authenticated borrower list/create/detail/update endpoints, read-only loan history, checkout, persistent reviewed damage incidents, and utilization, borrowing-summary, borrower-activity, and available-year analytics endpoints. Manual borrower registration sets `is_manual_enrollment=True` and enforces unique `unb_id` values across active and soft-deleted rows. Checkout enforces overdue-loan and damage-based standing. Borrower detail reports damage-based eligibility only; certification verification, returns, and extensions remain unimplemented.
-- Borrower-scoped damage-flag endpoints list history, record reviewed incidents, edit existing incidents, and resolve them with a reason. Only Technicians and Administrators may use these endpoints.
+- `inventory` provides authenticated category and equipment-type lookups and creation, paginated asset listing/search, asset creation, asset detail/update endpoints, and a category summary list and per-category equipment-type list for the Categories page. Asset status remains server-controlled; newly created assets start as `Available`. The inventory API also provides equipment availability analytics grouped by equipment type.
+- `lending` provides the documented `Borrower` model, authenticated list/create/detail/update endpoints, and persistent reviewed damage incidents with edit auditing. `POST /api/borrowers/` manually registers a borrower (`is_manual_enrollment=True`) with unique `unb_id` validation across all rows, including soft-deleted records. `GET /api/borrowers/<borrower_id>/` returns identity, `is_manual_enrollment`, the separate legacy negligent-damage boolean, unresolved reviewed incident count, warning level, and damage-based eligibility. `PATCH /api/borrowers/<borrower_id>/` updates borrower details (`first_name`, `last_name`). Borrower-scoped damage-flag endpoints list history, record reviewed incidents, edit existing incidents, and resolve them with a reason. Only Technicians and Administrators may use these endpoints. Checkout enforces overdue-loan and damage-based standing. Borrower detail still reports damage-based eligibility only; certification verification and returns remain pending. The lending API also provides utilization, borrowing-summary, borrower-activity, and available-year analytics endpoints.
 - `maintenance` provides role-protected maintenance record list/create/detail endpoints and an active-technician lookup; creating a record updates asset status transactionally.
+- `lending` also provides loan listing and filtering via `GET /api/loans/`, checkout via `POST /api/loans/`, and active-loan expected return date changes via `PATCH /api/loans/<loan_id>/`.
 - `users.User(AbstractUser)` is the custom `AUTH_USER_MODEL`; its required `role` stores `TECHNICIAN`, `FACULTY`, or `ADMINISTRATOR`. Django admin creation/edit forms expose the role, and `createsuperuser` prompts for it through `REQUIRED_FIELDS`. Existing accounts receive `ADMINISTRATOR` in migration `users.0002`; new accounts have no default role. Role assignment does not grant staff/superuser flags or Django permissions.
 - DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Inventory endpoints enforce the role policy in [database.md section 5](database.md#5-permissions-scope). The paginated asset list supports case-insensitive search across Asset ID and name, plus combined category and equipment-type filters.
 - Analytics endpoints are read-only and require an authenticated session. The report endpoints live with the owning data: inventory owns availability; lending owns utilization and borrowing activity. They return JSON by default and generate `.xlsx` files on the server with the pinned `openpyxl` dependency when `export=xlsx` is requested.
@@ -43,8 +43,7 @@ conditions are `Intact` or `Damaged`.
 
 
 The endpoint permits authenticated active Technicians and Administrators through
-`LoanReadPermissions`; Faculty and unsupported roles are denied. POST uses the same role checks. PUT, PATCH, and DELETE remain unsupported.
-Existing borrower endpoints are unchanged.
+`LoanReadPermissions`; Faculty and unsupported roles are denied. Checkout and active-loan date changes use the same role checks.
 
 Supported query parameters (combined with AND):
 
@@ -64,7 +63,7 @@ Supported query parameters (combined with AND):
   applies no restriction.
 
 Loan history remains visible when related borrowers, assets, types, or categories
-are soft-deleted. Return, extension, and deletion workflows are not included.
+are soft-deleted.
 The configured timezone remains unchanged; the timezone decision below is pending.
 
 ### Issue #113: equipment checkout
@@ -98,6 +97,29 @@ certification verification and does not claim full eligibility or full Issue #11
 acceptance. The issue's unexpired-certification requirement also needs agreement
 with the current schema's no-automatic-expiry convention. No certification data,
 flags, or success claims are fabricated.
+
+### Issue #116: change an active loan's expected return date
+
+`PATCH /api/loans/<loan_id>/` accepts exactly
+`{"expected_return_date": "YYYY-MM-DD"}`. The field is required even for PATCH;
+unknown fields return 400. Active means `actual_return_date IS NULL`. Returned
+loans cannot be changed. The new date must be on or after the original checkout
+date; it may be earlier than, equal to, or later than the existing expected date,
+and it need not be on or after today.
+
+`LoanExtensionSerializer` validates input. `extend_loan()` uses an atomic
+transaction, locks the Loan row with `select_for_update()`, applies the rules,
+and saves only `expected_return_date`. The view maps a missing loan to 404 and
+`LoanExtensionRuleError` to 400. Other loan fields and related asset/borrower
+records remain unchanged; no schema change or migration is needed.
+
+Only authenticated active Technicians and Administrators may PATCH, using the
+existing loan role permission. Faculty, unsupported roles, inactive users, and
+anonymous users are denied. Session writes retain CSRF protection. PUT is not
+supported. Success returns 200 with the same twelve fields as `LoanListSerializer`
+and status calculated using `timezone.localdate()`. Existing GET results and
+filters immediately reflect the changed date, including transitions between
+`overdue` and `on_loan`.
 
 Each app uses only the files it needs:
 
