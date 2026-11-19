@@ -69,6 +69,12 @@ export interface MaintenanceCreation {
   start_date: string
 }
 
+export interface MaintenanceUpdate {
+  technician_id?: number
+  maintenance_type?: MaintenanceType
+  priority?: MaintenancePriority
+}
+
 export class MaintenanceRequestError extends Error {
   readonly status: number
 
@@ -184,10 +190,11 @@ async function sendMaintenanceRequest<T>(
   url: string,
   action: string,
   body: object,
+  method = 'POST',
 ): Promise<T> {
   const csrfToken = await fetchCsrfToken()
   const response = await sessionFetch(url, {
-    method: 'POST',
+    method,
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
@@ -208,6 +215,18 @@ export function createMaintenanceRecord(
     `${apiBaseUrl}/maintenance-records/`,
     'Maintenance creation',
     record,
+  )
+}
+
+export function updateMaintenanceRecord(
+  recordId: number,
+  changes: MaintenanceUpdate,
+): Promise<MaintenanceRecord> {
+  return sendMaintenanceRequest(
+    `${apiBaseUrl}/maintenance-records/${recordId}/`,
+    'Maintenance update',
+    changes,
+    'PATCH',
   )
 }
 

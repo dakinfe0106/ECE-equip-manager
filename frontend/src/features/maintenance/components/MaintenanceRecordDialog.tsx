@@ -6,18 +6,22 @@ import {
   fetchMaintenanceTechnicians,
   maintenanceTypeLabels,
   maintenanceTypes,
+  updateMaintenanceRecord,
   type MaintenancePriority,
   type MaintenanceRecord,
   type MaintenanceTechnician,
   type MaintenanceType,
+  type MaintenanceUpdate,
 } from '../api'
 import type { AssetRecord } from '../../assets/api'
 
 interface MaintenanceRecordDialogProps {
   mode: 'create' | 'details'
   record?: MaintenanceRecord
+  canEdit?: boolean
   onClose: () => void
   onCreated: () => void
+  onUpdated?: (updated: MaintenanceRecord) => void
   onComplete?: () => void
 }
 
@@ -50,22 +54,34 @@ function badgeClass(value: string): string {
 export default function MaintenanceRecordDialog({
   mode,
   record,
+  canEdit = false,
   onClose,
   onCreated,
+  onUpdated,
   onComplete,
 }: MaintenanceRecordDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const isCreate = mode === 'create'
+  const isEditable = !isCreate && canEdit && record?.status === 'In Progress'
+  const needsTechnicians = isCreate || isEditable
+  const [savedRecord, setSavedRecord] = useState<MaintenanceRecord>()
+  const current = savedRecord ?? record
   const [assetSearch, setAssetSearch] = useState('')
   const [assets, setAssets] = useState<AssetRecord[]>([])
   const [technicians, setTechnicians] = useState<MaintenanceTechnician[]>([])
   const [selectedAssetId, setSelectedAssetId] = useState('')
-  const [selectedTechnicianId, setSelectedTechnicianId] = useState('')
-  const [maintenanceType, setMaintenanceType] = useState<MaintenanceType>('Repair')
-  const [priority, setPriority] = useState<MaintenancePriority>('Medium')
+  const [selectedTechnicianId, setSelectedTechnicianId] = useState(
+    String(record?.technician.id ?? ''),
+  )
+  const [maintenanceType, setMaintenanceType] = useState<MaintenanceType>(
+    record?.maintenance_type ?? 'Repair',
+  )
+  const [priority, setPriority] = useState<MaintenancePriority>(
+    record?.priority ?? 'Medium',
+  )
   const [startDate, setStartDate] = useState(localDate)
   const [isLoadingAssets, setIsLoadingAssets] = useState(isCreate)
-  const [isLoadingTechnicians, setIsLoadingTechnicians] = useState(isCreate)
+  const [isLoadingTechnicians, setIsLoadingTechnicians] = useState(needsTechnicians)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
@@ -108,7 +124,7 @@ export default function MaintenanceRecordDialog({
   }, [assetSearch, isCreate])
 
   useEffect(() => {
-    if (!isCreate) return
+    if (!needsTechnicians) return
     let isCurrent = true
     fetchMaintenanceTechnicians()
       .then((activeTechnicians) => {
@@ -130,7 +146,34 @@ export default function MaintenanceRecordDialog({
     return () => {
       isCurrent = false
     }
-  }, [isCreate])
+  }, [needsTechnicians])
+
+  const changes: MaintenanceUpdate = {}
+  if (current && maintenanceType !== current.maintenance_type) {
+    changes.maintenance_type = maintenanceType
+  }
+  if (current && priority !== current.priority) changes.priority = priority
+  if (current && Number(selectedTechnicianId) !== current.technician.id) {
+    changes.technician_id = Number(selectedTechnicianId)
+  }
+  const hasChanges = Object.keys(changes).length > 0
+
+  const requestClose = () => {
+    if (hasChanges && !window.confirm('You have unsaved changes. Close without saving?')) {
+      return
+    }
+    onClose()
+  }
+
+  const requestComplete = () => {
+    if (
+      hasChanges
+      && !window.confirm('Discard unsaved edits and continue to completion?')
+    ) {
+      return
+    }
+    onComplete?.()
+  }
 
   const submitCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -161,6 +204,31 @@ export default function MaintenanceRecordDialog({
     }
   }
 
+  const submitEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!current || !hasChanges) return
+
+    setIsSubmitting(true)
+    setErrorMessage('')
+    try {
+      const updated = await updateMaintenanceRecord(current.maintenance_id, changes)
+      setSavedRecord(updated)
+      onUpdated?.(updated)
+    } catch (error) {
+      setErrorMessage(
+        describeMaintenanceError(error, 'update the maintenance record'),
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const technicianOptions = technicians.some(
+    (technician) => technician.id === current?.technician.id,
+  ) || !current
+    ? technicians
+    : [current.technician, ...technicians]
+
   return (
     <dialog
       ref={dialogRef}
@@ -168,13 +236,13 @@ export default function MaintenanceRecordDialog({
       aria-labelledby="maintenance-dialog-title"
       onCancel={(event) => {
         event.preventDefault()
-        onClose()
+        requestClose()
       }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) onClose()
+        if (event.target === event.currentTarget) requestClose()
       }}
     >
-      <form onSubmit={isCreate ? submitCreate : (event) => event.preventDefault()}>
+      <form onSubmit={isCreate ? submitCreate : submitEdit}>
         <header className="flex items-start justify-between gap-4 border-b border-divider px-6 py-5">
           <div>
             <p className="m-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">
@@ -191,13 +259,21 @@ export default function MaintenanceRecordDialog({
             type="button"
             className="rounded-lg border border-input bg-white px-3 py-1 text-lg text-muted hover:bg-page"
             aria-label="Close maintenance dialog"
-            onClick={onClose}
+            onClick={requestClose}
           >
             ×
           </button>
         </header>
 
         <div className="grid grid-cols-2 gap-4 px-6 py-5 max-[600px]:grid-cols-1">
+          {savedRecord && !hasChanges && (
+            <p
+              className="col-span-full m-0 rounded-lg border border-success/20 bg-success-soft px-3 py-2 text-[12px] text-success"
+              role="status"
+            >
+              <strong>Maintenance record updated.</strong> Your changes have been saved successfully.
+            </p>
+          )}
           {isCreate ? (
             <>
               <label className="flex flex-col gap-1.5 text-[11px] font-semibold text-body">
@@ -238,6 +314,19 @@ export default function MaintenanceRecordDialog({
                   </span>
                 )}
               </label>
+            </>
+          ) : record ? (
+            <>
+              <ReadOnlyField label="Asset ID" value={record.asset.asset_identifier} />
+              <ReadOnlyField label="Equipment" value={record.asset.name} />
+              <ReadOnlyField
+                label="Equipment Type"
+                value={record.asset.equipment_type}
+              />
+            </>
+          ) : null}
+          {isCreate || isEditable ? (
+            <>
               <label className="flex flex-col gap-1.5 text-[11px] font-semibold text-body">
                 <span>Maintenance Type *</span>
                 <select
@@ -286,49 +375,48 @@ export default function MaintenanceRecordDialog({
                   <option value="">
                     {isLoadingTechnicians ? 'Loading technicians…' : 'Select a technician'}
                   </option>
-                  {technicians.map((technician) => (
+                  {technicianOptions.map((technician) => (
                     <option key={technician.id} value={technician.id}>
                       {displayTechnician(technician)}
                     </option>
                   ))}
                 </select>
               </label>
-              <label className="flex flex-col gap-1.5 text-[11px] font-semibold text-body">
-                <span>Start Date *</span>
-                <input
-                  className="min-h-10 rounded-lg border border-input px-3 text-[12px] font-normal"
-                  type="date"
-                  required
-                  value={startDate}
-                  onChange={(event) => setStartDate(event.target.value)}
-                />
-              </label>
             </>
-          ) : record ? (
+          ) : current ? (
             <>
-              <ReadOnlyField label="Asset ID" value={record.asset.asset_identifier} />
-              <ReadOnlyField label="Equipment" value={record.asset.name} />
-              <ReadOnlyField
-                label="Equipment Type"
-                value={record.asset.equipment_type}
-              />
               <ReadOnlyField
                 label="Maintenance Type"
-                value={maintenanceTypeLabels[record.maintenance_type]}
+                value={maintenanceTypeLabels[current.maintenance_type]}
               />
-              <ReadOnlyField label="Priority" value={record.priority} badge />
+              <ReadOnlyField label="Priority" value={current.priority} badge />
               <ReadOnlyField
                 label="Responsible Technician"
-                value={displayTechnician(record.technician)}
+                value={displayTechnician(current.technician)}
               />
-              <ReadOnlyField label="Start Date" value={record.start_date} />
-              <ReadOnlyField label="Completion Date" value={record.end_date ?? 'Not completed'} />
+            </>
+          ) : null}
+          {isCreate ? (
+            <label className="flex flex-col gap-1.5 text-[11px] font-semibold text-body">
+              <span>Start Date *</span>
+              <input
+                className="min-h-10 rounded-lg border border-input px-3 text-[12px] font-normal"
+                type="date"
+                required
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+              />
+            </label>
+          ) : current ? (
+            <>
+              <ReadOnlyField label="Start Date" value={current.start_date} />
+              <ReadOnlyField label="Completion Date" value={current.end_date ?? 'Not completed'} />
               <div className="col-span-full flex items-center gap-2">
-                <span className={`rounded-full px-3 py-1 text-[10px] font-semibold ${badgeClass(record.status)}`}>
-                  {record.status}
+                <span className={`rounded-full px-3 py-1 text-[10px] font-semibold ${badgeClass(current.status)}`}>
+                  {current.status}
                 </span>
-                <span className={`rounded-full px-3 py-1 text-[10px] font-semibold ${badgeClass(record.priority)}`}>
-                  {record.priority} priority
+                <span className={`rounded-full px-3 py-1 text-[10px] font-semibold ${badgeClass(current.priority)}`}>
+                  {current.priority} priority
                 </span>
               </div>
             </>
@@ -348,7 +436,7 @@ export default function MaintenanceRecordDialog({
             className="min-h-9 rounded-lg border border-input bg-white px-4 text-[12px] font-semibold text-body hover:bg-page"
             type="button"
             disabled={isSubmitting}
-            onClick={onClose}
+            onClick={requestClose}
           >
             Close
           </button>
@@ -366,12 +454,20 @@ export default function MaintenanceRecordDialog({
             >
               {isSubmitting ? 'Saving…' : 'Save Maintenance'}
             </button>
+          ) : isEditable ? (
+            <button
+              className="min-h-9 rounded-lg bg-primary px-4 text-[12px] font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+              type="submit"
+              disabled={isSubmitting || isLoadingTechnicians || !hasChanges}
+            >
+              {isSubmitting ? 'Saving…' : 'Save Changes'}
+            </button>
           ) : null}
           {!isCreate && record?.status === 'In Progress' && onComplete && (
             <button
               className="min-h-9 rounded-lg bg-primary px-4 text-[12px] font-semibold text-white hover:bg-primary-hover"
               type="button"
-              onClick={onComplete}
+              onClick={requestComplete}
             >
               Complete Maintenance
             </button>
