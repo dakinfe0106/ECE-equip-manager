@@ -15,6 +15,7 @@ interface Props {
 export default function ExportReportsDialog({ currentReport, choices, filters, options, onClose, onDownloaded }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const requestRef = useRef<AbortController | null>(null)
+  const pressedOutside = useRef(false)
   const [selected, setSelected] = useState<Report[]>([currentReport])
   const [scope, setScope] = useState<ExportScope>('current')
   const [pending, setPending] = useState(false)
@@ -34,6 +35,11 @@ export default function ExportReportsDialog({ currentReport, choices, filters, o
   const close = () => {
     requestRef.current?.abort()
     onClose()
+  }
+  const isOutside = (event: { clientX: number; clientY: number }, dialog: HTMLDialogElement) => {
+    const bounds = dialog.getBoundingClientRect()
+    return event.clientX < bounds.left || event.clientX > bounds.right
+      || event.clientY < bounds.top || event.clientY > bounds.bottom
   }
   const download = async (event: FormEvent) => {
     event.preventDefault()
@@ -72,6 +78,14 @@ export default function ExportReportsDialog({ currentReport, choices, filters, o
   return (
     <dialog ref={dialogRef} aria-labelledby="export-title" aria-describedby="export-description"
       className="m-auto max-h-[calc(100dvh-40px)] w-[min(550px,calc(100vw-32px))] overflow-y-auto rounded-[13px] border border-line bg-white p-6 shadow-xl backdrop:bg-sidebar/50"
+      onPointerDown={event => {
+        pressedOutside.current = event.target === event.currentTarget && isOutside(event, event.currentTarget)
+      }}
+      onClick={event => {
+        const startedOutside = pressedOutside.current
+        pressedOutside.current = false
+        if (startedOutside && event.target === event.currentTarget && isOutside(event, event.currentTarget)) close()
+      }}
       onCancel={event => { event.preventDefault(); close() }} onClose={close}>
       <h2 id="export-title" className="text-lg font-semibold text-heading">Export reports</h2>
       <p id="export-description" className="mt-1 text-xs text-muted">Download one Excel workbook with a worksheet for each selected report, plus filters and summary metrics.</p>

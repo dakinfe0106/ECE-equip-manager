@@ -178,7 +178,11 @@ from [Backend.md](Backend.md#analytics-reporting). Export to Excel opens a nativ
 dialog with report checkboxes (active tab selected), Select all, and current-filter
 or all-data scope. The applied filters are shown before downloading. Download Excel
 requires a selected report, prevents duplicate requests, supports cancellation,
-and shows progress/errors. One workbook contains the selected report worksheets
+and shows progress/errors. Clicking the backdrop, Cancel, or pressing Escape closes
+the dialog and cancels any pending download. Clicking inside the dialog keeps it open.
+The three filter controls match the Assets view selector's custom chevron, rounded
+border, subtle shadow, and primary focus ring, retaining native select behavior.
+One workbook contains the selected report worksheets
 and an Export details sheet. Charts have textual counts and responsive layouts; loading,
 empty, and retryable error states replace mock data.
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ComponentPropsWithoutRef } from 'react'
 import { useSearchParams } from 'react-router'
 import PageIntro from '../components/ui/PageIntro'
 import AnalyticsChart from '../features/analytics/AnalyticsChart'
@@ -14,7 +14,18 @@ const reports: { id: Report; label: string; description: string }[] = [
 ]
 const primary = 'rounded-lg bg-primary px-4 py-2.5 text-xs font-semibold text-white hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
 const secondary = 'rounded-lg border border-input bg-white px-4 py-2.5 text-xs font-semibold text-body hover:bg-page focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
-const selectStyle = 'mt-1 w-full rounded-lg border border-input bg-white px-3 py-2.5 text-xs text-body focus:outline-2 focus:outline-primary'
+
+function FilterSelect({ children, ...props }: ComponentPropsWithoutRef<'select'>) {
+  return <span className="relative mt-1 block rounded-lg border border-input bg-white shadow-[0_1px_2px_rgb(16_24_40_/_4%)] focus-within:border-primary focus-within:shadow-[0_0_0_3px_var(--color-primary-soft)]">
+    <select {...props} className="min-h-10 w-full cursor-pointer appearance-none rounded-[7px] border-0 bg-white pr-9 pl-3 text-[11px] font-[650] text-body outline-none">
+      {children}
+    </select>
+    <svg className="pointer-events-none absolute top-1/2 right-[10px] h-4 w-4 -translate-y-1/2 fill-none stroke-subtle stroke-[1.8] [stroke-linecap:round] [stroke-linejoin:round]"
+      viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  </span>
+}
 
 export default function AnalyticsPage() {
   const [params, setParams] = useSearchParams()
@@ -77,21 +88,21 @@ function AnalyticsContent({ selected, applied, onNavigate, onRetry }: {
           navigate(selected.id, draft)
         }}>
           <label className="min-w-40 flex-1 text-[10px] font-semibold text-muted">Category
-            <select className={selectStyle} value={draft.category_id} onChange={event => setDraft({ ...draft, category_id: event.target.value, equipment_type_id: '' })}>
+            <FilterSelect value={draft.category_id} onChange={event => setDraft({ ...draft, category_id: event.target.value, equipment_type_id: '' })}>
               <option value="">All categories</option>
               {options?.categories.map(category => <option key={category.category_id} value={category.category_id}>{category.name}{category.is_deleted ? ' (archived)' : ''}</option>)}
-            </select>
+            </FilterSelect>
           </label>
           <label className="min-w-40 flex-1 text-[10px] font-semibold text-muted">Equipment type
-            <select className={selectStyle} value={draft.equipment_type_id} onChange={event => setDraft({ ...draft, equipment_type_id: event.target.value })}>
+            <FilterSelect value={draft.equipment_type_id} onChange={event => setDraft({ ...draft, equipment_type_id: event.target.value })}>
               <option value="">All equipment types</option>
               {options?.equipment_types.filter(type => !draft.category_id || String(type.category_id) === draft.category_id).map(type => <option key={type.type_id} value={type.type_id}>{type.name}{type.is_deleted ? ' (archived)' : ''}</option>)}
-            </select>
+            </FilterSelect>
           </label>
           <label className="w-28 text-[10px] font-semibold text-muted">Checkout year
-            <select className={selectStyle} value={draft.year} onChange={event => setDraft({ ...draft, year: event.target.value })}>
+            <FilterSelect value={draft.year} onChange={event => setDraft({ ...draft, year: event.target.value })}>
               {years.map(year => <option key={year} value={year}>{year}</option>)}
-            </select>
+            </FilterSelect>
           </label>
           <button type="submit" className={primary}>Apply Filters</button>
         </form>

@@ -33,6 +33,13 @@ function dialog() {
   return { onClose, onDownloaded }
 }
 
+function backdropClick() {
+  const element = screen.getByRole('dialog')
+  vi.spyOn(element, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 100, 550, 600))
+  fireEvent(element, new MouseEvent('pointerdown', { bubbles: true, clientX: 20, clientY: 20 }))
+  fireEvent.click(element, { clientX: 20, clientY: 20 })
+}
+
 describe('Export reports dialog', () => {
   it('preselects the current tab and applied filters, and requires a report', () => {
     dialog()
@@ -62,7 +69,7 @@ describe('Export reports dialog', () => {
     await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:analytics-test'))
   })
 
-  it('shows progress, prevents duplicate submission, and cancels pending downloads', async () => {
+  it.each(['Cancel', 'backdrop'])('prevents duplicate submission and cancels pending downloads via %s', async dismiss => {
     let finish: (value: Blob) => void = () => {}
     const fetchExport = vi.spyOn(api, 'fetchAnalyticsExport').mockImplementation(() => new Promise(resolve => { finish = resolve }))
     const { onClose, onDownloaded } = dialog()
@@ -72,12 +79,34 @@ describe('Export reports dialog', () => {
     expect(screen.getByRole('status').textContent).toContain('Preparing your workbook')
     expect(fetchExport).toHaveBeenCalledOnce()
     const signal = fetchExport.mock.calls[0][3]!
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    if (dismiss === 'backdrop') backdropClick()
+    else fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(signal.aborted).toBe(true)
     expect(onClose).toHaveBeenCalledOnce()
     await act(async () => { finish(new Blob(['cancelled workbook'])) })
     expect(onDownloaded).not.toHaveBeenCalled()
     expect(URL.createObjectURL).not.toHaveBeenCalled()
+  })
+
+  it('closes on a backdrop click without requesting a workbook', () => {
+    const fetchExport = vi.spyOn(api, 'fetchAnalyticsExport')
+    const { onClose } = dialog()
+    backdropClick()
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(fetchExport).not.toHaveBeenCalled()
+  })
+
+  it('keeps the dialog open for controls, padding, and a drag starting inside', () => {
+    const { onClose } = dialog()
+    const element = screen.getByRole('dialog')
+    vi.spyOn(element, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 100, 550, 600))
+    fireEvent.click(screen.getByLabelText('Equipment Availability'))
+    expect((screen.getByLabelText('Equipment Availability') as HTMLInputElement).checked).toBe(true)
+    fireEvent(element, new MouseEvent('pointerdown', { bubbles: true, clientX: 110, clientY: 110 }))
+    fireEvent.click(element, { clientX: 110, clientY: 110 })
+    fireEvent(element, new MouseEvent('pointerdown', { bubbles: true, clientX: 200, clientY: 200 }))
+    fireEvent.click(element, { clientX: 20, clientY: 20 })
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('keeps selections after errors and allows retry', async () => {
