@@ -27,7 +27,7 @@ def extension_data(db):
     borrower = Borrower.objects.create(first_name="Ada", last_name="Lovelace", unb_id="EXT-UNB")
     loan = Loan.objects.create(
         asset=asset, borrower=borrower, checkout_date=date(2026, 11, 1),
-        expected_return_date=date(2026, 11, 15),
+        expected_return_date=date(2026, 11, 16),
     )
     user = get_user_model().objects.create_user(username="extension-tech", role="TECHNICIAN")
     client = APIClient()
@@ -43,7 +43,7 @@ def patch_date(data, expected_return_date="2026-11-20", **extra):
 
 
 def assert_original_loan(data):
-    assert Loan.objects.get(pk=data.loan.pk).expected_return_date == date(2026, 11, 15)
+    assert Loan.objects.get(pk=data.loan.pk).expected_return_date == date(2026, 11, 16)
 
 
 @pytest.mark.parametrize("role", ["TECHNICIAN", "ADMINISTRATOR"])
@@ -110,35 +110,49 @@ def test_extension_returned_loan_rejected(extension_data, condition):
     assert "Returned" in str(response.data)
     assert Loan.objects.values().get(pk=data.loan.pk) == before
 
-
-@pytest.mark.parametrize("new_date,status", [
-    ("2026-11-20", "on_loan"), ("2026-11-16", "on_loan"),
-    ("2026-11-10", "overdue"), ("2026-11-01", "overdue"),
-    ("2026-11-15", "overdue"),
+@pytest.mark.parametrize("new_date", [
+    "2026-11-17",
+    "2026-11-20",
+    "2026-12-01",
 ])
-def test_extension_allows_dates_on_or_after_checkout(extension_data, new_date, status):
+def test_extension_allows_only_later_dates(extension_data, new_date):
     data = extension_data
     response = patch_date(data, new_date)
+
     assert response.status_code == 200
-    assert response.data["status"] == status
+    assert response.data["status"] == "on_loan"
     assert response.data["expected_return_date"] == new_date
+
     data.loan.refresh_from_db()
     assert data.loan.expected_return_date.isoformat() == new_date
     assert data.loan.checkout_date == date(2026, 11, 1)
 
 
-def test_extension_can_change_on_loan_to_overdue(extension_data):
+@pytest.mark.parametrize("new_date", [
+    "2026-11-01",
+    "2026-11-10",
+    "2026-11-15",
+    "2026-11-16",
+])
+def test_extension_rejects_same_or_earlier_dates(extension_data, new_date):
+    response = patch_date(extension_data, new_date)
+
+    assert response.status_code == 400
+    assert "expected_return_date" in response.data
+    assert_original_loan(extension_data)
+
+
+def test_extension_rejects_overdue_loan(extension_data):
     data = extension_data
-    Loan.objects.filter(pk=data.loan.pk).update(expected_return_date=date(2026, 11, 20))
-    response = patch_date(data, "2026-11-10")
-    assert response.status_code == 200
-    assert response.data["status"] == "overdue"
-    listing = data.client.get("/api/loans/", {
-        "status": "overdue", "expected_return_from": "2026-11-10",
-        "expected_return_to": "2026-11-10",
-    })
-    assert listing.status_code == 200
-    assert listing.data == [response.data]
+    Loan.objects.filter(pk=data.loan.pk).update(
+        expected_return_date=date(2026, 11, 15)
+    )
+
+    response = patch_date(data, "2026-11-20")
+
+    assert response.status_code == 400
+    assert "Overdue" in str(response.data)
+    assert Loan.objects.get(pk=data.loan.pk).expected_return_date == date(2026, 11, 15)
 
 
 @pytest.mark.parametrize("value", ["2026-10-31", "not-a-date", "2026-02-30", "", None])
@@ -193,7 +207,7 @@ def test_extension_status_uses_localdate(extension_data):
         override_settings(TIME_ZONE="America/Moncton"),
         patch("django.utils.timezone.now", return_value=datetime(2026, 11, 17, 1, tzinfo=UTC)),
     ):
-        response = patch_date(extension_data, "2026-11-16")
+        response = patch_date(extension_data, "2026-11-17")
         assert response.status_code == 200
         assert response.data["status"] == "on_loan"
 
@@ -227,11 +241,18 @@ def test_concurrent_extensions_preserve_loan_history(extension_data):
         finally:
             close_old_connections()
 
-    dates = ["2026-11-20", "2026-11-10"]
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        responses = list(executor.map(update, dates))
-    assert [response.status_code for response in responses] == [200, 200]
-    assert [response.data["expected_return_date"] for response in responses] == dates
-    after = Loan.objects.values().get(pk=data.loan.pk)
-    assert after["expected_return_date"].isoformat() in dates
-    assert {**after, "expected_return_date": before["expected_return_date"]} == before
+        dates = ["2026-11-20", "2026-11-21"]
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            responses = list(executor.map(update, dates))
+
+        assert responses[1].status_code == 200
+        assert responses[0].status_code in (200, 400)
+
+        after = Loan.objects.values().get(pk=data.loan.pk)
+
+        assert after["expected_return_date"] == date(2026, 11, 21)
+        assert {
+            **after,
+            "expected_return_date": before["expected_return_date"],
+        } == before

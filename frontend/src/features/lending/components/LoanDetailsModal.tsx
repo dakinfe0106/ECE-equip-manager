@@ -107,7 +107,7 @@ export default function LoanDetailsModal({
 
         {isActive && (
           <footer className="flex flex-wrap justify-end gap-2 border-t border-divider px-6 py-4">
-            {onExtendLoan && (
+            {loan.status === 'on_loan' && onExtendLoan && (
               <button
                 type="button"
                 onClick={() => onExtendLoan(loan)}

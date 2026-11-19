@@ -40,9 +40,11 @@ function ExtendLoanModalContent({
       return
     }
 
-    if (newReturnDate < loan.checkout_date) {
-        setDateError('The new return date cannot be earlier than the original checkout date')
-        return
+    if (newReturnDate <= loan.expected_return_date) {
+      setDateError(
+        'The new return date must be later than the current expected return date.'
+      )
+      return
     }
 
     setSubmitting(true)
@@ -186,7 +188,7 @@ function ExtendLoanModalContent({
                 id="new-expected-return-date"
                 type="date"
                 required
-                min={loan.checkout_date}
+                min={loan.expected_return_date}
                 value={newReturnDate}
                 onChange={(event) => {
                   setNewReturnDate(event.target.value)
