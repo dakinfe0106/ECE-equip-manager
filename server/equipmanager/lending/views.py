@@ -393,7 +393,7 @@ class BorrowingAnalytics(APIView):
 
 
 class BorrowerAnalytics(APIView):
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (BorrowerListPermissions,)
 
     def get(self, request):
         params = _analytics_params(request)
