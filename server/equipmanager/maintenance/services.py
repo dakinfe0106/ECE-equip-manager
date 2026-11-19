@@ -3,6 +3,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from inventory.models import Asset
+from lending.models import Loan
 
 from .models import MaintenanceRecord
 
@@ -39,11 +40,26 @@ def start_maintenance(
         raise MaintenanceRuleError(
             {"asset_id": "Archived equipment cannot enter maintenance."}
         )
-    if asset.status == Asset.Status.ON_LOAN:
+    loans = Loan.objects.filter(asset=asset)
+    if asset.status == Asset.Status.ON_LOAN or loans.filter(actual_return_date__isnull=True).exists():
         raise MaintenanceRuleError(
             {"asset_id": "Equipment currently on loan must be returned before maintenance."}
         )
-    if asset.status != Asset.Status.AVAILABLE:
+    if MaintenanceRecord.objects.filter(asset=asset, end_date__isnull=True).exists():
+        raise MaintenanceRuleError(
+            {"asset_id": "This equipment already has active maintenance."}
+        )
+    if asset.status == Asset.Status.UNDER_MAINTENANCE:
+        # Checkout assigns each loan ID while holding this asset lock.
+        latest_loan = loans.order_by("-pk").first()
+        eligible = (
+            latest_loan is not None
+            and latest_loan.actual_return_date is not None
+            and latest_loan.return_condition == Loan.ReturnCondition.DAMAGED
+        )
+    else:
+        eligible = asset.status == Asset.Status.AVAILABLE
+    if not eligible:
         raise MaintenanceRuleError(
             {"asset_id": "Only available equipment can enter maintenance."}
         )
@@ -66,8 +82,9 @@ def start_maintenance(
             {"asset_id": "This equipment already has active maintenance."}
         ) from exc
 
-    asset.status = Asset.Status.UNDER_MAINTENANCE
-    asset.save(update_fields=("status",))
+    if asset.status != Asset.Status.UNDER_MAINTENANCE:
+        asset.status = Asset.Status.UNDER_MAINTENANCE
+        asset.save(update_fields=("status",))
     return record
 
 

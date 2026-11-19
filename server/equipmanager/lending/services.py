@@ -68,6 +68,36 @@ def checkout_asset(*, asset_id, borrower_id, expected_return_date):
     return loan
 
 
+class LoanReturnRuleError(Exception):
+    def __init__(self, field, message):
+        self.errors = {field: message}
+        super().__init__(message)
+
+
+@transaction.atomic
+def return_loan(*, loan_id, actual_return_date, return_condition):
+    loan = Loan.objects.select_for_update().get(pk=loan_id)
+    if loan.actual_return_date is not None:
+        raise LoanReturnRuleError("actual_return_date", "This loan has already been returned.")
+    if actual_return_date < loan.checkout_date:
+        raise LoanReturnRuleError("actual_return_date", "Must be on or after the checkout date.")
+    if return_condition not in Loan.ReturnCondition.values:
+        raise LoanReturnRuleError("return_condition", "Select a valid return condition.")
+
+    asset = Asset.objects.select_for_update().get(pk=loan.asset_id)
+    loan.actual_return_date = actual_return_date
+    loan.return_condition = return_condition
+    loan.save(update_fields=["actual_return_date", "return_condition"])
+    asset.status = (
+        Asset.Status.UNDER_MAINTENANCE
+        if return_condition == Loan.ReturnCondition.DAMAGED
+        else Asset.Status.AVAILABLE
+    )
+    asset.save(update_fields=["status"])
+    loan.asset = asset
+    return loan
+
+
 class DamageFlagRuleError(Exception):
     def __init__(self, field, message):
         self.errors = {field: message}

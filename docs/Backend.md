@@ -17,9 +17,9 @@ If this guide conflicts with `database.md` or `Architecture.md`, raise the confl
 ## 1. Current state
 
 - `inventory` provides authenticated category and equipment-type lookups and creation, paginated asset listing/search, asset creation, asset detail/update endpoints, and a category summary list and per-category equipment-type list for the Categories page. Asset status remains server-controlled; newly created assets start as `Available`.
-- `lending` provides the documented `Borrower` model, authenticated list/create/detail/update endpoints, and persistent reviewed damage incidents with edit auditing. `POST /api/borrowers/` manually registers a borrower (`is_manual_enrollment=True`) with unique `unb_id` validation across all rows, including soft-deleted records. `GET /api/borrowers/<borrower_id>/` returns identity, `is_manual_enrollment`, the separate legacy negligent-damage boolean, unresolved reviewed incident count, warning level, and damage-based eligibility. `PATCH /api/borrowers/<borrower_id>/` updates borrower details (`first_name`, `last_name`). Borrower-scoped damage-flag endpoints list history, record reviewed incidents, edit existing incidents, and resolve them with a reason. Only Technicians and Administrators may use these endpoints. Checkout enforces overdue-loan and damage-based standing. Borrower detail still reports damage-based eligibility only; certification verification, returns, and extensions remain pending.d damage-based standing. Borrower detail still reports damage-based eligibility only; certification verification, borrower creation/editing, returns, and extensions remain pending.
+- `lending` provides the documented `Borrower` model, authenticated list/create/detail/update endpoints, and persistent reviewed damage incidents with edit auditing. `POST /api/borrowers/` manually registers a borrower (`is_manual_enrollment=True`) with unique `unb_id` validation across all rows, including soft-deleted records. `GET /api/borrowers/<borrower_id>/` returns identity, `is_manual_enrollment`, the separate legacy negligent-damage boolean, unresolved reviewed incident count, warning level, and damage-based eligibility. `PATCH /api/borrowers/<borrower_id>/` updates borrower details (`first_name`, `last_name`). Borrower-scoped damage-flag endpoints list history, record reviewed incidents, edit existing incidents, and resolve them with a reason. Only Technicians and Administrators may use these endpoints. Checkout enforces overdue-loan and damage-based standing. Borrower detail reports damage-based eligibility. Certification verification and loan extensions remain pending.
 - `maintenance` provides role-protected maintenance record list/create/detail endpoints and an active-technician lookup; creating a record updates asset status transactionally.
-- `lending` also provides `Loan` and read-only `GET /api/loans/` with the Issue #110 contract below. POST checkout is implemented as described below; return and extension workflows remain unimplemented.
+- `lending` also provides `Loan` and read-only `GET /api/loans/` with the Issue #110 contract below. POST supports checkout and the return action described below.
 - `users.User(AbstractUser)` is the custom `AUTH_USER_MODEL`; its required `role` stores `TECHNICIAN`, `FACULTY`, or `ADMINISTRATOR`. Django admin creation/edit forms expose the role, and `createsuperuser` prompts for it through `REQUIRED_FIELDS`. Existing accounts receive `ADMINISTRATOR` in migration `users.0002`; new accounts have no default role. Role assignment does not grant staff/superuser flags or Django permissions.
 - DRF defaults are `SessionAuthentication` and `IsAuthenticated`. Inventory endpoints enforce the role policy in [database.md section 5](database.md#5-permissions-scope). The paginated asset list supports case-insensitive search across Asset ID and name, plus combined category and equipment-type filters.
 - `/api/health/` is a plain Django view, so DRF authentication does not apply to it.
@@ -42,7 +42,7 @@ conditions are `Intact` or `Damaged`.
 
 
 The endpoint permits authenticated active Technicians and Administrators through
-`LoanReadPermissions`; Faculty and unsupported roles are denied. POST uses the same role checks. PUT, PATCH, and DELETE remain unsupported.
+`LoanReadPermissions`; Faculty and unsupported roles are denied. POST uses the same role checks. PUT, PATCH, and DELETE are unsupported on the loan collection.
 Existing borrower endpoints are unchanged.
 
 Supported query parameters (combined with AND):
@@ -63,7 +63,7 @@ Supported query parameters (combined with AND):
   applies no restriction.
 
 Loan history remains visible when related borrowers, assets, types, or categories
-are soft-deleted. Return, extension, and deletion workflows are not included.
+are soft-deleted. Loan returns use the action endpoint described below.
 The configured timezone remains unchanged; the timezone decision below is pending.
 
 ### Issue #113: equipment checkout
@@ -97,6 +97,28 @@ certification verification and does not claim full eligibility or full Issue #11
 acceptance. The issue's unexpired-certification requirement also needs agreement
 with the current schema's no-automatic-expiry convention. No certification data,
 flags, or success claims are fabricated.
+
+### Issue #97: return borrowed equipment
+
+`POST /api/loans/<loan_id>/return/` accepts exactly `actual_return_date`
+(YYYY-MM-DD) and `return_condition` (`Intact` or `Damaged`). Active
+Technicians and Administrators may use the endpoint. A missing loan returns
+404. Invalid input, duplicate returns, and dates before checkout return 400.
+A return on the checkout date is valid.
+
+The service locks the loan and asset and saves the provided return date and
+condition atomically with the asset status. An intact return sets the asset to
+`Available`; a damaged return sets it to `Under_Maintenance`. HTTP 200 returns
+`{"loan": <standard loan representation>, "maintenance_required": <boolean>}`.
+The loan has status `returned`, and the boolean is true for a damaged return.
+
+When maintenance is required, the frontend opens the maintenance form. The
+backend accepts the handoff through `POST /api/maintenance-records/` when
+the latest loan ended with damage and the asset has neither an active loan
+nor an open maintenance record. The form supplies the maintenance type,
+priority, technician, and start date. A damaged return creates neither a
+maintenance record nor a damage flag. Damage flags require separate technician
+review.
 
 Each app uses only the files it needs:
 
