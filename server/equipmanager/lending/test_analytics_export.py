@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import BytesIO
 from unittest.mock import patch
 
@@ -14,7 +14,7 @@ client = analytics_fixtures.client
 records = analytics_fixtures.records
 
 pytestmark = pytest.mark.django_db
-GENERATED_AT = datetime(2025, 2, 11, 12, tzinfo=timezone.utc)
+GENERATED_AT = datetime(2025, 2, 11, 12, tzinfo=UTC)
 REPORTS = ["availability", "utilization", "borrowing", "borrowers"]
 
 
