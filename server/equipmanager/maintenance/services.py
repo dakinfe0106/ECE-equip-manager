@@ -89,6 +89,41 @@ def start_maintenance(
 
 
 @transaction.atomic
+def update_maintenance(
+    *,
+    record_id: int,
+    maintenance_type: str | None = None,
+    priority: str | None = None,
+    technician_id: int | None = None,
+) -> MaintenanceRecord:
+    record = MaintenanceRecord.objects.select_for_update().get(pk=record_id)
+
+    if record.end_date is not None:
+        raise MaintenanceRuleError(
+            {"maintenance_id": "Completed maintenance records cannot be edited."}
+        )
+
+    changed_fields = []
+    if maintenance_type is not None:
+        record.maintenance_type = maintenance_type
+        changed_fields.append("maintenance_type")
+    if priority is not None:
+        record.priority = priority
+        changed_fields.append("priority")
+    if technician_id is not None:
+        record.technician = User.objects.get(
+            pk=technician_id,
+            is_active=True,
+            role=User.Role.TECHNICIAN,
+        )
+        changed_fields.append("technician")
+
+    if changed_fields:
+        record.save(update_fields=changed_fields)
+    return record
+
+
+@transaction.atomic
 def complete_maintenance(
     *,
     record_id: int,

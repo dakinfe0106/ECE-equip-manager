@@ -17,9 +17,15 @@ from .serializers import (
     MaintenanceRecordCompleteSerializer,
     MaintenanceRecordCreateSerializer,
     MaintenanceRecordSerializer,
+    MaintenanceRecordUpdateSerializer,
     MaintenanceTechnicianSerializer,
 )
-from .services import MaintenanceRuleError, complete_maintenance, start_maintenance
+from .services import (
+    MaintenanceRuleError,
+    complete_maintenance,
+    start_maintenance,
+    update_maintenance,
+)
 
 User = get_user_model()
 
@@ -117,13 +123,42 @@ class MaintenanceRecordListCreate(generics.ListCreateAPIView):
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
-class MaintenanceRecordDetail(generics.RetrieveAPIView):
+class MaintenanceRecordDetail(generics.RetrieveUpdateAPIView):
     queryset = MaintenanceRecord.objects.select_related(
         "asset__type",
         "technician",
     )
     serializer_class = MaintenanceRecordSerializer
     permission_classes = (MaintenanceRolePermissions,)
+    http_method_names = ("get", "patch", "head", "options")
+
+    def get_serializer_class(self):
+        if self.request.method == "PATCH":
+            return MaintenanceRecordUpdateSerializer
+        return MaintenanceRecordSerializer
+
+    def partial_update(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        values = serializer.validated_data
+        technician = values.get("technician_id")
+        try:
+            record = update_maintenance(
+                record_id=kwargs["pk"],
+                maintenance_type=values.get("maintenance_type"),
+                priority=values.get("priority"),
+                technician_id=technician.pk if technician else None,
+            )
+        except MaintenanceRuleError as exc:
+            raise ValidationError(exc.detail) from exc
+        except User.DoesNotExist:
+            raise ValidationError(
+                {"technician_id": "Select an active technician."}
+            ) from None
+        except MaintenanceRecord.DoesNotExist as exc:
+            raise NotFound("The maintenance record does not exist.") from exc
+
+        return Response(MaintenanceRecordSerializer(record).data)
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")

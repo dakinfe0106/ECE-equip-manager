@@ -1,10 +1,12 @@
 
 from datetime import date
+from io import BytesIO
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.urls import reverse
+from openpyxl import load_workbook
 from rest_framework.test import APIClient
 
 from .models import Asset, Category, EquipmentType
@@ -1213,3 +1215,102 @@ def test_category_create_enforces_csrf_for_session_users(db):
 
     assert response.status_code == 403
     assert not Category.objects.filter(name="No Token").exists()
+
+
+def test_availability_analytics_counts_each_status_and_includes_empty_types(
+    authenticated_client, inventory_type
+):
+    empty_type = EquipmentType.objects.create(
+        category=inventory_type.category,
+        name="Unused equipment",
+    )
+    statuses = (
+        Asset.Status.AVAILABLE,
+        Asset.Status.ON_LOAN,
+        Asset.Status.UNDER_MAINTENANCE,
+        Asset.Status.RETIRED,
+    )
+    for index, status_value in enumerate(statuses):
+        Asset.objects.create(
+            type=inventory_type,
+            asset_identifier=f"ANALYTICS-{index}",
+            name=f"Analytics asset {index}",
+            status=status_value,
+        )
+    Asset.objects.create(
+        type=inventory_type,
+        asset_identifier="ANALYTICS-DELETED",
+        name="Archived asset",
+        is_deleted=True,
+    )
+
+    response = authenticated_client.get("/api/analytics/availability/")
+
+    assert response.status_code == 200
+    by_type = {row["equipment_type_id"]: row for row in response.data["results"]}
+    assert by_type[inventory_type.type_id] == {
+        "category_id": inventory_type.category_id,
+        "category_name": "Tools",
+        "equipment_type_id": inventory_type.type_id,
+        "equipment_type_name": "Power tools",
+        "total_assets": 4,
+        "available_assets": 1,
+        "on_loan_assets": 1,
+        "under_maintenance_assets": 1,
+        "retired_assets": 1,
+    }
+    assert by_type[empty_type.type_id]["total_assets"] == 0
+
+
+def test_availability_analytics_allows_faculty_and_filters_equipment_type(
+    faculty_client, inventory_type
+):
+    other_category = Category.objects.create(name="Lab equipment")
+    other_type = EquipmentType.objects.create(category=other_category, name="Scanners")
+
+    response = faculty_client.get(
+        "/api/analytics/availability/",
+        {"category_id": other_category.category_id, "equipment_type_id": other_type.type_id},
+    )
+
+    assert response.status_code == 200
+    assert [row["equipment_type_id"] for row in response.data["results"]] == [
+        other_type.type_id
+    ]
+
+
+def test_availability_analytics_requires_authentication():
+    assert APIClient().get("/api/analytics/availability/").status_code == 403
+
+
+def test_availability_analytics_rejects_invalid_filters(authenticated_client):
+    response = authenticated_client.get(
+        "/api/analytics/availability/", {"category_id": "not-a-number"}
+    )
+
+    assert response.status_code == 400
+    assert "category_id" in response.data
+
+
+def test_availability_analytics_exports_filtered_excel(authenticated_client, inventory_type):
+    response = authenticated_client.get(
+        "/api/analytics/availability/",
+        {"equipment_type_id": inventory_type.type_id, "export": "xlsx"},
+    )
+
+    assert response.status_code == 200
+    assert response["Content-Type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    workbook = load_workbook(BytesIO(response.content), read_only=True)
+    rows = list(workbook.active.values)
+    assert rows[0] == (
+        "Category",
+        "Equipment Type",
+        "Total Assets",
+        "Available",
+        "On Loan",
+        "Under Maintenance",
+        "Retired",
+    )
+    assert rows[1][1] == "Power tools"
