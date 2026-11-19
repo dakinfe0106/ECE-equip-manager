@@ -107,6 +107,19 @@ class LoanCheckoutSerializer(serializers.Serializer):
         return super().to_internal_value(data)
 
 
+class LoanExtensionSerializer(serializers.Serializer):
+    expected_return_date = serializers.DateField(input_formats=["%Y-%m-%d"])
+
+    def to_internal_value(self, data):
+        if hasattr(data, "keys"):
+            unknown = set(data.keys()) - set(self.fields)
+            if unknown:
+                raise serializers.ValidationError(
+                    {field: "This field is not accepted." for field in sorted(unknown)}
+                )
+        return super().to_internal_value(data)
+
+
 class LoanQuerySerializer(serializers.Serializer):
     status = serializers.ChoiceField(
         choices=("on_loan", "overdue", "returned"), required=False

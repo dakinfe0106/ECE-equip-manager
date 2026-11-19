@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path("loans/", views.LoanList.as_view(), name="loan-list"),
+    path("loans/<int:pk>/", views.LoanDetail.as_view(), name="loan-detail"),
     path("borrowers/", views.BorrowerList.as_view(), name="borrower-list"),
     path(
         "borrowers/<int:pk>/damage-flags/",
