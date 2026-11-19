@@ -6,16 +6,24 @@ interface LoanDetailsModalProps {
   loan: LoanRecord | null
   onClose: () => void
   onExtendLoan?: (loan: LoanRecord) => void
+  onProcessReturn?: (loan: LoanRecord) => void
+  onCreateMaintenance?: (loan: LoanRecord) => void
 }
 
 export default function LoanDetailsModal({
   loan,
   onClose,
   onExtendLoan,
+  onProcessReturn,
+  onCreateMaintenance,
 }: LoanDetailsModalProps) {
   if (!loan) return null
 
   const isReturned = loan.status === 'returned'
+  const canCreateMaintenance =
+    isReturned &&
+    loan.return_condition === 'Damaged' &&
+    Boolean(onCreateMaintenance)
   const isActive = loan.status === 'on_loan' || loan.status === 'overdue'
 
   return (
@@ -119,11 +127,23 @@ export default function LoanDetailsModal({
 
             <button
               type="button"
-              disabled
-              title="Return processing is not available yet."
-              className="cursor-not-allowed rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white opacity-50"
+              onClick={() => onProcessReturn?.(loan)}
+              disabled={!onProcessReturn}
+              className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               Process Return
+            </button>
+          </footer>
+        )}
+
+        {canCreateMaintenance && (
+          <footer className="flex justify-end border-t border-divider px-6 py-4">
+            <button
+              type="button"
+              onClick={() => onCreateMaintenance?.(loan)}
+              className="rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary-hover"
+            >
+              Create Maintenance Record
             </button>
           </footer>
         )}

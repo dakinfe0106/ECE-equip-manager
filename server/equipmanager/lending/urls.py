@@ -26,6 +26,7 @@ urlpatterns = [
     ),
     path("loans/", views.LoanList.as_view(), name="loan-list"),
     path("loans/<int:pk>/", views.LoanDetail.as_view(), name="loan-detail"),
+    path("loans/<int:pk>/return/", views.LoanReturn.as_view(), name="loan-return"),
     path("borrowers/", views.BorrowerList.as_view(), name="borrower-list"),
     path(
         "borrowers/<int:pk>/damage-flags/",
