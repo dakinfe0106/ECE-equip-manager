@@ -368,7 +368,7 @@ The configured frontend stack includes:
 - ESLint
 - Vitest
 
-Vitest is configured as the frontend test runner. Tailwind CSS is configured in `vite.config.ts` and imported in `src/index.css`; existing global CSS is in its base layer. React Router uses `BrowserRouter` with routes defined in `src/AppRoutes.tsx`. `/login` is public; `/` and `/assets` show the assets page. Asset creation, categories, and equipment types are also available behind the login check. Unknown paths show a fallback. Interactive authentication tests use jsdom and Testing Library; API tests use MSW.
+Vitest is configured as the frontend test runner. Tailwind CSS is configured in `vite.config.ts` and imported in `src/index.css`; existing global CSS is in its base layer. React Router uses `BrowserRouter` with routes defined in `src/AppRoutes.tsx`. `/login` is public; `/` shows the dashboard and `/assets` shows the assets page. Asset creation, categories, and equipment types are also available behind the login check. Unknown paths show a fallback. Interactive authentication tests use jsdom and Testing Library; API tests use MSW.
 
 After pulling tooling changes, run `npm ci` from `frontend/`. No separate Tailwind or Router setup is needed per developer. Use Tailwind classes for component styling and React Router links for internal navigation. When deploying the frontend, configure the host to serve `index.html` for client-side routes while keeping `/api/` requests routed to Django.
 
@@ -447,7 +447,7 @@ The response must include the header `Access-Control-Allow-Origin: http://localh
 
 **4. Automated checks.** `server/equipmanager/tests/test_health.py` verifies the response and CORS header through Django's test client. It runs with `python -m pytest` and in CI. The frontend's MSW tests exercise the API client with mocked HTTP responses; they do not verify connectivity to a running backend.
 
-Protected DRF endpoints require a logged-in Django session (see [Authentication](Architecture.md#9-authentication-and-authorization)) and return `403` for unauthenticated requests with the current configuration. The inventory app provides category and equipment-type lookups and asset list, create, and update routes. The lending app provides a read-only borrower list at `GET /api/borrowers/`, borrower details at `GET /api/borrowers/{borrower_id}/`, and borrower-scoped damage-flag history, record, edit, and resolve endpoints; these are restricted to Technicians and Administrators. Borrower details return the stored legacy negligent-damage boolean separately from backend-calculated unresolved incident count, warning level, and damage-based eligibility. Overall eligibility, overdue equipment, and checkout enforcement await the Loan model and checkout integration. Borrower creation/editing and loan workflows are not implemented. Maintenance business routes are not implemented. `/api/health/` is public and is the endpoint to use for connection checks.
+Protected DRF endpoints require a logged-in Django session (see [Authentication](Architecture.md#9-authentication-and-authorization)) and return `403` for unauthenticated requests with the current configuration. The inventory app provides category and equipment-type lookups and asset list, create, and update routes. The lending app provides a read-only borrower list at `GET /api/borrowers/`, borrower details at `GET /api/borrowers/{borrower_id}/`, and borrower-scoped damage-flag history, record, edit, and resolve endpoints; these are restricted to Technicians and Administrators. Borrower details return the stored legacy negligent-damage boolean separately from backend-calculated unresolved incident count, warning level, and damage-based eligibility. The Loan model and read-only loan reporting are implemented; overall borrower eligibility and checkout enforcement await checkout integration. Borrower creation/editing and loan workflows are not implemented. Maintenance business routes are not implemented. `/api/health/` is public and is the endpoint to use for connection checks.
 
 ---
 
@@ -464,9 +464,15 @@ All endpoints live under `/api/` and end with a trailing slash.
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/api/health/` | Public. Checks that the API is reachable: `{"status": "ok"}` |
+| GET | `/api/dashboard/` | Authenticated application roles. Returns current counts of non-archived, non-retired inventory. |
+| GET | `/api/analytics/options/` | Authenticated application roles. Returns category/type filter options and available checkout years. |
+| GET | `/api/analytics/availability/` | Authenticated application roles. Current asset status counts by equipment type; supports category/type filters. |
+| GET | `/api/analytics/lending/` | Authenticated application roles. Loan-day, monthly borrowing, or borrower-frequency report selected with `report`; supports checkout year and category/type filters. |
+| GET | `/api/analytics/exports/` | Authenticated application roles. Downloads selected `reports` as one Excel workbook, with current-filter or all-data scope; see [Excel export](Backend.md#excel-export). |
+| GET | `/api/loans/` | Technician or Administrator. Read-only loan history with status, expected-return-date, asset-status, and search filters; see the [loans contract](Backend.md#issue-110-read-only-loans-contract). |
 | GET | `/api/auth/csrf/` | Public. Sets the CSRF cookie and returns `{csrfToken}`. |
 | POST | `/api/auth/login/` | Public, CSRF-protected. Accepts `{username, password}`; returns the current user or `400` for invalid credentials. |
-| GET | `/api/auth/me/` | Returns `id`, `username`, `first_name`, and `last_name`; returns `403` when signed out. |
+| GET | `/api/auth/me/` | Returns `id`, `username`, `first_name`, `last_name`, `role`, and `role_label`; returns `403` when signed out. |
 | POST | `/api/auth/logout/` | Public, CSRF-protected. Ends the session; returns `204` even when already signed out. |
 | GET | `/api/categories/` | Authenticated. Lists active equipment categories for the asset form. |
 | POST | `/api/categories/` | Technician or Administrator. Creates a category from `{name}`. The name is trimmed and must be unique ignoring case, including archived categories; a duplicate returns `400`. |
@@ -475,7 +481,7 @@ All endpoints live under `/api/` and end with a trailing slash.
 | GET | `/api/equipment-types/` | Authenticated. Lists equipment types whose category is active, ordered by `type_id`. Supports `category_id` and `deleted` (`false` by default, `true`, or `all`). |
 | POST | `/api/equipment-types/` | Technician or Administrator. Creates an equipment type from `{name, category_id}` (optional `description`) in an active category. The name is unique within its category, ignoring case; a duplicate returns `400`. |
 | GET | `/api/assets/` | Authenticated, paginated active assets; supports case-insensitive `search` across Asset ID and name, plus `category_id` and `equipment_type_id` filters together. `/api/assets/lookup/` is an alias. The older `asset_identifier` parameter still works but matches the Asset ID only. |
-| GET | `/api/borrowers/` | Authenticated Technician/Administrator only. Lists active borrowers, paginated at 20 per page; supports trimmed, case-insensitive `search` across UNB ID, first name, last name, and full name. Returns `borrower_id`, `unb_id`, `first_name`, and `last_name`; deactivated borrowers with outstanding loans are pending Loan model integration. |
+| GET | `/api/borrowers/` | Authenticated Technician/Administrator only. Lists active borrowers, paginated at 20 per page; supports trimmed, case-insensitive `search` across UNB ID, first name, last name, and full name. Returns `borrower_id`, `unb_id`, `first_name`, and `last_name`; deactivated borrowers with outstanding loans are pending borrower/loan integration. |
 | GET | `/api/borrowers/<borrower_id>/` | Technician or Administrator. Returns borrower identity, the separate `negligent_damage_flag` legacy indicator, `unresolved_damage_flag_count`, `damage_warning_level` (`no_warning`, `first_warning`, `final_warning`, or `ineligible`), and `damage_eligible`. It does not report overall eligibility or overdue status. |
 | GET | `/api/borrowers/<borrower_id>/damage-flags/` | Technician or Administrator. Returns all unresolved and resolved incident history plus the backend-calculated damage summary. |
 | POST | `/api/borrowers/<borrower_id>/damage-flags/` | Technician or Administrator. Records an explicitly reviewed negligent incident; accepts `equipment_id`, `incident_date`, `reason`, optional `notes`, and `reviewed: true`. Reviewer identity/time are server-controlled. |
@@ -816,3 +822,45 @@ Both test runners must discover tests and pass. An empty suite fails CI, includi
 Apply migration `users.0002` with `python manage.py migrate` before using the updated authentication API. It assigns `ADMINISTRATOR` to all existing accounts, matching the confirmed current dataset, without changing their Django staff/superuser flags. New users require an explicit `TECHNICIAN`, `FACULTY`, or `ADMINISTRATOR` role; there is no default. Select the role in Django admin when adding or editing a user. `python manage.py createsuperuser` also prompts for the role (enter its uppercase stored value).
 
 Login and `/api/auth/me/` return `role` and `role_label` for the sidebar. Inventory endpoints allow all three roles to read; only Technicians and Administrators may create, change, or delete inventory. Django enforces this policy regardless of frontend visibility. Django admin still requires staff status, and assigning the Administrator role alone does not grant it.
+
+
+## Analytics reporting
+
+Analytics is read-only and available to active Technicians, Faculty, and
+Administrators using Django session authentication. Inventory owns
+`GET /api/analytics/availability/`; lending owns `GET /api/analytics/options/`
+and `GET /api/analytics/lending/`. Lending also provides
+`GET /api/analytics/exports/` for selected reports in one Excel workbook.
+
+- Options return category/type identifiers and names (including archived lookup
+  choices), and checkout years plus the current business year.
+- Availability groups current assets by equipment type, includes retired assets,
+  and excludes deleted assets/types/categories. It accepts positive integer
+  `category_id` and `equipment_type_id`; a year does not change this snapshot.
+- Lending accepts those filters, `year` (1–9999, default current business year),
+  and `report=utilization|borrowing|borrowers`. Filters combine with AND. Unknown
+  IDs return empty results; malformed values return DRF 400 errors.
+- Year selects loans checked out in that calendar year, excluding future
+  checkouts. Historical reports preserve loans with archived related records.
+- Utilization reports elapsed loan days by equipment type, not a percentage.
+  Borrowing reports twelve monthly checkout counts. Borrower activity groups
+  borrowers into 1, 2–5, 6–10, and 11+ loans; no names or borrower IDs are returned.
+- Transactions count the selected loans. Loan days sum calendar-date differences
+  from checkout to actual return, or the business date for open loans. Same-day
+  loans contribute zero days. Average duration includes open loans. Loan days
+  can extend beyond the checkout year. Overdue rate is the percentage returned
+  late or still open after their due date; due today is not overdue.
+- Business dates use `timezone.localdate()` and the existing configured timezone.
+  This change does not resolve the separate shop-timezone decision.
+
+Export to Excel opens a report-selection dialog, initially selecting the active
+tab and current applied filters. Users may select multiple reports or all data.
+Django generates the workbook with `openpyxl==3.1.5`, included in requirements;
+run the normal pinned requirements install after pulling this change. See
+[Excel export](Backend.md#excel-export) for the API and workbook contract.
+
+Analytics fetches fresh data when opened or revisited, when the selected report
+or applied filters change, and on error retry. Changing a filter control alone
+does not fetch until Apply Filters is used. Downloads fetch fresh data separately.
+The page does not poll or refresh on browser-window focus. See
+[refresh behavior](UI-Design.md#analytics-data-refresh) for details.

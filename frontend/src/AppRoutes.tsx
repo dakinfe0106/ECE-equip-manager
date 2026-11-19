@@ -1,5 +1,6 @@
 import { Link, Route, Routes } from 'react-router'
 import App from './App'
+import AnalyticsPage from './pages/AnalyticsPage'
 import AddAssetForm from './features/assets/components/AddAssetForm'
 import AssetsPage from './pages/AssetsPage'
 import BorrowersPage from './pages/BorrowersPage'
@@ -36,6 +37,10 @@ export default function AppRoutes() {
             }
           >
             <Route path="/loans" element={<LendingPage />} />
+          </Route>
+
+          <Route element={<RequireAuth roles={['ADMINISTRATOR', 'TECHNICIAN', 'FACULTY']} />}>
+            <Route path="/analytics" element={<AnalyticsPage />} />
           </Route>
 
           {navigationItems

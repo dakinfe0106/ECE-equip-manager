@@ -30,17 +30,17 @@ The sidebar has a **Workspace** group and, for Administrators only, an **Adminis
 | (Sign-in screen) | `/login` | Everyone | `auth/` (implemented, [Backend.md §6](Backend.md#6-authentication-endpoints)) |
 | Dashboard | `/` | Everyone | Implemented inventory summary at `/api/dashboard/`. |
 | Assets | `/assets` | Everyone; Faculty read-only | `assets/`, `categories/`, `equipment-types/` |
-| Lending | `/loans` | Technician, Administrator | `loans/` |
+| Lending | `/loans` | Technician, Administrator | Read-only `loans/` list, search, filters, and details; checkout, return, and extension workflows remain pending. |
 | Borrowers | `/borrowers` | Technician, Administrator | Active borrower list with search by UNB ID/name, read-only details, and reviewed damage incident history/management. Damage warning level and damage-based eligibility are calculated from unresolved reviewed incidents; overall standing and overdue-loan eligibility await Loan integration. |
 | Maintenance | `/maintenance` | Technician, Administrator | `maintenance-records/` |
-| Analytics | `/analytics` | Everyone | Pending ([Backend.md §9](Backend.md#9-pending-decisions)) |
+| Analytics | `/analytics` | Everyone | Live availability and lending analytics; see [Backend.md](Backend.md#analytics-reporting). |
 | Import & Export | `/import-export` | Technician, Administrator | Pending |
 | Users & Access | `/users` | Administrator | `users/` |
 
 - Roles follow [database.md §5](database.md#5-permissions-scope). The prototype only demos Administrator and Technician; Faculty see view-only pages with no create, edit, or workflow buttons.
 - Use query parameters for filters so links work, for example a dashboard card linking to `/loans?status=Overdue`.
 - **Demo navigation:** `/categories` and `/equipment-types` have been removed from frontend navigation and routing. Their existing source components and backend lookup APIs are retained for future integration and asset forms. `/assets/new` remains the working Add Asset route.
-- **In-progress pages:** Lending, Maintenance, Analytics, Import & Export, and Users & Access display "This page is still in progress." Navigation and direct page access follow the roles in the table above; these frontend guards do not replace backend authorization when those APIs are implemented.
+- **In-progress pages:** Maintenance, Import & Export, and Users & Access display "This page is still in progress." Navigation and direct page access follow the roles in the table above; these frontend guards do not replace backend authorization when those APIs are implemented.
 - **Sidebar:** the desktop sidebar follows the prototype at 248px, with the brand mark, Workspace links, administrator-only Administration group, and signed-in profile/sign-out footer. Below 760px it retains an accessible 60px icon rail; a slide-in menu remains future work.
 
 ## 3. Design tokens
@@ -154,7 +154,7 @@ Until the team decides, build what database.md supports and leave the extra desi
 | --- | --- | --- |
 | Serial Number on assets | No such field | Leave the field out |
 | Required certifications typed on each asset | Certifications belong to the **equipment type** | Show the type's certifications read-only on the asset |
-| Overall borrower eligibility (Eligible/Ineligible) and a per-term eligible-borrowers import | Overdue-loan data and checkout service are not implemented | Do not display overall eligibility until Loan integration; damage-based eligibility alone is displayed separately |
+| Overall borrower eligibility (Eligible/Ineligible) and a per-term eligible-borrowers import | Loan data and read-only overdue status exist; checkout eligibility enforcement is not implemented | Do not display overall eligibility until checkout integration; damage-based eligibility alone is displayed separately |
 | Reviewed damage incidents, warning count, edit, and resolution | Persistent `DamageFlag` history and edit audit are implemented; `negligent_damage_flag` remains a separate legacy boolean | Show unresolved reviewed incidents and resolved history; only unresolved incidents count toward damage-based warnings |
 | Damage-incident resolution reason and audit metadata | Resolution reason is stored; editor, timestamp, and changed fields are audited | Preserve incident history and record technician-controlled metadata; damaged returns do not create incidents automatically |
 | Maintenance notes and return notes | No such fields | Leave them out |
@@ -166,3 +166,34 @@ Until the team decides, build what database.md supports and leave the extra desi
 | Category and equipment type can be changed on an existing asset | The asset edit API accepts `name` and `acquisition_date` only | Show category and type read-only in the details modal |
 | Asset search matches ID or name | The API's `search` matches the Asset ID or name | Decided: search by ID or name |
 | Assets page has View by (category, type), a Filters popover (category, type, status), and Include Archived | The asset list filters by category and equipment type, not status, and returns active assets only | View by groups assets in the frontend. Filters has category and equipment type only. Show Include Archived disabled |
+
+
+### Analytics page
+
+The four reference report tabs use live data, category/type/checkout-year filters,
+Apply Filters, and Reset Filters. Filter selections are stored in query parameters.
+Availability is a current snapshot; its year selection affects only the lending
+summary below it. Other reports use distinct charts and explicit metric definitions
+from [Backend.md](Backend.md#analytics-reporting). Export to Excel opens a native
+dialog with report checkboxes (active tab selected), Select all, and current-filter
+or all-data scope. The applied filters are shown before downloading. Download Excel
+requires a selected report, prevents duplicate requests, supports cancellation,
+and shows progress/errors. One workbook contains the selected report worksheets
+and an Export details sheet. Charts have textual counts and responsive layouts; loading,
+empty, and retryable error states replace mock data.
+
+### Analytics data refresh
+
+- Entering Analytics, including returning from another application page, fetches
+  the filter options and current report from Django.
+- Switching report tabs or changing the applied URL filters starts a new fetch.
+  Filter controls are drafts until Apply Filters is used. A request is not forced
+  if those actions leave the URL unchanged.
+- Reset Filters returns to defaults and fetches if the URL changes; Try again starts
+  a new request after an error. Stale requests are cancelled or ignored.
+- A loan saved to Django is included the next time Analytics is fetched, provided
+  it matches the applied checkout year, category, and equipment-type filters.
+- No background polling or refresh-on-focus is implemented. Changes by another
+  user or browser tab do not automatically update an already-open report.
+- Download Excel requests a fresh workbook using the selected export scope.
+  It may include newer data than a chart loaded earlier.

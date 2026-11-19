@@ -47,7 +47,7 @@ describe('Sidebar navigation', () => {
 describe('Demo page routes', () => {
   it.each([
     ['/maintenance', 'Maintenance'],
-    ['/analytics', 'Analytics'], ['/import-export', 'Import & Export'], ['/users', 'Users & Access'],
+    ['/import-export', 'Import & Export'], ['/users', 'Users & Access'],
   ])('renders an honest placeholder at %s', (path, title) => {
     const html = pageHtml(path)
     const container = document.createElement('div')
@@ -79,8 +79,10 @@ describe('Demo page routes', () => {
     expect(pageHtml('/users', 'TECHNICIAN')).toContain('Access denied')
   })
 
-  it('allows Faculty to view the Analytics placeholder', () => {
-    expect(pageHtml('/analytics', 'FACULTY')).toContain('This page is still in progress.')
+  it('allows Faculty to view Analytics', () => {
+    const html = pageHtml('/analytics', 'FACULTY')
+    expect(html).toContain('Loading analytics')
+    expect(html).not.toContain('This page is still in progress.')
   })
 
   it.each(['/categories', '/equipment-types'])('retires the frontend route %s', (path) => {

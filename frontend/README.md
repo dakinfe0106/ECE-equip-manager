@@ -21,7 +21,7 @@ On Windows, use `npm.cmd` if PowerShell blocks `npm.ps1`.
 
 Tailwind runs through `@tailwindcss/vite` in `vite.config.ts` and is imported in `src/index.css`. Use utility classes for component styles; shared global CSS belongs in the base layer. React Router uses `BrowserRouter` in `src/main.tsx`; add routes in `src/AppRoutes.tsx` and use `Link` or `NavLink` for internal navigation.
 
-The `/` route displays the Assets page. Unknown paths display a fallback with a home link. Run `npm ci` after pulling changes to `package-lock.json`.
+The `/` route displays the Dashboard; `/assets` displays inventory, `/loans` provides read-only lending, and `/analytics` provides the four reports and Excel export. Unknown paths display a fallback with a home link. Run `npm ci` after pulling changes to `package-lock.json`.
 
 In deployment, the frontend host must serve `index.html` for direct requests to client-side routes. Keep `/api/` requests routed to Django.
 

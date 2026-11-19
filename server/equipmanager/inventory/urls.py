@@ -1,8 +1,10 @@
 from django.urls import path
 
 from . import views
+from .analytics import EquipmentAvailability
 
 urlpatterns = [
+    path('analytics/availability/', EquipmentAvailability.as_view(), name='analytics-availability'),
     path("dashboard/", views.Dashboard.as_view(), name="dashboard"),
     # Lookup for the Add Asset form: id and name only, ordered by name.
     path("categories/", views.CategoryLookupList.as_view(), name="category-list"),

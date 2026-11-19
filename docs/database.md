@@ -192,7 +192,7 @@ SystemUser is the logical record for people who sign in to the application. It i
 
 ### Checkout and return
 
-1. The agreed checkout policy requires an active, non-soft-deleted borrower with fewer than three unresolved reviewed damage incidents and no overdue open loans; the borrower must have every certification required by the equipment type. The incident-based damage rule is implemented by the borrower detail and damage-flag APIs. The Loan model and checkout backend are not yet available, so overdue calculation and checkout enforcement remain pending.
+1. The agreed checkout policy requires an active, non-soft-deleted borrower with fewer than three unresolved reviewed damage incidents and no overdue open loans; the borrower must have every certification required by the equipment type. The incident-based damage rule is implemented by the borrower detail and damage-flag APIs. The Loan model and read-only loan reporting are implemented; checkout workflows and checkout eligibility enforcement remain pending.
 2. The asset, its equipment type, and its category must not be soft-deleted. An asset must be `Available` to be checked out; `Retired` assets require explicit reactivation first.
 3. Checkout creates a Loan and sets Asset.status = `On_Loan` in a single database transaction. Returning it fills the return date/condition and makes the asset `Available`, or initiates maintenance directly if damaged or otherwise required.
 4. A borrower who later becomes ineligible may keep and return an existing loan, but may not start new loans.
@@ -202,7 +202,7 @@ SystemUser is the logical record for people who sign in to the application. It i
 
 1. Record a damage incident only after a technician has reviewed and confirmed negligent damage. A damaged return alone is not evidence of negligence and never creates a flag automatically.
 2. Damage warning level is based only on reviewed incidents with unresolved status: zero is no warning, one is a first warning, two is a final warning, and three or more is damage-ineligible. Resolved incidents remain in history but do not count.
-3. Damage-based eligibility is true only when fewer than three reviewed incidents are unresolved. Overall checkout eligibility also requires no overdue open loans; it is not calculated or enforced until the Loan model and checkout backend are integrated.
+3. Damage-based eligibility is true only when fewer than three reviewed incidents are unresolved. Overall checkout eligibility also requires no overdue open loans; overall eligibility is not yet calculated or enforced by a checkout workflow.
 4. `Borrower.negligent_damage_flag` remains a separate legacy indicator. It is not incident history and is not used to calculate counts, warning levels, or eligibility. Existing values are not migrated into incident rows.
 5. Editing corrects the existing incident without changing its borrower, identity, review state, or resolution status. The backend records the authenticated editor, server timestamp, and changed field names. Resolving requires a reason and preserves the incident history.
 
@@ -240,3 +240,39 @@ Three roles are approved: **Technician**, **Faculty**, **Administrator**. Only a
 - PostgreSQL conditional `UniqueConstraint` protects active loan and maintenance records. Database constraints do not replace application validation or transactional state transitions.
 - Inspect existing models, migrations, and data before adding constraints; reconcile duplicate names, duplicate IDs, open transactions, and invalid dates before applying them. Never rewrite already-shared migration history casually.
 - Migration changes require accompanying updates to this file and tests for uniqueness, invalid states, restoration, and concurrent checkout/maintenance actions.
+
+
+## Analytics reporting
+
+Analytics is read-only and available to active Technicians, Faculty, and
+Administrators using Django session authentication. Inventory owns
+`GET /api/analytics/availability/`; lending owns `GET /api/analytics/options/`
+and `GET /api/analytics/lending/`. Read-only Excel exports use
+`GET /api/analytics/exports/` and reuse these calculations.
+
+- Options return category/type identifiers and names (including archived lookup
+  choices), and checkout years plus the current business year.
+- Availability groups current assets by equipment type, includes retired assets,
+  and excludes deleted assets/types/categories. It accepts positive integer
+  `category_id` and `equipment_type_id`; a year does not change this snapshot.
+- Lending accepts those filters, `year` (1–9999, default current business year),
+  and `report=utilization|borrowing|borrowers`. Filters combine with AND. Unknown
+  IDs return empty results; malformed values return DRF 400 errors.
+- Year selects loans checked out in that calendar year, excluding future
+  checkouts. Historical reports preserve loans with archived related records.
+- Utilization reports elapsed loan days by equipment type, not a percentage.
+  Borrowing reports twelve monthly checkout counts. Borrower activity groups
+  borrowers into 1, 2–5, 6–10, and 11+ loans; no names or borrower IDs are returned.
+- Transactions count the selected loans. Loan days sum calendar-date differences
+  from checkout to actual return, or the business date for open loans. Same-day
+  loans contribute zero days. Average duration includes open loans. Loan days
+  can extend beyond the checkout year. Overdue rate is the percentage returned
+  late or still open after their due date; due today is not overdue.
+- Business dates use `timezone.localdate()` and the existing configured timezone.
+  This change does not resolve the separate shop-timezone decision.
+
+- Exports support selected reports with the current applied filters, or all
+  checkout years/categories/types through the business date. Availability is
+  always current. Borrower exports contain frequency totals only, with no borrower
+  identities, and preserve the reporting APIs' active-role/session permissions.
+  Exports do not write data or change retention rules. No schema change is required.
