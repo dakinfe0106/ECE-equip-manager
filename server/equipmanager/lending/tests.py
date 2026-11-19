@@ -104,16 +104,9 @@ def test_borrower_list_denies_faculty(db):
     assert response.status_code == 403
 
 
-def test_borrower_list_is_read_only(borrower_client):
-    response = borrower_client.post(
-        "/api/borrowers/",
-        {
-            "unb_id": "UNB-001",
-            "first_name": "Ada",
-            "last_name": "Lovelace",
-        },
-        format="json",
-    )
+@pytest.mark.parametrize("method", ["put", "patch", "delete"])
+def test_borrower_list_rejects_unsupported_methods(borrower_client, method):
+    response = getattr(borrower_client, method)("/api/borrowers/", {}, format="json")
 
     assert response.status_code == 405
 
@@ -358,8 +351,8 @@ def test_loan_history_survives_soft_deletion(borrower_client, loan_data):
     assert loan_ids(response) == [loan.pk for loan in loan_data.loans]
 
 
-@pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
-def test_loan_writes_rejected(borrower_client, method):
+@pytest.mark.parametrize("method", ["put", "patch", "delete"])
+def test_loan_rejects_unsupported_write_methods(borrower_client, method):
     assert getattr(borrower_client, method)("/api/loans/", {}, format="json").status_code == 405
 
 
@@ -437,6 +430,7 @@ def test_borrower_detail_returns_identity_and_negligent_damage_status(
         "unb_id": "UNB-DETAIL",
         "first_name": "Ada",
         "last_name": "Lovelace",
+        "is_manual_enrollment": True,
         "negligent_damage_flag": negligent_damage_flag,
         "unresolved_damage_flag_count": 0,
         "damage_warning_level": "no_warning",
@@ -766,3 +760,97 @@ def test_lending_analytics_exports_excel(borrower_client, path, params, expected
     assert expected_filename in response["Content-Disposition"]
     workbook = load_workbook(BytesIO(response.content), read_only=True)
     assert next(iter(workbook.active.values))
+
+
+def test_borrower_detail_patch_updates_first_name(borrower_client):
+    borrower = create_borrower(unb_id="UNB-EDIT", first_name="Ada", last_name="Lovelace")
+
+    response = borrower_client.patch(
+        f"/api/borrowers/{borrower.borrower_id}/",
+        {"first_name": "Adeline"},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert response.data["first_name"] == "Adeline"
+    assert response.data["last_name"] == "Lovelace"
+
+    borrower.refresh_from_db()
+    assert borrower.first_name == "Adeline"
+
+
+def test_create_borrower_success(borrower_client):
+    response = borrower_client.post(
+        "/api/borrowers/",
+        {
+            "unb_id": "UNB-NEW-01",
+            "first_name": "Kobi",
+            "last_name": "Mensah",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["unb_id"] == "UNB-NEW-01"
+    assert response.data["first_name"] == "Kobi"
+    assert response.data["last_name"] == "Mensah"
+
+    borrower = Borrower.objects.get(unb_id="UNB-NEW-01")
+    assert borrower.is_manual_enrollment is True
+
+
+@pytest.mark.parametrize("is_deleted", [False, True])
+def test_create_borrower_prevents_duplicate_unb_id(borrower_client, is_deleted):
+    create_borrower(unb_id="UNB-DUP-01", is_deleted=is_deleted)
+
+    response = borrower_client.post(
+        "/api/borrowers/",
+        {
+            "unb_id": "UNB-DUP-01",
+            "first_name": "Duplicate",
+            "last_name": "User",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert "unb_id" in response.data
+
+@pytest.mark.parametrize(
+    "payload,missing_field",
+    [
+        ({"first_name": "Kobi"}, "unb_id"),
+        ({"unb_id": "UNB-VAL-01"}, "first_name"),
+        ({"unb_id": "   ", "first_name": "Kobi"}, "unb_id"),
+        ({"unb_id": "UNB-VAL-01", "first_name": "   "}, "first_name"),
+    ],
+)
+def test_create_borrower_validates_required_fields(borrower_client, payload, missing_field):
+    response = borrower_client.post(
+        "/api/borrowers/",
+        payload,
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert missing_field in response.data
+
+
+def test_create_borrower_denies_faculty(db):
+    user = get_user_model().objects.create_user(
+        username="borrower-create-faculty",
+        role="FACULTY",
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    response = client.post(
+        "/api/borrowers/",
+        {
+            "unb_id": "UNB-FAC-01",
+            "first_name": "Unauthorized",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 403

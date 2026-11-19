@@ -30,9 +30,9 @@ The sidebar has a **Workspace** group and, for Administrators only, an **Adminis
 | (Sign-in screen) | `/login` | Everyone | `auth/` (implemented, [Backend.md §6](Backend.md#6-authentication-endpoints)) |
 | Dashboard | `/` | Everyone | Implemented inventory summary at `/api/dashboard/`. |
 | Assets | `/assets` | Everyone; Faculty read-only | `assets/`, `categories/`, `equipment-types/` |
-| Lending | `/loans` | Technician, Administrator | `loans/` |
-| Borrowers | `/borrowers` | Technician, Administrator | Active borrower list with search by UNB ID/name, read-only details, and reviewed damage incident history/management. Damage warning level and damage-based eligibility are calculated from unresolved reviewed incidents; overall standing and overdue-loan eligibility await Loan integration. |
-| Maintenance | `/maintenance` | Technician, Administrator | `maintenance-records/` |
+| Lending | `/loans` | Technician, Administrator | Loan history and checkout are integrated; returns and extensions remain pending. |
+| Borrowers | `/borrowers` | Technician, Administrator | Active borrower list with search, manual registration, editable details, and reviewed damage incident history/management. Damage warning level and damage-based eligibility are calculated from unresolved reviewed incidents; checkout enforces overdue and damage-based standing. |
+| Maintenance | `/maintenance` | Technician, Administrator | `maintenance-records/`; create, view, and completion workflows are integrated. |
 | Analytics | `/analytics` | Everyone | Availability, utilization, borrowing, and borrower analytics APIs. |
 | Import & Export | `/import-export` | Technician, Administrator | Pending |
 | Users & Access | `/users` | Administrator | `users/` |
@@ -40,7 +40,7 @@ The sidebar has a **Workspace** group and, for Administrators only, an **Adminis
 - Roles follow [database.md §5](database.md#5-permissions-scope). The prototype only demos Administrator and Technician; Faculty see view-only pages with no create, edit, or workflow buttons.
 - Use query parameters for filters so links work, for example a dashboard card linking to `/loans?status=Overdue`.
 - **Demo navigation:** `/categories` and `/equipment-types` have been removed from frontend navigation and routing. Their existing source components and backend lookup APIs are retained for future integration and asset forms. `/assets/new` remains the working Add Asset route.
-- **In-progress pages:** Lending, Maintenance, Import & Export, and Users & Access display "This page is still in progress." Navigation and direct page access follow the roles in the table above; these frontend guards do not replace backend authorization when those APIs are implemented.
+- **In-progress pages:** Import & Export and Users & Access display "This page is still in progress." Navigation and direct page access follow the roles in the table above; these frontend guards do not replace backend authorization when those APIs are implemented.
 - **Sidebar:** the desktop sidebar follows the prototype at 248px, with the brand mark, Workspace links, administrator-only Administration group, and signed-in profile/sign-out footer. Below 760px it retains an accessible 60px icon rail; a slide-in menu remains future work.
 
 ## 3. Design tokens
@@ -125,7 +125,7 @@ The category and equipment-type source components are retained but no longer rou
 - **Header:** `components/layout/Header.tsx` is shared by all signed-in routes. It shows the current route name, the backend `role_label`, and the first two letters of the user's display name (falling back to username), uppercased with whitespace ignored. Both header and sidebar use this rule (for example, Admin User becomes AD). The header stays visible while the page body scrolls. On narrow screens the breadcrumb brand and notification placeholder are hidden to keep the page name and role readable.
 - **Notifications:** the approved header includes a disabled bell labelled "Notifications (coming soon)". Notification behavior is not designed yet; there is no unread indicator or notification API integration.
 - **Dashboard demo:** four summary cards and the availability chart use `/api/dashboard/` inventory totals. The retired segment is total minus available, on-loan, and maintenance counts. Missing inventory data shows a loading/unavailable state, not fabricated counts. An all-zero inventory shows an empty chart state.
-- **Lending previews:** the Overdue Loans card, Upcoming returns panel, and Recent lending activity table use explicitly labelled synthetic sample data until lending APIs are integrated. They are visible only to Technicians and Administrators. Sample due dates follow the local calendar so future return examples stay current; they are not operational records. View all opens the in-progress Lending page, and sample rows do not offer record-detail actions.
+- **Lending previews:** the Overdue Loans card, Upcoming returns panel, and Recent lending activity table use explicitly labelled synthetic sample data until dashboard integration is complete. They are visible only to Technicians and Administrators. Sample due dates follow the local calendar so future return examples stay current; they are not operational records. View all opens the live Lending page at `/loans`, and sample rows do not offer record-detail actions.
 
 ## 6. Labels and badges
 

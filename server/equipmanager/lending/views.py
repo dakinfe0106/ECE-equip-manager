@@ -22,17 +22,22 @@ from .models import Borrower, DamageFlag, Loan
 from .permissions import BorrowerListPermissions, LoanReadPermissions
 from .serializers import (
     AnalyticsQuerySerializer,
+    BorrowerCreateSerializer,
     BorrowerDetailSerializer,
     BorrowerListSerializer,
+    BorrowerUpdateSerializer,
     DamageFlagResolutionSerializer,
     DamageFlagSerializer,
     DamageFlagUpdateSerializer,
     DamageFlagWriteSerializer,
+    LoanCheckoutSerializer,
     LoanListSerializer,
     LoanQuerySerializer,
 )
 from .services import (
+    CheckoutRuleError,
     DamageFlagRuleError,
+    checkout_asset,
     damage_flag_summary,
     record_damage_flag,
     resolve_damage_flag,
@@ -44,10 +49,26 @@ class BorrowerPagination(PageNumberPagination):
     page_size = 20
 
 
-class BorrowerList(generics.ListAPIView):
+class BorrowerList(generics.ListCreateAPIView):
     serializer_class = BorrowerListSerializer
     pagination_class = BorrowerPagination
     permission_classes = (BorrowerListPermissions,)
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return BorrowerCreateSerializer
+        return BorrowerListSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        borrower = serializer.save()
+        return Response(
+            BorrowerListSerializer(
+                borrower, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     def get_queryset(self):
         borrowers = Borrower.objects.filter(is_deleted=False)
@@ -69,10 +90,32 @@ class BorrowerList(generics.ListAPIView):
         return borrowers.order_by("borrower_id")
 
 
-class LoanList(generics.ListAPIView):
+class LoanList(generics.ListCreateAPIView):
     serializer_class = LoanListSerializer
     permission_classes = (LoanReadPermissions,)
     pagination_class = None
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return LoanCheckoutSerializer
+        return LoanListSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            loan = checkout_asset(**serializer.validated_data)
+        except Asset.DoesNotExist as error:
+            raise NotFound("Asset not found.") from error
+        except Borrower.DoesNotExist as error:
+            raise NotFound("Borrower not found.") from error
+        except CheckoutRuleError as error:
+            raise ValidationError(error.errors) from error
+        self.today = loan.checkout_date
+        return Response(
+            LoanListSerializer(loan, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
 
     def get_queryset(self):
         # Treat explicit blank filters as invalid, rather than omitted HTML fields.
@@ -81,12 +124,12 @@ class LoanList(generics.ListAPIView):
         params = query.validated_data
         self.today = timezone.localdate()
         loans = Loan.objects.select_related("borrower", "asset", "asset__type")
-        status = params.get("status")
-        if status == "returned":
+        status_param = params.get("status")
+        if status_param == "returned":
             loans = loans.filter(actual_return_date__isnull=False)
-        elif status in ("on_loan", "overdue"):
+        elif status_param in ("on_loan", "overdue"):
             loans = loans.filter(actual_return_date__isnull=True)
-            if status == "overdue":
+            if status_param == "overdue":
                 loans = loans.filter(expected_return_date__lt=self.today)
         if "expected_return_from" in params:
             loans = loans.filter(
@@ -122,11 +165,13 @@ class LoanList(generics.ListAPIView):
         return loans.order_by("loan_id")
 
     def get_serializer_context(self):
-        return {**super().get_serializer_context(), "today": self.today}
+        context = super().get_serializer_context()
+        if hasattr(self, "today"):
+            context["today"] = self.today
+        return context
 
 
-class BorrowerDetail(generics.RetrieveAPIView):
-    serializer_class = BorrowerDetailSerializer
+class BorrowerDetail(generics.RetrieveUpdateAPIView):
     permission_classes = (BorrowerListPermissions,)
     queryset = Borrower.objects.filter(is_deleted=False).annotate(
         unresolved_damage_flag_count=Count(
@@ -137,6 +182,19 @@ class BorrowerDetail(generics.RetrieveAPIView):
             ),
         )
     )
+
+    def get_serializer_class(self):
+        if self.request.method in ("PUT", "PATCH"):
+            return BorrowerUpdateSerializer
+        return BorrowerDetailSerializer
+
+    def update(self, request, *args, **kwargs):
+        super().update(request, *args, **kwargs)
+        instance = self.get_object()
+        serializer = BorrowerDetailSerializer(
+            instance, context=self.get_serializer_context()
+        )
+        return Response(serializer.data)
 
 
 class BorrowerDamageFlagListCreate(APIView):
