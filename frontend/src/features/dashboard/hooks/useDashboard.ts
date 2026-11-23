@@ -17,6 +17,13 @@ export default function useDashboard() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
+  const [requestVersion, setRequestVersion] = useState(0)
+
+  function retry() {
+    setErrorMessage('')
+    setIsLoading(true)
+    setRequestVersion((version) => version + 1)
+  }
 
   useEffect(() => {
     let isCurrent = true
@@ -42,11 +49,12 @@ export default function useDashboard() {
     return () => {
       isCurrent = false
     }
-  }, [])
+  }, [requestVersion])
 
   return {
     summary,
     isLoading,
     errorMessage,
+    retry,
   }
 }

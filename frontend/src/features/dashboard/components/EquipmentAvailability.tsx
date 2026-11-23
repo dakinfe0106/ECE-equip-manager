@@ -7,12 +7,10 @@ interface EquipmentAvailabilityProps {
 }
 
 export default function EquipmentAvailability({ summary, isLoading }: EquipmentAvailabilityProps) {
-  const retired = summary ? Math.max(0, summary.total_assets - summary.available_assets - summary.on_loan_assets - summary.under_maintenance_assets) : 0
   const statuses = [
     { label: 'Available', count: summary?.available_assets ?? 0, color: 'var(--color-chart-available)' },
     { label: 'On Loan', count: summary?.on_loan_assets ?? 0, color: 'var(--color-primary)' },
     { label: 'Maintenance', count: summary?.under_maintenance_assets ?? 0, color: 'var(--color-chart-maintenance)' },
-    { label: 'Retired', count: retired, color: 'var(--color-chart-retired)' },
   ]
   let end = 0
   const segments = statuses.map((status) => {

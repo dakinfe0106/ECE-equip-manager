@@ -24,6 +24,7 @@ export default function useLoans(
   filters: LoanFilters = defaultLoanFilters,
   search = '',
   refreshKey = 0,
+  enabled = true,
 ) {
   const requestKey = [
     filters.loanState,
@@ -41,6 +42,8 @@ export default function useLoans(
   })
 
   useEffect(() => {
+    if (!enabled) return
+
     let isCurrent = true
 
     fetchLoans(filters, search)
@@ -66,7 +69,7 @@ export default function useLoans(
     return () => {
       isCurrent = false
     }
-  }, [filters, search, refreshKey, requestKey])
+  }, [enabled, filters, search, refreshKey, requestKey])
 
   return {
     loans: state.loans,
