@@ -1,20 +1,22 @@
 import { Link } from 'react-router'
 import type { DashboardSummary } from '../api'
-import { SampleDataBadge } from './DashboardPreviewPanels'
 
 interface DashboardSummaryCardsProps {
   summary: DashboardSummary | null
-  showLendingPreview?: boolean
+  canViewMaintenance?: boolean
+  overdueCount?: number | 'Loading…' | 'Unavailable'
 }
 
 const cards = [
-  { key: 'total_assets', label: 'Total Assets', canViewDetails: true, tone: 'bg-primary-soft text-primary', icon: 'M7 3h10v18H7z M10 7h4 M10 11h4' },
-  { key: 'available_assets', label: 'Available Assets', canViewDetails: false, tone: 'bg-success-soft text-success', icon: 'M7 3h10v18H7z M10 7h4 M10 11h4' },
-  { key: 'on_loan_assets', label: 'Assets On Loan', canViewDetails: false, tone: 'bg-violet-soft text-violet', icon: 'M3 8h18l-4-5H7z M5 12v9 M19 12v9 M2 21h20' },
-  { key: 'under_maintenance_assets', label: 'Under Maintenance', canViewDetails: false, tone: 'bg-warning-soft text-warning', icon: 'm14.5 6.5-2 2 3 3 2-2a4 4 0 0 1-5 5L7 20l-3-3 5.5-5.5a4 4 0 0 1 5-5Z' },
+  { key: 'total_assets', label: 'Total Assets', path: '/assets', tone: 'bg-primary-soft text-primary', icon: 'M7 3h10v18H7z M10 7h4 M10 11h4' },
+  { key: 'available_assets', label: 'Available Assets', path: '/assets', tone: 'bg-success-soft text-success', icon: 'M7 3h10v18H7z M10 7h4 M10 11h4' },
+  { key: 'on_loan_assets', label: 'Assets On Loan', path: '/loans', tone: 'bg-violet-soft text-violet', icon: 'M3 8h18l-4-5H7z M5 12v9 M19 12v9 M2 21h20' },
+  { key: 'under_maintenance_assets', label: 'Under Maintenance', path: '/maintenance', tone: 'bg-warning-soft text-warning', icon: 'm14.5 6.5-2 2 3 3 2-2a4 4 0 0 1-5 5L7 20l-3-3 5.5-5.5a4 4 0 0 1 5-5Z' },
 ] as const
 
-export default function DashboardSummaryCards({ summary, showLendingPreview = false }: DashboardSummaryCardsProps) {
+export default function DashboardSummaryCards({ summary, canViewMaintenance = false, overdueCount }: DashboardSummaryCardsProps) {
+  const showLendingPreview = overdueCount !== undefined
+
   return (
     <section aria-label="Equipment summary" className={`grid gap-[15px] ${showLendingPreview ? 'grid-cols-5 max-[1250px]:grid-cols-3' : 'grid-cols-4'} max-[1050px]:grid-cols-2 max-[620px]:grid-cols-1`}>
       {cards.map((card) => (
@@ -25,13 +27,11 @@ export default function DashboardSummaryCards({ summary, showLendingPreview = fa
           <div className="flex min-w-0 flex-1 flex-col">
             <p className="min-h-[30px] text-[11px] leading-[15px] font-semibold text-muted">{card.label}</p>
             <strong className="mt-0.5 text-[24px] leading-[1.05] font-bold text-heading">{summary ? summary[card.key] : '—'}</strong>
-            <div className="mt-auto pt-2 text-[10px] text-subtle">
-              {card.canViewDetails ? (
-                <Link to="/assets" className="hover:text-primary">View detailed records <span aria-hidden="true">→</span></Link>
-              ) : (
-                <span aria-disabled="true" title="Detailed view is not available yet">View detailed records <span aria-hidden="true">→</span></span>
-              )}
-            </div>
+            {(card.path === '/assets'
+              || (card.path === '/loans' && showLendingPreview)
+              || (card.path === '/maintenance' && canViewMaintenance)) && (
+              <Link to={card.path} className="mt-auto pt-2 text-[10px] text-subtle hover:text-primary">View detailed records <span aria-hidden="true">→</span></Link>
+            )}
           </div>
         </article>
       ))}
@@ -42,9 +42,8 @@ export default function DashboardSummaryCards({ summary, showLendingPreview = fa
           </div>
           <div className="min-w-0 flex-1">
             <p className="min-h-[30px] text-[11px] leading-[15px] font-semibold text-muted">Overdue Loans</p>
-            <strong className="mt-0.5 block text-[24px] leading-[1.05] font-bold text-heading">8</strong>
-            <div className="mt-2"><SampleDataBadge /></div>
-            <Link to="/loans" title="Open Lending (in progress)" className="mt-2 block text-[10px] text-subtle hover:text-primary">View detailed records <span aria-hidden="true">→</span></Link>
+            <strong className={`mt-0.5 block ${typeof overdueCount === 'number' ? 'text-[24px]' : 'text-xs'} leading-[1.05] font-bold text-heading`}>{overdueCount}</strong>
+            <Link to="/loans" className="mt-2 block text-[10px] text-subtle hover:text-primary">View detailed records <span aria-hidden="true">→</span></Link>
           </div>
         </article>
       )}
