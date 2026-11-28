@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import views
 from .analytics import EquipmentAvailability
+from .exports import InventoryExport
 
 urlpatterns = [
     path('analytics/availability-summary/', EquipmentAvailability.as_view(), name='analytics-availability-summary'),
@@ -30,6 +31,7 @@ urlpatterns = [
         name="equipment-type-list",
     ),
     path("assets/", views.AssetListCreateAPIView.as_view(), name="asset-list"),
+    path("assets/export/", InventoryExport.as_view(), name="asset-export"),
     path(
         "assets/<int:pk>/",
         views.AssetDetail.as_view(),

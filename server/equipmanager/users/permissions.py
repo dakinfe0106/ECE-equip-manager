@@ -57,3 +57,20 @@ class InventoryRolePermissions(BasePermission):
         if action == "view":
             return role in self.read_roles
         return role in self.write_roles
+
+
+class StaffRolePermissions(BasePermission):
+    """Allow active Technicians and Administrators only."""
+
+    allowed_roles: ClassVar[frozenset[str]] = frozenset(
+        {"TECHNICIAN", "ADMINISTRATOR"}
+    )
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and user.is_active
+            and getattr(user, "role", None) in self.allowed_roles
+        )

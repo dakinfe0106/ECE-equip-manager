@@ -46,7 +46,7 @@ describe('Sidebar navigation', () => {
 
 describe('Demo page routes', () => {
   it.each([
-    ['/import-export', 'Import & Export'], ['/users', 'Users & Access'],
+    ['/users', 'Users & Access'],
   ])('renders an honest placeholder at %s', (path, title) => {
     const html = pageHtml(path)
     const container = document.createElement('div')
@@ -63,6 +63,17 @@ describe('Demo page routes', () => {
 
     expect(within(container).getByRole('heading', { name: 'Maintenance', level: 1 })).toBeTruthy()
     expect(within(container).getByText('Search Asset ID')).toBeTruthy()
+    expect(within(container).queryByText('This page is still in progress.')).toBeNull()
+  })
+
+  it.each(['TECHNICIAN', 'ADMINISTRATOR'] as const)('renders the Import & Export page for %s', (role) => {
+    const html = pageHtml('/import-export', role)
+    const container = document.createElement('div')
+    container.innerHTML = html
+
+    expect(within(container).getByRole('heading', { name: 'Import & Export', level: 1 })).toBeTruthy()
+    expect(within(container).getByRole('button', { name: 'Import Records' })).toBeTruthy()
+    expect(within(container).getByRole('button', { name: 'Export Records' })).toBeTruthy()
     expect(within(container).queryByText('This page is still in progress.')).toBeNull()
   })
 
