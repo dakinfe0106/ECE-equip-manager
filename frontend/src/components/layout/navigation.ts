@@ -22,6 +22,6 @@ export const navigationItems: readonly NavigationItem[] = [
   { label: 'Borrowers', path: '/borrowers', icon: 'borrowers', roles: staffRoles, group: 'workspace' },
   { label: 'Maintenance', path: '/maintenance', icon: 'maintenance', roles: staffRoles, group: 'workspace', inProgress: true },
   { label: 'Analytics', path: '/analytics', icon: 'analytics', roles: allRoles, group: 'workspace' },
-  { label: 'Import & Export', path: '/import-export', icon: 'import', roles: staffRoles, group: 'workspace', inProgress: true },
+  { label: 'Import & Export', path: '/import-export', icon: 'import', roles: staffRoles, group: 'workspace' },
   { label: 'Users & Access', path: '/users', icon: 'users', roles: ['ADMINISTRATOR'], group: 'administration', inProgress: true },
 ]

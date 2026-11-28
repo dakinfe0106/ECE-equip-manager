@@ -370,6 +370,7 @@ Notes for the implementation:
 - Inventory CRUD and lookup views use `users.permissions.InventoryRolePermissions`. All three roles can read inventory; only Technicians and Administrators can create, change, or delete inventory. Unsupported roles and methods are denied. Add role-specific checks to future endpoints according to [database.md section 5](database.md#5-permissions-scope).
 - Do not use plain `DjangoModelPermissions` for these role checks. Its default read behavior would not enforce the Faculty-only-inventory boundary.
 - Actions that are not CRUD use dedicated custom permission classes or checks for their business operation, such as returning a loan.
+- Record exports use `users.permissions.StaffRolePermissions` (active Technicians and Administrators only).
 
 ## 8. Testing
 
@@ -469,3 +470,23 @@ data remains aggregated for every role. Empty reports retain headers and include
 a note in Export details. All user-supplied strings are written as literal text.
 The endpoint has the same active-role/session permissions as the reporting APIs,
 does not mutate records, and returns `Cache-Control: no-store`.
+
+## Record exports
+
+`GET /api/assets/export/` and `GET /api/loans/export/` download one-sheet `.xlsx`
+workbooks for the Import & Export page. Both use `users.permissions.StaffRolePermissions`:
+only active Technicians and Administrators may download them. Both build the file with
+`equipmanager.excel.excel_response()`, which writes text that starts with `=`, `+`, `-`,
+or `@` as literal text, and both return `Cache-Control: no-store`. Neither accepts filters.
+
+- **Inventory** (`inventory/exports.py`, sheet `Inventory`, file `ems-inventory-<date>.xlsx`):
+  one row per asset whose asset, equipment type, and category are not soft-deleted,
+  including Retired assets, ordered by Asset ID. Columns: Asset ID, Name, Category,
+  Equipment Type, Acquisition Date, and Status (display label).
+- **Lending records** (`lending/exports.py`, sheet `Lending Records`, file
+  `ems-lending-records-<date>.xlsx`): one row per loan, including loans whose asset or
+  borrower is soft-deleted, newest checkout first. Columns: Loan ID, Asset ID,
+  Equipment Name, Borrower UNB ID, Borrower Name, Checkout Date, Expected Return Date,
+  Actual Return Date, Return Condition, and Loan Status. Loan Status is `Completed` when
+  an actual return date exists, `Overdue` when the expected return date is before the
+  business date, and `Active` otherwise.

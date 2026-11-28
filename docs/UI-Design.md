@@ -34,13 +34,13 @@ The sidebar has a **Workspace** group and, for Administrators only, an **Adminis
 | Borrowers | `/borrowers` | Technician, Administrator | Active borrower list with search, manual registration, editable details, and reviewed damage incident history/management. Damage warning level and damage-based eligibility are calculated from unresolved reviewed incidents; checkout enforces overdue and damage-based standing. |
 | Maintenance | `/maintenance` | Technician, Administrator | `maintenance-records/`; create, view, and completion workflows are integrated. |
 | Analytics | `/analytics` | Everyone | Availability, utilization, borrowing, and borrower analytics APIs. |
-| Import & Export | `/import-export` | Technician, Administrator | Pending |
+| Import & Export | `/import-export` | Technician, Administrator | `assets/export/` and `loans/export/`; import is pending |
 | Users & Access | `/users` | Administrator | `users/` |
 
 - Roles follow [database.md §5](database.md#5-permissions-scope). The prototype only demos Administrator and Technician; Faculty see view-only pages with no create, edit, or workflow buttons.
 - Use query parameters for filters so links work, for example a dashboard card linking to `/loans?status=Overdue`.
 - **Demo navigation:** `/categories` and `/equipment-types` have been removed from frontend navigation and routing. Their existing source components and backend lookup APIs are retained for future integration and asset forms. `/assets/new` remains the working Add Asset route.
-- **In-progress pages:** Import & Export and Users & Access display "This page is still in progress." Navigation and direct page access follow the roles in the table above; these frontend guards do not replace backend authorization when those APIs are implemented.
+- **In-progress pages:** Users & Access displays "This page is still in progress." Navigation and direct page access follow the roles in the table above; these frontend guards do not replace backend authorization when those APIs are implemented.
 - **Sidebar:** the desktop sidebar follows the prototype at 248px, with the brand mark, Workspace links, administrator-only Administration group, and signed-in profile/sign-out footer. Below 760px it retains an accessible 60px icon rail; a slide-in menu remains future work.
 
 ## 3. Design tokens
@@ -201,3 +201,12 @@ empty, and retryable error states replace mock data.
   user or browser tab do not automatically update an already-open report.
 - Download Excel requests a fresh workbook using the selected export scope.
   It may include newer data than a chart loaded earlier.
+
+### Import & Export page
+
+The page has Import Records and Export Records tabs; `?tab=export` opens Export Records.
+Import Records says spreadsheet import is not available yet. Export Records shows an
+Inventory card and a Lending Records card, each with its own Export to Excel button
+instead of the prototype's checkboxes and single button. Each button shows progress,
+prevents duplicate requests, and shows a success or error message. The prototype's other
+export types, date range inputs, and the Serial Number column are not built.

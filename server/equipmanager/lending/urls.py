@@ -3,6 +3,7 @@ from django.urls import path
 from . import views
 from .analytics import AnalyticsOptions, LendingAnalytics
 from .analytics_export import AnalyticsExport
+from .exports import LendingRecordsExport
 
 urlpatterns = [
     path('analytics/exports/', AnalyticsExport.as_view(), name='analytics-export'),
@@ -25,6 +26,7 @@ urlpatterns = [
         name="analytics-borrowers",
     ),
     path("loans/", views.LoanList.as_view(), name="loan-list"),
+    path("loans/export/", LendingRecordsExport.as_view(), name="loan-export"),
     path("loans/<int:pk>/", views.LoanDetail.as_view(), name="loan-detail"),
     path("loans/<int:pk>/return/", views.LoanReturn.as_view(), name="loan-return"),
     path("borrowers/", views.BorrowerList.as_view(), name="borrower-list"),

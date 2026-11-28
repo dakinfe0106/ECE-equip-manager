@@ -495,8 +495,10 @@ All endpoints live under `/api/` and end with a trailing slash.
 | PATCH | `/api/borrowers/<borrower_id>/damage-flags/<damage_flag_id>/` | Technician or Administrator. Corrects incident equipment, date, reason, or notes in place and records editor/time/changed fields in audit history. |
 | POST | `/api/borrowers/<borrower_id>/damage-flags/<damage_flag_id>/` | Technician or Administrator. Resolves an unresolved incident with a required `resolution_reason`; retains the incident in history. |
 | GET | `/api/loans/` | Technician or Administrator. Read-only loan history ordered by loan ID; supports status, expected-return date bounds, current asset status, and search across borrower/asset details. |
+| GET | `/api/loans/export/` | Technician or Administrator. Downloads all loans with borrower details and Active/Overdue/Completed status as an Excel workbook; see [Record exports](Backend.md#record-exports). |
 | POST | `/api/loans/` | Technician or Administrator. Checks out an available asset to an eligible borrower; accepts `{asset_id, borrower_id, expected_return_date}` and sets `Asset.status` to `On_Loan` transactionally. |
 | POST | `/api/assets/` | Authenticated. Creates an asset with an active `equipment_type_id`; status starts as `Available`. |
+| GET | `/api/assets/export/` | Technician or Administrator. Downloads active inventory, including Retired assets, as an Excel workbook; see [Record exports](Backend.md#record-exports). |
 | GET | `/api/assets/<asset_id>/` | Authenticated. Returns one asset. |
 | PATCH | `/api/assets/<asset_id>/` | Authenticated asset edit; accepts `name` and `acquisition_date` only. |
 | GET | `/api/maintenance-records/` | Technician or Administrator. Lists maintenance history; supports `status` (`all`, `in_progress`, `completed`), `maintenance_type`, `priority`, `asset_identifier`, and `asset_id` filters. |
